@@ -1,18 +1,60 @@
-# Agent instructions
+# Shop-Floor OS: agent instructions
 
-Shop-Floor OS is a multi-agent dispatch system for a fictional car assembly hall. Its data is synthetic and
-anchored on real public sources. The data lives in four Postgres databases (Docker container `shopfloor-pg`),
-registered in a local Zetaris instance as `sf_fleet`, `sf_hr`, `sf_plant` and `sf_ops`. Models are served
-through Meterless Nightshift. These rules apply to any coding assistant (Cursor, Codex, Claude Code).
+Cursor is the main build tool for this project. These rules match `.cursor/rules/shopfloor.mdc`; keep the two
+files in sync. They apply to any coding assistant (Cursor, Codex, Claude Code).
 
-## House rules
-- **Local only.** Never push, add a git remote or use GitHub. Local commits are fine when the user asks.
-- **Secrets.** Settings are in `.env`, which git ignores. Never print, log or commit its values, and never put
-  them in prompts or URLs. To check a setting, test whether it is set without showing it.
-- **Ask first** before installing packages, starting or removing containers, downloading data, or running
-  anything that creates, drops or writes in Zetaris. Never run `docker compose down -v` or touch Docker
-  volumes. Leave `~/hackathon/zetaris-platform`, `~/hackathon/getting-started` and
-  `~/hackathon/open-agent-hack` unchanged.
+## Purpose
+Shop-Floor OS is a multi-agent dispatch system for a fictional car final-assembly hall: AI agents plan, robots
+(AGVs) execute, humans judge. Open Agent Hackathon 2026, Track 3 (Reasoning Architecture).
+- **Data:** four Postgres databases (Docker container `shopfloor-pg`), registered in a local Zetaris instance as
+  `sf_fleet`, `sf_hr`, `sf_plant` and `sf_ops`. The data is synthetic and anchored on real public sources; see
+  `README.md` and `sf_ops.data_sources`.
+- **Models:** Nemotron via Meterless Nightshift (`MODEL_BASE_URL`), with lanes `NEMOTRON_DEEP` and
+  `NEMOTRON_FAST`.
+
+## Repo layout
+Folders marked (planned) do not exist yet; create them when the first module needs them.
+
+| Path | What goes there |
+|---|---|
+| `app/data/` | Data generator (`generate.py`) and the optional rebuild of `data/seed/` (`fetch_sources.py`) |
+| `app/sim/` | (planned) Deterministic floor simulation: AGV movement, incidents, time stepping |
+| `app/agents/` | (planned) The reasoning agents and their Pydantic message models |
+| `app/lab/` | (planned) Offline experiments and replays of incident history |
+| `app/engines/` | (planned) Non-LLM engines: path planning, scheduling, rule checks |
+| `app/zetaris.py` | The only data access layer |
+| `app/llm.py` | (planned) The only model-call layer |
+| `web/` | (planned) Demo UI |
+| `tests/` | (planned) pytest tests |
+| `logs/` | JSONL run logs (`*.jsonl` is git-ignored) |
+| `data/seed/` | Committed real-data summaries the generator reads |
+| `scripts/` | `start_postgres.sh`, `load_data.sh` |
+| `run.py` | Command line entry point |
+
+## Rules
+1. **Secrets** come only from `.env` via python-dotenv (`load_dotenv()`). Never hard-code, print, log or commit
+   a key, token or password, and never put one in a prompt or URL. To check a setting, test whether it is set.
+2. **Model calls** all go through `app/llm.py` to Meterless Nightshift, using `NEMOTRON_DEEP` or
+   `NEMOTRON_FAST` from `.env`. Never call NVIDIA or any other provider directly, and do not use the local lane
+   without asking, because it can trigger a large model download.
+3. **Data reads** all go through `app/zetaris.py` (`run_sql`). Use one federated query per incident. Run
+   read-only SQL first (`SHOW`, `DESCRIBE`, `SELECT`). Send one statement per call, with no trailing semicolon
+   and with qualified names (`sf_ops.incidents`). Ask before anything that creates, drops or writes. Syntax
+   reference: `~/hackathon/getting-started/docs/guides/zetaris-lightning-sql-commands.md`.
+4. **Reload** data with `bash scripts/load_data.sh`, then `.venv/bin/python -m app.zetaris refresh`.
+5. **No LLM calls** inside `app/sim` or in lab replays. Both must be deterministic and reproducible (seeded).
+6. **Agents exchange Pydantic models** and use strict JSON. Validate every model reply against its schema, and
+   reject it or retry. Never pass free text between agents.
+7. **Every agent step** appends one JSONL line to `logs/`, with timestamp, agent, step, inputs, output, model
+   lane and latency. Never write secrets to it.
+8. **Each new module** gets a pytest test in `tests/`. Tests must not need network access, Zetaris or
+   Nightshift unless they are marked as integration tests.
+9. **Prefer the standard library.** Ask before adding any dependency. Runtime dependencies go in
+   `requirements.txt`; the optional data rebuild uses `requirements-data.txt`.
+10. **Git is local only.** Commit locally when asked; never push, add a remote or use GitHub.
+11. **Ask first** before installing packages, starting or removing containers, or downloading data. Never run
+    `docker compose down -v` or touch Docker volumes. Leave `~/hackathon/zetaris-platform`,
+    `~/hackathon/getting-started` and `~/hackathon/open-agent-hack` unchanged.
 
 ## Preflight (read-only)
 ```bash
@@ -23,25 +65,10 @@ docker ps --format '{{.Names}} {{.Status}}'          # shopfloor-pg and the zeta
 ```
 Report a short pass/fail list, and stop if anything fails.
 
-## Querying data
-- Use `app/zetaris.py`: `run_sql(sql)` in code, or `.venv/bin/python -m app.zetaris "<SQL>"` from the shell.
-- Zetaris Lightning SQL, read-only first (`SHOW`, `DESCRIBE`, `SELECT`). Send one statement per call, with no
-  trailing semicolon. Qualify tables as `<datasource>.<table>`, for example `sf_ops.incidents`.
-  Joins across datasources work.
-- Syntax reference: `~/hackathon/getting-started/docs/guides/zetaris-lightning-sql-commands.md`.
-- `sf_ops.data_sources` lists which real source fed which table. `README.md` describes every table and
-  the patterns planted in the data.
-
-## Changing data
-- The generator is `app/data/generate.py`. It uses only the Python standard library, uses seed 42, and reads
-  the committed real-data summaries in `data/seed/`.
-- Reload: `bash scripts/load_data.sh`, then `.venv/bin/python -m app.zetaris refresh`. This rebuilds the four
-  databases.
-- `app/data/fetch_sources.py` is an optional step that rebuilds `data/seed/` from the original sources. It
-  needs network access, and the Bosch step needs `pip install -r requirements-data.txt`. Ask first.
-
-## Running the app
-- `.venv/bin/python run.py context --zone FINAL` runs one federated Zetaris query and asks Nemotron for a
-  summary. Zone ids are in `sf_ops.zones`, for example FINAL, TRIM or X-WEST.
-- Model lanes in `.env`: `NEMOTRON_MODEL` (auto), `NEMOTRON_DEEP`, `NEMOTRON_FAST`, `NEMOTRON_LOCAL`. Do not call
-  the local lane without asking, because it can trigger a large model download.
+## Common commands
+```bash
+.venv/bin/python run.py context --zone FINAL          # one federated query plus a Nemotron summary
+.venv/bin/python -m app.zetaris "<SQL>"               # one read-only statement
+bash scripts/load_data.sh && .venv/bin/python -m app.zetaris refresh
+.venv/bin/python -m pytest                            # once tests/ exists
+```
