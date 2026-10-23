@@ -8,11 +8,14 @@ overtime.
 
 Standard library only. Deterministic (seed 42), so every run gives the same data.
 
-    python -m app.data.fetch_sources       # optional: real-world anchors into data/raw/
-    python -m app.data.generate            # writes data/sql/{fleet,hr,plant,ops}.sql
+    python -m app.data.generate            # writes data/sql/{fleet,hr,plant,ops}.sql from data/seed/
+    python -m app.data.fetch_sources       # optional: rebuild data/seed/ from the original sources
 
-Real-world anchors (each optional; a documented fallback is used when the file is missing):
+Real-world anchors, read from the committed summaries in data/seed/ (each optional; a documented
+fallback is used when a file is missing):
   - UCI AI4I 2020 Predictive Maintenance (CC BY 4.0, DOI 10.24432/C5HS5C): hourly machine telemetry.
+  - Bosch CNC Machining dataset (CC BY 4.0): real vibration recordings, labelled normal/abnormal, that
+    back the wheel nutrunner's torque alarms (real fault or sensor noise).
   - OSHA Severe Injury Reports, NAICS 3361 (public domain): the mix of hazard types among safety events.
   - BLS SOII, NAICS 3361 (public domain): the recordable injury rate that sets how many safety events occur.
   - Open-Meteo historical weather for Detroit, MI (CC BY 4.0, "Weather data by Open-Meteo.com"):
@@ -37,7 +40,8 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW = ROOT / "data" / "raw"
+RAW = ROOT / "data" / "raw"    # optional downloads, git-ignored
+SEED = ROOT / "data" / "seed"  # small real-data summaries, committed; see app/data/fetch_sources.py
 OUT = ROOT / "data" / "sql"
 rng = random.Random(42)
 
@@ -115,6 +119,11 @@ MACHINES = [
     ("M-08", "Marriage nutrunner", "nutrunner", "M10", 2020),
 ]
 MACHINE = {m[0]: m for m in MACHINES}
+VIBRATION_MACHINE = "M-06"  # the wheel nutrunner carries the real Bosch vibration evidence
+VIBRATION_COLS = ([("recording", "TEXT PRIMARY KEY"), ("bosch_machine", "TEXT"), ("operation", "TEXT"),
+                   ("period", "TEXT"), ("label", "TEXT"), ("duration_s", "REAL")]
+                  + [(f"{a}_{s}", "REAL") for a in "xyz" for s in ("rms", "peak", "crest", "kurtosis")]
+                  + [("linked_machine_id", "TEXT")])
 
 # agv_id, model, kind, payload_kg, speed_mps, commissioned
 AGVS = [
@@ -274,7 +283,7 @@ def shift_day(ts):
 # ---------- real-world anchors ----------
 
 def load_weather():
-    path = RAW / "weather_detroit_hourly.csv"
+    path = SEED / "weather_detroit_hourly.csv"
     temps = {}
     if path.exists():
         with path.open(newline="") as f:
@@ -283,7 +292,7 @@ def load_weather():
                     temps[datetime.fromisoformat(r["ts"])] = float(r["temperature_c"])
     if len(temps) >= DAYS * 24 * 0.95:
         return temps, "open-meteo"
-    print("data/raw/weather_detroit_hourly.csv missing or incomplete: synthesising Detroit-like temperatures")
+    print("data/seed/weather_detroit_hourly.csv missing or incomplete: synthesising Detroit-like temperatures")
     temps = {}
     for h in range(DAYS * 24):
         ts = START + timedelta(hours=h)
@@ -293,7 +302,7 @@ def load_weather():
 
 
 def load_osha_mix():
-    path = RAW / "osha_sir_naics3361_counts.csv"
+    path = SEED / "osha_sir_naics3361_counts.csv"
     if path.exists():
         mix = Counter()
         with path.open(newline="") as f:
@@ -301,24 +310,34 @@ def load_osha_mix():
                 mix[r["hazard_group"]] += int(r["reports"])
         if mix:
             return dict(mix), "osha-sir"
-    print("data/raw/osha_sir_naics3361_counts.csv missing: using the built-in OSHA hazard mix")
+    print("data/seed/osha_sir_naics3361_counts.csv missing: using the built-in OSHA hazard mix")
     return dict(OSHA_FALLBACK), "fallback"
 
 
 def load_bls_rate():
-    path = RAW / "bls_soii_naics3361.csv"
+    path = SEED / "bls_soii_naics3361.csv"
     if path.exists():
         with path.open(newline="") as f:
             rows = [r for r in csv.DictReader(f) if r["measure"] == "total_recordable_rate_per_100_fte"]
         if rows:
             latest = max(rows, key=lambda r: r["year"])
             return float(latest["value"]), f"bls-soii-{latest['year']}"
-    print("data/raw/bls_soii_naics3361.csv missing: using BLS 2024 rate 5.6")
+    print("data/seed/bls_soii_naics3361.csv missing: using BLS 2024 rate 5.6")
     return BLS_TRC_FALLBACK, "fallback"
 
 
+def load_vibration():
+    """Bosch CNC Machining recordings summarised to one row each (see fetch_sources.py)."""
+    path = SEED / "bosch_cnc_vibration_summary.csv"
+    if not path.exists():
+        print("data/seed/bosch_cnc_vibration_summary.csv missing: torque faults get no vibration evidence")
+        return []
+    with path.open(newline="") as f:
+        return list(csv.DictReader(f))
+
+
 def ai4i_rows():
-    path = RAW / "ai4i2020.csv"
+    path = SEED / "ai4i2020.csv"
     if path.exists():
         with path.open(newline="", encoding="utf-8-sig") as f:
             for r in csv.DictReader(f):
@@ -326,7 +345,7 @@ def ai4i_rows():
                        int(r["Rotational speed [rpm]"]), float(r["Torque [Nm]"]), int(r["Tool wear [min]"]),
                        int(r["Machine failure"]), int(r["HDF"]), int(r["OSF"]), r["Type"], "ai4i2020")
         return
-    print("data/raw/ai4i2020.csv not found: synthesising machine telemetry instead")
+    print("data/seed/ai4i2020.csv not found: synthesising machine telemetry instead")
     for _ in range(3000):
         air = rng.gauss(300, 2)
         proc = air + rng.gauss(10, 1)
@@ -450,6 +469,9 @@ class Plant:
         self.cert_expiry = {(c[0], c[1]): c[3] for c in self.certs}
         self.roster, self.present = make_roster(self.workers)
         self.ai4i = list(ai4i_rows())
+        self.vibration = load_vibration()
+        self.vibration_by_label = {lab: [v["recording"] for v in self.vibration if v["label"] == lab]
+                                   for lab in ("normal", "abnormal")}
         self.agvs = [{"id": a[0], "model": a[1], "kind": a[2], "payload": a[3], "speed": a[4], "commissioned": a[5],
                       "home": (27 + i, 17 + i % 2),
                       "last_service": (END - timedelta(days=150 if a[0] == FLAKY_AGV else rng.randint(4, 25))).date(),
@@ -599,7 +621,14 @@ class Plant:
         kit_distance = min(manhattan((kx, ky), (x, y)) for _, kx, ky in SPILL_KITS) if kind == "fluid_spill" else None
 
         false_alarm = (rng.random() < 0.25 if kind == "machine_overheat" else
+                       rng.random() < 0.2 if machine == VIBRATION_MACHINE else  # noisy torque/vibration sensor
                        rng.random() < 0.04 if kind in ("robot_cell_fault", "torque_fault", "agv_fault") else False)
+        # The wheel nutrunner's alarms come with a real Bosch vibration recording as evidence:
+        # an abnormal one for genuine faults, a normal one when it turns out to be sensor noise.
+        recording = None
+        if machine == VIBRATION_MACHINE and self.vibration:
+            pool = self.vibration_by_label["normal" if false_alarm else "abnormal"]
+            recording = rng.choice(pool) if pool else None
         if kind == "part_shortage":
             clear = ({"agv_late": 240, "mispick": 360, "supplier_short": 1500, "agv_down": 420}[cause]
                      + smkt_distance * 10)  # walk to the supermarket, pick, drive back
@@ -686,7 +715,8 @@ class Plant:
             "cars_lost": cars_lost, "cost_usd": round(cost), "outcome": outcome, "false_alarm": false_alarm,
             "supermarket_distance": smkt_distance, "spill_kit_distance": kit_distance,
             "outdoor_temp_c": temp, "agv_utilisation_pct": round(util * 100, 1) if producing else None,
-            "osha_group": osha_group, "recordable_injury": False, "description": description})
+            "osha_group": osha_group, "recordable_injury": False, "vibration_recording": recording,
+            "description": description})
 
     # ---------- derived tables ----------
 
@@ -941,6 +971,8 @@ def build():
                                     ("process_temp_k", "REAL"), ("rpm", "INT"), ("torque_nm", "REAL"),
                                     ("tool_wear_min", "INT"), ("failure", "INT"), ("heat_dissipation_failure", "INT"),
                                     ("overstrain_failure", "INT"), ("source", "TEXT")], machine_telemetry),
+        table("vibration_samples", VIBRATION_COLS,
+              [[v[c] if c in v else VIBRATION_MACHINE for c, _ in VIBRATION_COLS] for v in plant.vibration]),
         table("weather_hourly", [("ts", "TIMESTAMP"), ("temperature_c", "REAL"), ("source", "TEXT")],
               [(ts, t, plant.weather_source) for ts, t in sorted(plant.temps.items())]),
         table("production_plan", [("shift_date", "DATE"), ("shift_code", "TEXT"), ("planned_units", "INT"),
@@ -961,7 +993,8 @@ def build():
         ("response_s", "INT"), ("time_to_clear_s", "INT"), ("downtime_min", "REAL"), ("cars_lost", "INT"),
         ("cost_usd", "INT"), ("outcome", "TEXT"), ("false_alarm", "BOOLEAN"), ("supermarket_distance", "INT"),
         ("spill_kit_distance", "INT"), ("outdoor_temp_c", "REAL"), ("agv_utilisation_pct", "REAL"),
-        ("osha_group", "TEXT"), ("recordable_injury", "BOOLEAN"), ("description", "TEXT")]
+        ("osha_group", "TEXT"), ("recordable_injury", "BOOLEAN"), ("vibration_recording", "TEXT"),
+        ("description", "TEXT")]
     ops = [
         table("zones", [("zone_id", "TEXT PRIMARY KEY"), ("name", "TEXT"), ("kind", "TEXT"), ("x0", "INT"),
                         ("y0", "INT"), ("x1", "INT"), ("y1", "INT")], ZONES),
@@ -978,7 +1011,7 @@ def build():
                                ("incident_id", "TEXT")], andon),
         table("data_sources", [("source", "TEXT PRIMARY KEY"), ("used_for", "TEXT"), ("status", "TEXT"),
                                ("licence", "TEXT"), ("credit", "TEXT")], [
-            ("UCI AI4I 2020", "machine_telemetry", "ai4i2020" if (RAW / "ai4i2020.csv").exists() else "synthetic",
+            ("UCI AI4I 2020", "machine_telemetry", "ai4i2020" if (SEED / "ai4i2020.csv").exists() else "synthetic",
              "CC BY 4.0", "Matzka, S. (2020). AI4I 2020 Predictive Maintenance Dataset. UCI ML Repository. DOI 10.24432/C5HS5C"),
             ("OSHA Severe Injury Reports, NAICS 3361", "mix of safety event types", plant.osha_source,
              "Public domain", "U.S. Department of Labor, OSHA. Aggregated counts only; no endorsement implied"),
@@ -986,6 +1019,12 @@ def build():
              "Public domain", "U.S. Bureau of Labor Statistics, Survey of Occupational Injuries and Illnesses"),
             ("Open-Meteo historical weather, Detroit MI", "outdoor temperature, machine heat", plant.weather_source,
              "CC BY 4.0", "Weather data by Open-Meteo.com"),
+            ("Bosch CNC Machining dataset (UCI 752)", f"vibration_samples, evidence for {VIBRATION_MACHINE} torque alarms",
+             "bosch-cnc" if plant.vibration else "missing", "CC BY 4.0",
+             "Tnani, Feil, Diepold (2022), Procedia CIRP 107; github.com/boschresearch/CNC_Machining"),
+            ("MovingAI MAPF benchmarks, warehouse maps", "data/seed/mapf for path-planner benchmarks",
+             "static" if (SEED / "mapf").exists() else "missing", "Open Data Commons Attribution",
+             "Stern et al. (2019), Multi-Agent Pathfinding: Definitions, Variants, and Benchmarks, SoCS; movingai.com"),
             ("OSHA 29 CFR 1910", "safety_rules (paraphrased)", "static", "Public domain", "U.S. Department of Labor"),
         ]),
         table("experiments", [("experiment_id", "TEXT PRIMARY KEY"), ("created_at", "TIMESTAMP"),
@@ -998,11 +1037,11 @@ def build():
                   "fleet_hourly": len(plant.hourly)},
         "hr": {"workers": len(plant.workers), "certifications": len(plant.certs), "shifts": len(plant.roster)},
         "plant": {"stations": len(STATIONS), "machines": len(MACHINES), "machine_telemetry": len(machine_telemetry),
-                  "weather_hourly": len(plant.temps), "production_plan": len(plan), "units": len(units),
+                  "vibration_samples": len(plant.vibration), "weather_hourly": len(plant.temps), "production_plan": len(plan), "units": len(units),
                   "work_orders": len(work_orders)},
         "ops": {"zones": len(ZONES), "floor_cells": ROWS * COLS, "spill_kits": len(SPILL_KITS),
                 "safety_rules": len(SAFETY_RULES), "incidents": len(incidents), "andon_events": len(andon),
-                "data_sources": 5, "experiments": 0},
+                "data_sources": 7, "experiments": 0},
     }
     print(f"anchors: weather={plant.weather_source}, osha={plant.osha_source}, bls={plant.bls_source} "
           f"(TRC {plant.bls_rate}); expected recordables {plant.expected_recordables:.2f}, "

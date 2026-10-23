@@ -16,16 +16,24 @@ A car final-assembly hall on a 20 x 40 grid (one cell is about 2 m):
 |---|---|
 | sf_fleet | agvs, agv_tasks, agv_telemetry (every minute, last 7 days), fleet_hourly |
 | sf_hr | workers, certifications, shifts |
-| sf_plant | stations, machines, machine_telemetry (hourly, 90 days), weather_hourly, production_plan, units, work_orders |
+| sf_plant | stations, machines, machine_telemetry (hourly, 90 days), vibration_samples, weather_hourly, production_plan, units, work_orders |
 | sf_ops | zones, floor_cells, spill_kits, safety_rules, incidents, andon_events, data_sources, experiments |
 
+No downloads or extra installs are needed to run it. The real-data summaries are committed in `data/seed/`.
+
 ```
-python -m app.data.fetch_sources   # optional: download the real-world anchors into data/raw/
 scripts/start_postgres.sh          # Postgres container on the Zetaris Docker network
 scripts/load_data.sh               # generate and (re)load the four databases
 python -m app.zetaris register     # first time: create the Zetaris datasources
 python -m app.zetaris refresh      # after a reload: pick up new tables and columns
 python run.py context --zone FINAL # zone context through Zetaris plus a Nemotron summary
+```
+
+To rebuild `data/seed/` from the original sources (optional; needs network access, and h5py for the Bosch files):
+
+```
+pip install -r requirements-data.txt
+python -m app.data.fetch_sources   # or name one source: ai4i, osha, bls, weather, bosch, mapf
 ```
 
 ## What is real and what is synthetic
@@ -37,7 +45,7 @@ python run.py context --zone FINAL # zone context through Zetaris plus a Nemotro
 
 No open dataset of car-plant operations (AGVs, andon, downtime) was found under an open licence, so these parts are simulated. Each one is shaped by the real data below.
 
-**Real data used.** Each source is optional. Without it, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which one was used.
+**Real data used.** The summaries are stored in `data/seed/` and committed. If a file is missing, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which source was used.
 
 | Source | Used for | Licence and credit |
 |---|---|---|
@@ -45,6 +53,8 @@ No open dataset of car-plant operations (AGVs, andon, downtime) was found under 
 | OSHA Severe Injury Reports, NAICS 3361 (Jan 2015 to Nov 2025, 321 reports) | The mix of safety-event types (vehicle/pedestrian, caught in machinery, slips, heat and so on). Only aggregated counts by event type are stored; employer names, addresses, locations and narratives are dropped on download. | Public domain, U.S. Department of Labor. No endorsement implied. |
 | BLS Survey of Occupational Injuries and Illnesses, NAICS 3361 | 5.6 recordable cases per 100 full-time workers (2024). That rate × 24 workers × 90 days gives the expected recordable injuries, and Heinrich's 1:29:300 ratio (a heuristic) scales it to about 110 safety events. | Public domain, U.S. Bureau of Labor Statistics. |
 | Open-Meteo historical weather, Detroit MI | Hourly outdoor temperature. It heats the machines and drives overheat alarms. | CC BY 4.0. Weather data by Open-Meteo.com |
+| Bosch CNC Machining dataset (UCI 752), 3-axis vibration at 2 kHz from three CNC machines | `vibration_samples`: all 70 recordings labelled abnormal plus a stratified sample of 280 normal ones, summarised per axis (RMS, peak, crest factor, kurtosis). The raw HDF5 files are not kept. Each torque alarm on the wheel nutrunner M-06 cites a recording: an abnormal one for real faults, a normal one for false alarms, so agents can check fault against noise. These are milling-machine signals used as a stand-in for nutrunner vibration. | CC BY 4.0. Tnani, M.-A., Feil, M., Diepold, K. (2022), "Smart Data Collection System for Brownfield CNC Milling Machines: A New Benchmark Dataset for Data-Driven Machine Monitoring", Procedia CIRP 107. github.com/boschresearch/CNC_Machining |
+| MovingAI MAPF benchmarks: 4 warehouse maps | `data/seed/mapf/*.map`, kept for path-planner benchmarks. The 200 matching scenario files are an optional download into `data/raw/mapf/`. | Open Data Commons Attribution License. Stern, R. et al. (2019), "Multi-Agent Pathfinding: Definitions, Variants, and Benchmarks", SoCS. movingai.com/benchmarks/mapf |
 | OSHA 29 CFR 1910.22, 1910.147, 1910.178, 1910.212, 1910.217 | Paraphrased rule summaries in `safety_rules`. The robot-cell entry rule is our own plain-language rule. | Public domain, U.S. Department of Labor. |
 
 ## Patterns in the data (planted, for the agents to find)
@@ -53,6 +63,7 @@ No open dataset of car-plant operations (AGVs, andon, downtime) was found under 
 - Shortages rise when the kitting fleet is busy, either from high demand or an AGV being down.
 - Time to clear grows with distance from the supermarket (shortages) and from the nearest spill kit (spills).
 - Machine overheats are about three times as likely in hot hours, and about a quarter are false alarms from noisy sensors.
+- Some wheel-nutrunner alarms are sensor noise (20 of 150 in this build); the linked Bosch vibration recording shows which.
 - The night shift is thinly staffed and clears incidents more slowly.
 - Some repairs were done by people whose lockout/tagout or forklift certification had lapsed.
 - Body carriers cross the west pedestrian crossing faster than the 0.5 m/s rule allows.

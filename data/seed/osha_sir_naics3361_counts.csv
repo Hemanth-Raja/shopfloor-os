@@ -1,0 +1,92 @@
+hazard_group,event_title,reports,hospitalized,amputations
+caught_in_machinery,Caught in running equipment or machinery during regular operation,29,12,20
+caught_in_machinery,Compressed or pinched by shifting objects or equipment,24,7,19
+caught_in_machinery,"Caught in running equipment or machinery during maintenance, cleaning",13,9,6
+caught_in_machinery,"Caught in or compressed by equipment or objects, unspecified",8,3,8
+caught_in_machinery,"Caught in running equipment or machinery, unspecified",5,1,5
+caught_in_machinery,"Caught in running equipment or machinery, n.e.c.",3,2,3
+caught_in_machinery,Compressed or pinched between two stationary objects,1,1,0
+fall_from_height,Other fall to lower level less than 6 feet,9,9,0
+fall_from_height,"Other fall to lower level, unspecified",9,9,0
+fall_from_height,Other fall to lower level 6 to 10 feet,2,2,0
+fall_from_height,"Fall from collapsing structure or equipment, unspecified",1,1,0
+fall_from_height,Fall through surface or existing opening 16 to 20 feet,1,1,0
+fall_from_height,Fall through surface or existing opening 6 to 10 feet,1,1,0
+fall_from_height,Fall to lower level from collapsing structure or equipment 6 to 30 feet,1,1,0
+fall_from_height,Fall to lower level from collapsing structure or equipment less than 6 feet,1,1,0
+fall_from_height,Other fall to lower level 11 to 15 feet,1,1,0
+fall_from_height,Other fall to lower level 6 to 30 feet,1,1,0
+heat_exposure,Exposure to environmental heat,9,9,0
+heat_exposure,Exposure to environmental heat unspecified,1,1,0
+heat_exposure,Ignition of clothing from controlled heat source,1,1,0
+other,Caught or wedged between objects nonrunning,6,2,5
+other,Struck against moving part of machinery or equipment,5,4,3
+other,"Caught, entangled in running powered equipment normal operation",3,1,3
+other,Contact with hot objects or substances,3,3,0
+other,"Direct exposure to electricity, unspecified",3,4,0
+other,"Struck against stationary object or equipment, n.e.c.",3,3,0
+other,"Contact with objects and equipment, unspecified",2,2,1
+other,Nonclassifiable,2,2,0
+other,Overexertion in lifting-single episode,2,2,0
+other,"Bending, crawling, reaching, twisting-single episode",1,1,0
+other,"Collapse, engulfment n.e.c.",1,0,1
+other,Compressed between running equipment and other object(s),1,0,1
+other,"Direct exposure to electricity, greater than 220 volts",1,1,0
+other,Entangled in other object or equipment,1,1,0
+other,"Explosion of pressure vessel, piping, or tire",1,1,0
+other,"Exposure to harmful substances or environments, unspecified",1,1,0
+other,"Hitting, kicking, beating, shoving",1,1,0
+other,Inhalation of harmful substance-single episode,1,1,0
+other,"Injured by handheld object or equipment, unspecified",1,1,0
+other,Injured by object held or wielded by person,1,1,0
+other,Overexertion while materials moving by hand,1,1,0
+other,Struck against stationary object n.e.c.,1,0,1
+other,"Twisting, reaching, bending",1,1,0
+slip_trip_fall,Injured by slipping or swinging object held by injured worker,13,6,8
+slip_trip_fall,Fall on same level due to slipping,11,11,0
+slip_trip_fall,Fall on same level due to tripping over an object,11,11,0
+slip_trip_fall,"Fall on same level, n.e.c.",8,8,0
+slip_trip_fall,Fall on same level due to slip or trip,7,7,0
+slip_trip_fall,Fall on same level due to tripping on uneven surface,4,4,0
+slip_trip_fall,"Fall on same level due to tripping, unspecified",4,3,1
+slip_trip_fall,"Fall on same level while climbing stairs, steps, or curbs",2,2,0
+slip_trip_fall,"Fall on same level, unspecified",2,2,0
+slip_trip_fall,"Fall, slip, trip, unspecified",2,2,0
+slip_trip_fall,Injured by slipping or swinging object held by other person,1,0,1
+slip_trip_fall,"Slip, trip, stumble or fall on same level fall unspecified",1,1,0
+slip_trip_fall,"Struck by swinging or slipping object, other than handheld, n.e.c.",1,1,0
+struck_by_object,"Struck by falling object or equipment, n.e.c.",4,4,0
+struck_by_object,Struck by other falling object n.e.c.,4,3,1
+struck_by_object,"Struck by running powered equipment during maintenance, cleaning, testing",4,2,2
+struck_by_object,Struck by or caught in swinging door or gate,3,2,1
+struck_by_object,Struck by discharged object or substance,2,2,0
+struck_by_object,"Struck by door, gate, window",2,1,1
+struck_by_object,"Struck by falling object or equipment, unspecified",2,2,0
+struck_by_object,Struck by object or equipment dropped by injured worker,2,0,2
+struck_by_object,"Struck by dislodged flying object, particle",1,0,1
+struck_by_object,Struck by dislodged or detached object(s),1,1,0
+struck_by_object,Struck by falling object unspecified,1,1,0
+struck_by_object,"Struck by object or equipment, n.e.c.",1,1,1
+struck_by_object,"Struck by object or equipment, unspecified",1,0,1
+struck_by_object,Struck by object tipping over,1,1,0
+struck_by_object,Struck by rolling object or equipment being pushed by injured worker,1,1,0
+struck_by_object,Struck by running powered equipment n.e.c.,1,0,1
+vehicle_pedestrian,Part of occupant s body caught between vehicle and other object in nonroadway transport incident,12,10,3
+vehicle_pedestrian,"Pedestrian struck by vehicle in nonroadway area, unspecified",10,10,0
+vehicle_pedestrian,Struck by object falling from vehicle or machinery-other than vehicle part,6,5,2
+vehicle_pedestrian,Pedestrian struck by forward-moving vehicle in nonroadway area,5,5,0
+vehicle_pedestrian,Pedestrian struck by vehicle backing up in nonroadway area,4,4,0
+vehicle_pedestrian,"Fall or jump from vehicle in normal operation, nonroadway",3,3,0
+vehicle_pedestrian,"Collision with stationary object, nonroadway",2,1,2
+vehicle_pedestrian,"Fall or jump from and struck by same vehicle in normal operation, nonroadway",2,2,0
+vehicle_pedestrian,"Fall or jump from vehicle in normal operation, roadway",2,2,0
+vehicle_pedestrian,"Nonroadway collision with object other than vehicle, n.e.c.",2,2,0
+vehicle_pedestrian,"Nonroadway collision with other vehicle, unspecified",2,2,0
+vehicle_pedestrian,"Pedestrian vehicular incident, n.e.c.",2,2,0
+vehicle_pedestrian,"Collision between a moving and standing vehicle, nonroadway",1,1,0
+vehicle_pedestrian,Nonroadway collision with other vehicle(s) unspecified,1,1,0
+vehicle_pedestrian,Nonroadway noncollision jack-knifed or ran off driving surface,1,1,0
+vehicle_pedestrian,Nonroadway noncollision vehicle overturn,1,2,0
+vehicle_pedestrian,"Struck by rolling object or equipment-other than powered vehicle, unspecified",1,0,1
+vehicle_pedestrian,Struck by swinging part of powered vehicle,1,0,1
+vehicle_pedestrian,Struck or run over by rolling powered vehicle,1,1,0
