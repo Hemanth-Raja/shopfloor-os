@@ -18,7 +18,7 @@ load_dotenv()
 
 CONTEXT_SQL = """
 SELECT i.incident_id, i.ts, i.kind, i.station_id, i.description, i.severity, i.time_to_clear_s,
-       i.cars_lost, i.outcome, i.worker_id, w.name AS worker_name, w.skills AS worker_skills,
+       i.downtime_min, i.cars_lost, i.cost_usd, i.outcome, i.worker_id, w.name AS worker_name, w.skills AS worker_skills,
        i.agv_id, a.battery_pct AS agv_battery_pct
 FROM sf_ops.incidents i
 LEFT JOIN sf_hr.workers w ON w.worker_id = i.worker_id
@@ -28,7 +28,7 @@ ORDER BY i.ts DESC
 LIMIT 5
 """
 COLUMNS = ["incident_id", "ts", "kind", "station_id", "description", "severity", "time_to_clear_s",
-           "cars_lost", "outcome", "worker_id", "worker_name", "worker_skills", "agv_id", "agv_battery_pct"]
+           "downtime_min", "cars_lost", "cost_usd", "outcome", "worker_id", "worker_name", "worker_skills", "agv_id", "agv_battery_pct"]
 
 
 def model_client():
