@@ -5,13 +5,12 @@
 """
 
 import argparse
-import os
 import re
 import time
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
+from app.llm import chat, list_models
 from app.zetaris import run_sql
 
 load_dotenv()
@@ -31,15 +30,6 @@ COLUMNS = ["incident_id", "ts", "kind", "station_id", "description", "severity",
            "downtime_min", "cars_lost", "cost_usd", "outcome", "worker_id", "worker_name", "worker_skills", "agv_id", "agv_battery_pct"]
 
 
-def model_client():
-    return OpenAI(
-        base_url=os.environ["MODEL_BASE_URL"],
-        api_key=os.environ["MODEL_API_KEY"],
-        # Nightshift's Runtime contract asks for these headers on every request.
-        default_headers={"meterless-app": "shopfloor-os", "meterless-scope": "user"},
-    )
-
-
 def context(zone):
     if not re.fullmatch(r"[A-Za-z0-9-]+", zone):
         raise SystemExit("zone must be a zone id such as FINAL, TRIM or X-EAST")
@@ -52,19 +42,19 @@ def context(zone):
     print(f"{len(rows)} rows from Zetaris in {elapsed:.2f}s")
 
     table = "\n".join(", ".join(f"{c}={v}" for c, v in zip(COLUMNS, row)) for row in rows)
-    reply = model_client().chat.completions.create(
-        model=os.environ["NEMOTRON_MODEL"],
-        messages=[
+    reply = chat(
+        "deep",
+        [
             {"role": "system", "content": "You are a shift assistant in a car assembly plant. Answer in two sentences."},
             {"role": "user", "content": f"Recent incidents in zone {zone.upper()}:\n{table}\n\nWhat stands out?"},
         ],
     )
-    print(f"\nNemotron ({reply.model}):\n{reply.choices[0].message.content}")
+    print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
 def models():
-    for m in model_client().models.list():
-        print(m.id)
+    for model_id in list_models():
+        print(model_id)
 
 
 if __name__ == "__main__":
