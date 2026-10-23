@@ -1,7 +1,7 @@
 # Shop-Floor OS: agent instructions
 
-Cursor is the main build tool for this project. These rules match `.cursor/rules/shopfloor.mdc`; keep the two
-files in sync. They apply to any coding assistant (Cursor, Codex, Claude Code).
+Any AI coding tool is fine (Claude Code, Cursor, Codex, Windsurf, Copilot); Cursor is recommended. These rules
+match `.cursor/rules/shopfloor.mdc`; keep the two files in sync. They apply to every coding assistant.
 
 ## Purpose
 Shop-Floor OS is a multi-agent dispatch system for a fictional car final-assembly hall: AI agents plan, robots
@@ -11,6 +11,9 @@ Shop-Floor OS is a multi-agent dispatch system for a fictional car final-assembl
   `README.md` and `sf_ops.data_sources`.
 - **Models:** Nemotron via Meterless Nightshift (`MODEL_BASE_URL`), with lanes `NEMOTRON_DEEP` and
   `NEMOTRON_FAST`.
+- **Meterless Engine (hackathon requirement):** the World Model engine (`app/engines/world_model.py`) is a
+  Python port of github.com/Meterless/Meterless `engines/world-model`. It powers `run.py context`, and its
+  conformance checks pass in `tests/test_world_model.py`. Keep them green when you change the engine.
 
 ## Repo layout
 Folders marked (planned) do not exist yet; create them when the first module needs them.
@@ -21,11 +24,11 @@ Folders marked (planned) do not exist yet; create them when the first module nee
 | `app/sim/` | (planned) Deterministic floor simulation: AGV movement, incidents, time stepping |
 | `app/agents/` | (planned) The reasoning agents and their Pydantic message models |
 | `app/lab/` | (planned) Offline experiments and replays of incident history |
-| `app/engines/` | (planned) Non-LLM engines: path planning, scheduling, rule checks |
+| `app/engines/` | Meterless engines and other non-LLM engines. `world_model.py` is the Meterless World Model; `shopfloor_world.py` builds it from one Zetaris query |
 | `app/zetaris.py` | The only data access layer |
-| `app/llm.py` | (planned) The only model-call layer |
+| `app/llm.py` | The only model-call layer |
 | `web/` | (planned) Demo UI |
-| `tests/` | (planned) pytest tests |
+| `tests/` | pytest tests (`.venv/bin/python -m pytest`) |
 | `logs/` | JSONL run logs (`*.jsonl` is git-ignored) |
 | `data/seed/` | Committed real-data summaries the generator reads |
 | `scripts/` | `start_postgres.sh`, `load_data.sh` |

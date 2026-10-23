@@ -1,15 +1,16 @@
 """Shop-Floor OS command line.
 
-    python run.py context --zone FINAL # federated zone context from Zetaris + one Nemotron summary
+    python run.py context --zone FINAL # one Zetaris query -> Meterless World Model -> Nemotron summary
     python run.py models               # model ids offered by Nightshift
 """
 
 import argparse
+import json
 import re
-import time
 
 from dotenv import load_dotenv
 
+from app.engines.shopfloor_world import zone_world
 from app.llm import chat, list_models
 from app.zetaris import run_sql
 
@@ -33,21 +34,26 @@ COLUMNS = ["incident_id", "ts", "kind", "station_id", "description", "severity",
 def context(zone):
     if not re.fullmatch(r"[A-Za-z0-9-]+", zone):
         raise SystemExit("zone must be a zone id such as FINAL, TRIM or X-EAST")
-    started = time.perf_counter()
-    rows = run_sql(CONTEXT_SQL.format(zone=zone.upper()))
-    elapsed = time.perf_counter() - started
+    world, payload, rows, elapsed = zone_world(zone.upper(), run_sql)
     print(" | ".join(COLUMNS))
-    for row in rows:
-        print(" | ".join("" if v is None else str(v) for v in row))
-    print(f"{len(rows)} rows from Zetaris in {elapsed:.2f}s")
+    for r in rows[:5]:
+        print(" | ".join("" if r.get(c) is None else str(r.get(c)) for c in COLUMNS))
+    print(f"{len(rows)} rows from Zetaris in {elapsed:.2f}s (one federated query)")
+    counts = ", ".join(f"{n} {t}" for t, n in payload["counts"].items() if n)
+    checks = [f"{e['id']}: {e['checks']}" for k in ("incidents", "agvs") for e in payload[k] if e.get("checks")]
+    print(f"World model: {counts}; {len(world.events())} events, {len(world.audit())} audit entries")
+    for line in checks:
+        print(f"  check {line}")
 
-    table = "\n".join(", ".join(f"{c}={v}" for c, v in zip(COLUMNS, row)) for row in rows)
+    # The prompt sees world-model state (entities, links, grounded checks), not raw rows.
     reply = chat(
         "deep",
         [
-            {"role": "system", "content": "You are a shift assistant in a car assembly plant. Answer in two sentences."},
-            {"role": "user", "content": f"Recent incidents in zone {zone.upper()}:\n{table}\n\nWhat stands out?"},
+            {"role": "system", "content": "You are a shift assistant in a car assembly plant. Use only the entities "
+                                          "and checks in the world-model JSON; do not invent ids. Answer in two sentences."},
+            {"role": "user", "content": f"World model for zone {zone.upper()}:\n{json.dumps(payload)}\n\nWhat stands out?"},
         ],
+        max_tokens=2000,  # the deep lane reasons before answering; 800 cut replies short
     )
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
