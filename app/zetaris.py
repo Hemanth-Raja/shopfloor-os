@@ -1,6 +1,7 @@
 """Thin client for the Zetaris SQL REST API, plus datasource registration.
 
     python -m app.zetaris register         # create sf_fleet, sf_hr, sf_plant, sf_ops (skips existing)
+    python -m app.zetaris refresh          # pick up new tables and columns after scripts/load_data.sh
     python -m app.zetaris "SELECT 1"       # run one statement, print rows
 """
 
@@ -64,10 +65,19 @@ def register(db):
     print(f"registered tables for {name}")
 
 
+def refresh(db):
+    """Register any new tables, re-import metadata and drop cached statistics after a reload."""
+    name = f"sf_{db}"
+    for sql in (f"REGISTER DATASOURCE TABLES FROM {name}", f"REFRESH DATASOURCE TABLES FROM {name}",
+                f"UNCACHE DATASOURCE {name}"):
+        run_sql(sql)
+    print(f"refreshed {name}")
+
+
 if __name__ == "__main__":
-    if sys.argv[1:] == ["register"]:
+    if sys.argv[1:] in (["register"], ["refresh"]):
         for db in DATABASES:
-            register(db)
+            (register if sys.argv[1] == "register" else refresh)(db)
     else:
         for row in run_sql(" ".join(sys.argv[1:])):
             print(row)

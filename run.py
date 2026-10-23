@@ -1,11 +1,12 @@
 """Shop-Floor OS command line.
 
-    python run.py context --zone B     # federated zone context from Zetaris + one Nemotron summary
+    python run.py context --zone FINAL # federated zone context from Zetaris + one Nemotron summary
     python run.py models               # model ids offered by Nightshift
 """
 
 import argparse
 import os
+import re
 import time
 
 from dotenv import load_dotenv
@@ -16,8 +17,8 @@ from app.zetaris import run_sql
 load_dotenv()
 
 CONTEXT_SQL = """
-SELECT i.incident_id, i.ts, i.kind, i.severity, i.time_to_clear_s, i.outcome,
-       i.worker_id, w.name AS worker_name, w.skills AS worker_skills,
+SELECT i.incident_id, i.ts, i.kind, i.station_id, i.description, i.severity, i.time_to_clear_s,
+       i.cars_lost, i.outcome, i.worker_id, w.name AS worker_name, w.skills AS worker_skills,
        i.agv_id, a.battery_pct AS agv_battery_pct
 FROM sf_ops.incidents i
 LEFT JOIN sf_hr.workers w ON w.worker_id = i.worker_id
@@ -26,8 +27,8 @@ WHERE i.zone_id = '{zone}'
 ORDER BY i.ts DESC
 LIMIT 5
 """
-COLUMNS = ["incident_id", "ts", "kind", "severity", "time_to_clear_s", "outcome",
-           "worker_id", "worker_name", "worker_skills", "agv_id", "agv_battery_pct"]
+COLUMNS = ["incident_id", "ts", "kind", "station_id", "description", "severity", "time_to_clear_s",
+           "cars_lost", "outcome", "worker_id", "worker_name", "worker_skills", "agv_id", "agv_battery_pct"]
 
 
 def model_client():
@@ -40,8 +41,8 @@ def model_client():
 
 
 def context(zone):
-    if not zone.isalnum():
-        raise SystemExit("zone must be alphanumeric, e.g. B")
+    if not re.fullmatch(r"[A-Za-z0-9-]+", zone):
+        raise SystemExit("zone must be a zone id such as FINAL, TRIM or X-EAST")
     started = time.perf_counter()
     rows = run_sql(CONTEXT_SQL.format(zone=zone.upper()))
     elapsed = time.perf_counter() - started
@@ -54,7 +55,7 @@ def context(zone):
     reply = model_client().chat.completions.create(
         model=os.environ["NEMOTRON_MODEL"],
         messages=[
-            {"role": "system", "content": "You are a warehouse shift assistant. Answer in two sentences."},
+            {"role": "system", "content": "You are a shift assistant in a car assembly plant. Answer in two sentences."},
             {"role": "user", "content": f"Recent incidents in zone {zone.upper()}:\n{table}\n\nWhat stands out?"},
         ],
     )
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Shop-Floor OS")
     sub = parser.add_subparsers(dest="command", required=True)
     ctx = sub.add_parser("context", help="zone context from Zetaris plus a Nemotron summary")
-    ctx.add_argument("--zone", default="B")
+    ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
     args = parser.parse_args()
     context(args.zone) if args.command == "context" else models()
