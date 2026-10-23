@@ -1,0 +1,8 @@
+# Keep secrets and bulky generated data away from Cursor indexing and AI context.
+.env
+.env.*
+!.env.example
+.venv/
+data/raw/
+data/sql/
+logs/*.jsonl
