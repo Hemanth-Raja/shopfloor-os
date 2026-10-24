@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 139 offline tests
+.venv/bin/python -m pytest -q                          # 141 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -379,6 +379,41 @@ All people, car models and the plant itself are fictional.
 9. **Fallback behaviour:**
    - `SAMPLE_MODE=true`: recorded replies plus a rule-based planner, the offline plant and no network.
    - Circuit-breaker safe mode when Nightshift fails: a rule-based plan and ESCALATE.
+
+## Retrieval, context limits and failure handling
+**Retrieval (RAG), without a vector database.** The models never get raw tables or whole documents; each agent
+retrieves what it needs:
+- *Regulations:* OSHA 29 CFR 1910 excerpts (eCFR) and plant SOPs are H-MEM records (`app/engines/citations.py`).
+  The planner is shown the clauses H-MEM ranks for the incident kind, the critic attaches the exact clause to every
+  violation, and cited references are resolved back to their text (unknown references are flagged).
+- *Experience:* H-MEM lessons and playbooks are recalled per incident kind and station before planning.
+- *Facts:* the World Model, built from one federated Zetaris query, gives grounded entities; `ground()` rejects
+  ids that do not exist.
+- *History:* the investigator and Ask the floor retrieve through guarded SQL on Zetaris and a search of our own
+  traces.
+
+**Context limits.** The largest prompt in our logs is about 7.5k tokens. Nemotron 3.5 Lightning has a 262k-token
+window and Super VL 1M. Limits are enforced in code anyway:
+- before each call, `app/models.py` estimates the prompt and skips any model where prompt plus `max_tokens` would
+  exceed half its window (`context_tokens` and `context_fraction` in `config/models.json`);
+- each role has a token budget (`max_tokens`) and a time budget (`budget_s`);
+- prompts carry compact state: World Model payloads, at most 15 rows per SQL result, SQL capped at 200 rows, and
+  the last 200 model-log lines;
+- the orchestrator has a hop budget (24) and at most 6 router calls per incident.
+
+**When a model fails.**
+1. A timeout, HTTP 5xx or 429, an empty reply or a reply that fails schema validation (after one retry) moves to
+   the next model in the role's chain.
+2. Each model's circuit breaker opens after two failures, and later calls skip it at once until a cooldown.
+3. If every model fails, the Nightshift-wide breaker opens. The router falls back to rules, the planner is replaced
+   by safe mode (a rule-based plan plus ESCALATE, so a person decides), and the investigator uses rule-based
+   stand-ins.
+4. Each fallback is visible: the trace records the requested and answering model, the models tried and why, and
+   `router` and `safe_mode` steps.
+5. `SAMPLE_MODE=true` runs the whole system offline from recorded replies.
+
+Tests cover each path: `tests/test_models.py`, `tests/test_dynamic.py`, `tests/test_agent_loop.py` and
+`tests/test_health.py`.
 
 ## Limitations
 - The floor is a 2D grid simulation, not a digital twin: AGVs move one 2 m cell per 2 s tick, and kinematics are

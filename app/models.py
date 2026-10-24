@@ -113,11 +113,36 @@ def _complete(model: str, role: str, messages: list[dict], max_tokens: int, time
                            request_id=getattr(reply, "id", None), tokens=llm._tokens(getattr(reply, "usage", None)))
 
 
-def _over_chain(lane: str, role: str | None, call) -> SimpleNamespace:
+class ContextTooLarge(ValueError):
+    """The prompt would not fit the model's context budget; the next model in the chain is tried."""
+
+
+def estimate_tokens(messages: list[dict]) -> int:
+    """A conservative estimate (about 3.5 characters per token for English and JSON)."""
+    return int(sum(len(str(m.get("content", ""))) for m in messages) / 3.5) + 8 * len(messages)
+
+
+def check_context(model: str, messages: list[dict], max_tokens: int) -> int:
+    """Refuse a prompt that would use more than `context_fraction` of the model's context window."""
+    window = CFG.get("context_tokens", {}).get(model, 131072)
+    budget = int(window * CFG["defaults"].get("context_fraction", 0.5))
+    need = estimate_tokens(messages) + max_tokens
+    if need > budget:
+        raise ContextTooLarge(f"about {need} tokens needed, budget {budget} of {window} for {model}")
+    return need
+
+
+def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None = None) -> SimpleNamespace:
     role = role_for(lane, role)
     spec = CFG["roles"][role]
     tried = []
     for model in spec["chain"]:
+        if messages is not None:
+            try:
+                check_context(model, messages, spec["max_tokens"])
+            except ContextTooLarge as err:
+                tried.append({"model": model, "skipped": f"context: {err}"})
+                continue
         b = breaker(model)
         try:
             out = b.call(call, model, spec)
@@ -144,7 +169,7 @@ def chat(lane: str, messages: list[dict], max_tokens: int | None = None, timeout
     def call(model, spec):
         return _complete(model, spec_role, messages, max_tokens or spec["max_tokens"],
                          min(timeout_s or spec["budget_s"], spec["budget_s"]), json_mode=False)
-    return _over_chain(lane, role, call)
+    return _over_chain(lane, role, call, messages)
 
 
 def call_info(reply) -> dict:
@@ -177,7 +202,7 @@ def chat_json(lane: str, messages: list[dict], schema: type[BaseModel], max_toke
             again = _complete(model, spec_role, retry, tokens * (2 if reply.truncated else 1), budget, json_mode=True)
             again.data = llm._parse(schema, again.text)
             return again
-    return _over_chain(lane, role, call)
+    return _over_chain(lane, role, call, prompted)
 
 
 def mapping() -> list[dict]:

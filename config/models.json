@@ -6,7 +6,8 @@
       "fast": "monitor"
     },
     "breaker_threshold": 2,
-    "breaker_cooldown_s": 60
+    "breaker_cooldown_s": 60,
+    "context_fraction": 0.5
   },
   "roles": {
     "router": {
@@ -93,5 +94,9 @@
   "model_apps": {
     "nvidia/nemotron-3.5-super-vl-120b-a12b": "shopfloor-os",
     "nvidia/nemotron-3.5-lightning-30b-a3b": "shopfloor-os-fast"
+  },
+  "context_tokens": {
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": 1048576,
+    "nvidia/nemotron-3.5-lightning-30b-a3b": 262144
   }
 }

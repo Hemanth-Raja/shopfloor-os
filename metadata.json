@@ -149,7 +149,7 @@
     "output_examples/example_7.json",
     "output_examples/example_8.json"
   ],
-  "logs": "logs/trace-<run_id>.jsonl per run, plus [INFO] lines on stdout; logs/llm.jsonl records the model per request",
+  "logs": "logs/trace-<run_id>.jsonl per incident (hop, agent, why, chosen by, model requested/answered, receipt), logs/trace-ask-<id>.jsonl per investigation, logs/llm.jsonl per model call, logs/approvals.jsonl per human judgement; python run.py watch follows them live",
   "sample_mode": "SAMPLE_MODE=true: offline plant, recorded Nemotron replies where available, rule-based planner otherwise; real agent logic, no network",
   "sponsors": {
     "zetaris": "data layer: one federated query per incident over sf_fleet, sf_hr, sf_plant, sf_ops; lab writes via INSERT",
@@ -192,5 +192,8 @@
       "quality_defect"
     ],
     "without_playbook": "fenced and escalated with a reason"
-  }
+  },
+  "retrieval": "H-MEM-ranked OSHA/SOP clauses for planner and critic, H-MEM lessons and playbooks, World Model grounding from one Zetaris query, guarded SQL and trace search for investigations; no vector DB",
+  "context_limits": "largest prompt ~7.5k tokens vs 262k (Lightning) / 1M (Super VL); app/models.py skips a model if prompt + max_tokens exceeds half its window; per-role max_tokens and budget_s; 15-row previews, 200-row SQL cap; hop budget 24, 6 router calls",
+  "failure_handling": "model chain fallback on timeout/5xx/429/empty/invalid JSON, per-model circuit breakers, Nightshift-wide breaker -> rule-based router + safe mode (ESCALATE), all recorded in the trace"
 }

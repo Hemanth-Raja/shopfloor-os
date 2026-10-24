@@ -99,3 +99,25 @@ def test_receipt_is_matched_by_request_id(tmp_path, monkeypatch):
 def test_mapping_lists_roles_for_the_ui():
     rows = models.mapping()
     assert {r["role"] for r in rows} >= {"router", "planner", "sql_agent"} and all("why" in r for r in rows)
+
+
+def test_a_prompt_too_big_for_a_model_skips_it(monkeypatch):
+    calls = []
+    monkeypatch.setattr(models, "_complete", fake_complete(calls=calls))
+    monkeypatch.setitem(models.CFG, "context_tokens", {models.CFG["roles"]["planner"]["chain"][0]: 4000})
+    huge = [{"role": "user", "content": "x" * 20000}]  # ~5.7k tokens: over half of a 4k window, fine for 131k
+    r = models.chat_json("deep", huge, Out, role="planner")
+    assert r.model == models.CFG["roles"]["planner"]["chain"][1] and r.tried[0]["skipped"].startswith("context")
+    assert calls[0][0] == models.CFG["roles"]["planner"]["chain"][1]  # the small model was never called
+
+
+def test_empty_or_broken_reply_falls_through_to_the_next_model(monkeypatch):
+    chain = models.CFG["roles"]["analyst"]["chain"]
+
+    def complete(model, role, messages, max_tokens, timeout_s, json_mode):
+        text = "" if model == chain[0] else '{"ok": true}'  # an empty reply, then a good one
+        return SimpleNamespace(text=text, model=model, requested=model, latency_s=0.1, truncated=False,
+                               request_id=None, tokens=None)
+    monkeypatch.setattr(models, "_complete", complete)
+    r = models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="analyst")
+    assert r.model == chain[1] and r.data.ok and "error" in r.tried[0]
