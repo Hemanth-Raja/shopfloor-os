@@ -5,3 +5,4 @@ data/raw/*
 !data/raw/.gitkeep
 data/sql/
 logs/*.jsonl
+data/cache/

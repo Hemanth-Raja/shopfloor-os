@@ -2,6 +2,9 @@
 
     python run.py context --zone FINAL # one Zetaris query -> Meterless World Model -> Nemotron summary
     python run.py models               # model ids offered by Nightshift
+    python run.py incident --kind part_shortage --station F30            # full agent loop on one incident
+    python run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2
+    python run.py incident --kind overheat --station F10 --false-alarm
 """
 
 import argparse
@@ -58,6 +61,38 @@ def context(zone):
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
+def incident(kind, station, agv, seed, false_alarm, stall_after):
+    from datetime import date
+
+    from app.engines.plant_world import load_plant_world
+    from app.llm import chat_json
+    from app.orchestrator import Orchestrator
+    from app.sim.grid import Grid
+    from app.sim.sim import Sim
+
+    plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")  # one Zetaris query
+    sim = Sim.from_plant(plant, Grid.load(run_sql), seed=seed, shift="B")
+    agv_id = f"agv:plant:{agv}" if agv else None
+    inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
+    trace = Orchestrator(plant, sim, chat_json, chat).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
+    for st in trace.steps:
+        d = st.detail
+        note = {"reflex": lambda: f"fence {d['fence_cells']} cells, stopped {d['stopped']}, rerouted {d['rerouted']}",
+                "monitor": lambda: d["summary"],
+                "candidates": lambda: f"workers {d['workers']} agvs {d['agvs']}",
+                "planner": lambda: f"#{d['attempt']} {d['priority']} -> {d['assignees']} {[(r['agv_id'], r['to_station'], r['speed_mps'], r['crossing_speed_mps']) for r in d['agv_routes']]}",
+                "critic": lambda: "ok" if st.ok else "; ".join(f"{v['rule_id']}: {v['detail']}" for v in d["violations"]),
+                "dryrun": lambda: f"ok={st.ok} eta_s={d['eta_s']} {d['reasons']}",
+                "restraint": lambda: f"{d['decision']} score={d['score']} {d['reasons'][-1]}",
+                "executor": lambda: f"eta_s={d['eta_s']}",
+                "verifier": lambda: "as predicted" if st.ok else f"MISMATCH {d['mismatches']} -> re-plan",
+                "safe_mode": lambda: d.get("error", "")}.get(st.step, lambda: "")()
+        print(f"  {'ok ' if st.ok else 'XX '} {st.step:<10} {st.ms:>8.1f} ms  {note}")
+    print(f"DECISION {trace.decision.decision} | critic rejections {trace.critic_rejections} | replans {trace.replans}"
+          f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
+
+
 def models():
     for model_id in list_models():
         print(model_id)
@@ -69,5 +104,17 @@ if __name__ == "__main__":
     ctx = sub.add_parser("context", help="zone context from Zetaris plus a Nemotron summary")
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
+    inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
+    inc.add_argument("--kind", required=True, choices=["part_shortage", "agv_fault", "overheat", "spill"])
+    inc.add_argument("--station", default=None)
+    inc.add_argument("--agv", default=None, help="for agv_fault, e.g. AGV-3")
+    inc.add_argument("--seed", type=int, default=42)
+    inc.add_argument("--false-alarm", action="store_true", help="overheat: sensor noise, not a real fault")
+    inc.add_argument("--stall-after", type=int, default=None, help="stall the first planned AGV after N ticks")
     args = parser.parse_args()
-    context(args.zone) if args.command == "context" else models()
+    if args.command == "context":
+        context(args.zone)
+    elif args.command == "incident":
+        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after)
+    else:
+        models()
