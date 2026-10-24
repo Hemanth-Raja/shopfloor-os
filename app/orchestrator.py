@@ -33,16 +33,19 @@ VERIFY_TICKS = 6
 
 class Orchestrator:
     def __init__(self, plant, sim, llm_json: Callable, llm_text: Callable | None = None,
-                 trace_path: Path | None = TRACE_PATH, memory=None):
+                 trace_path: Path | None = TRACE_PATH, memory=None, on_step: Callable | None = None):
         self.plant, self.sim = plant, sim
         self.llm_json, self.llm_text = llm_json, llm_text
         self.trace_path = trace_path
         self.lessons: list = []
         self.memory = memory  # optional PlaybookStore: lessons from past incidents seed the planner
+        self.on_step = on_step  # optional callback(incident_id, StepResult), e.g. the web server's event bus
 
     def _step(self, trace: Trace, name: str, started: float, ok: bool, **detail) -> None:
         result = StepResult(step=name, ok=ok, ms=round((time.perf_counter() - started) * 1000, 2), detail=detail)
         trace.steps.append(result)
+        if self.on_step:
+            self.on_step(trace.incident.id, result)
         if self.trace_path:
             self.trace_path.parent.mkdir(parents=True, exist_ok=True)
             with self.trace_path.open("a", encoding="utf-8") as fh:

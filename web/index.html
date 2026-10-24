@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop-Floor OS</title>
+<style>
+  :root { --bg:#0f1216; --panel:#171b21; --ink:#e6e8eb; --muted:#8a939e; --ok:#3fb27f; --warn:#e0a63a; --bad:#e5534b; --accent:#5aa9ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { padding:12px 16px; display:flex; gap:12px; align-items:baseline; border-bottom:1px solid #222831; }
+  header h1 { font-size:18px; margin:0; } header span { color:var(--muted); }
+  main { display:grid; grid-template-columns: minmax(0, 820px) minmax(280px, 1fr); gap:12px; padding:12px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .panel { background:var(--panel); border:1px solid #222831; border-radius:8px; padding:10px; }
+  canvas { width:100%; height:auto; display:block; background:#0b0e12; border-radius:6px; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  button { background:#232a33; color:var(--ink); border:1px solid #2e3743; border-radius:6px; padding:6px 10px; cursor:pointer; }
+  button:hover { border-color:var(--accent); } button:disabled { opacity:.4; cursor:default; }
+  button.ok { border-color:var(--ok); } button.bad { border-color:var(--bad); }
+  #trace { max-height:360px; overflow:auto; font:12px/1.35 ui-monospace, Menlo, monospace; }
+  .step { padding:3px 0; border-bottom:1px solid #20262e; } .step b { display:inline-block; width:78px; }
+  .x { color:var(--bad); } .v { color:var(--ok); } .m { color:var(--muted); }
+  #decision { font-size:16px; margin:6px 0; } .pill { padding:2px 8px; border-radius:10px; background:#232a33; }
+  #health div { display:flex; justify-content:space-between; }
+  .legend span { margin-right:10px; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<header><h1>Shop-Floor OS</h1><span>AI agents plan, robots execute, humans judge. Meterless World Model + Nemotron.</span><span id="tick" class="m"></span></header>
+<main>
+  <section class="panel">
+    <canvas id="floor" width="800" height="400" aria-label="Plant floor"></canvas>
+    <div class="legend"><span>■ AGV</span><span>● worker</span><span style="color:#e5534b">■ fault / fence</span><span>░ crossing</span></div>
+    <div class="row">
+      <button data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage at F30</button>
+      <button data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault (+stall)</button>
+      <button data-run='{"kind":"overheat","station":"F10","false_alarm":true}'>Overheat at F10 (false alarm)</button>
+      <button data-run='{"kind":"spill","station":"F20"}'>Spill at F20</button>
+    </div>
+  </section>
+  <section>
+    <div class="panel">
+      <div id="decision" class="m">No incident yet.</div>
+      <div class="row"><button id="approve" class="ok" disabled>Approve</button><button id="reject" class="bad" disabled>Reject</button></div>
+      <div id="trace"></div>
+    </div>
+    <div class="panel" style="margin-top:12px"><b>Health</b><div id="health" class="m">checking…</div></div>
+  </section>
+</main>
+<script>
+const COLORS = {rack:"#3a3f47", conveyor:"#5b4b2a", robot_cell:"#4a2d55", paint_booth:"#2d4a55", "X-WEST":"#3b3b2a", "X-EAST":"#3b3b2a",
+  "LANE-N":"#1e2a36", "LANE-S":"#1e2a36", SMKT:"#22302a", CHG:"#2a2a3b", FLOOR:"#14181d"};
+const cv = document.getElementById("floor"), ctx = cv.getContext("2d");
+let grid = null, stations = [], agents = [], fence = [], current = null, cell = 20;
+
+function draw() {
+  if (!grid) return;
+  cell = Math.floor(cv.width / grid.cols);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  for (const [x, y, label] of grid.cells) { ctx.fillStyle = COLORS[label] || "#181d23"; ctx.fillRect(x*cell, y*cell, cell-1, cell-1); }
+  ctx.fillStyle = "rgba(229,83,75,.35)"; for (const [x, y] of fence) ctx.fillRect(x*cell, y*cell, cell-1, cell-1);
+  ctx.font = "10px system-ui"; ctx.fillStyle = "#cfd6de";
+  for (const s of stations) ctx.fillText(s.id, s.x*cell+1, s.y*cell+12);
+  for (const a of agents) {
+    const bad = a.status === "fault" || a.status === "stalled";
+    ctx.fillStyle = bad ? "#e5534b" : a.kind === "agv" ? (a.status === "moving" ? "#5aa9ff" : "#3d6f9e") : (a.status === "moving" ? "#3fb27f" : "#2c7a57");
+    if (a.kind === "agv") ctx.fillRect(a.x*cell+3, a.y*cell+3, cell-7, cell-7);
+    else { ctx.beginPath(); ctx.arc(a.x*cell+cell/2, a.y*cell+cell/2, cell/3, 0, 7); ctx.fill(); }
+  }
+}
+
+async function load() {
+  const s = await (await fetch("/api/state")).json();
+  grid = s.grid; stations = s.stations; agents = s.agents; fence = s.geofence;
+  document.getElementById("tick").textContent = `tick ${s.tick}${s.offline ? " · offline" : ""}`;
+  draw();
+}
+
+function note(st) {
+  const d = st.detail || {};
+  switch (st.step) {
+    case "monitor": return d.summary || "";
+    case "memory": return d.playbook ? `playbook ${d.playbook}, lessons ${d.lessons}` : "no playbook yet";
+    case "candidates": return `workers ${d.workers} · agvs ${d.agvs}`;
+    case "planner": return `#${d.attempt} ${d.priority} → ${d.assignees} ${(d.agv_routes||[]).map(r => `${r.agv_id.split(":").pop()}→${r.to_station} ${r.speed_mps}/${r.crossing_speed_mps ?? "-"} m/s`).join(", ")}`;
+    case "critic": return st.ok ? "ok" : (d.violations||[]).map(v => `${v.rule_id}: ${v.detail}`).join("; ");
+    case "dryrun": return `eta ${JSON.stringify(d.eta_s)} ${(d.reasons||[]).join("; ")}`;
+    case "restraint": return `${d.decision} · ${(d.reasons||[]).slice(-1)}`;
+    case "verifier": return st.ok ? "as predicted" : `mismatch → re-plan ${JSON.stringify(d.mismatches)}`;
+    case "reflex": return `fence ${d.fence_cells} cells, stopped ${d.stopped}, ${d.ms} ms`;
+    default: return JSON.stringify(d).slice(0, 160);
+  }
+}
+
+function addStep(st) {
+  const div = document.createElement("div"); div.className = "step";
+  div.innerHTML = `<b class="${st.ok ? "v" : "x"}">${st.step}</b><span class="m">${st.ms.toFixed(0)} ms</span> ${note(st).replace(/</g, "&lt;")}`;
+  const t = document.getElementById("trace"); t.appendChild(div); t.scrollTop = t.scrollHeight;
+}
+
+const es = new EventSource("/events");
+es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; document.getElementById("tick").textContent = `tick ${s.tick}`; draw(); });
+es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; document.getElementById("trace").innerHTML = "";
+  document.getElementById("decision").innerHTML = `<span class="pill">${i.kind}</span> at ${i.station_id || i.zone_id} · running…`; setButtons(false); });
+es.addEventListener("step", e => addStep(JSON.parse(e.data)));
+es.addEventListener("decision", e => { const d = JSON.parse(e.data); const dec = d.decision ? d.decision.decision : "none";
+  document.getElementById("decision").innerHTML = `Decision <span class="pill">${dec}</span> · critic rejections ${d.critic_rejections} · re-plans ${d.replans}${d.safe_mode ? " · SAFE MODE" : ""}`;
+  setButtons(true); load(); });
+es.addEventListener("approval", e => { const a = JSON.parse(e.data); addStep({step:"human", ok:a.approved, ms:0, detail:{}});
+  document.getElementById("trace").lastChild.innerHTML += ` ${a.approved ? "approved" : "rejected"} by ${a.by}: ${a.action}`; setButtons(false); });
+es.addEventListener("error", e => { if (e.data) { const er = JSON.parse(e.data); document.getElementById("decision").textContent = er.error; } });
+
+function setButtons(on) { for (const id of ["approve", "reject"]) document.getElementById(id).disabled = !on; }
+async function judge(approve) {
+  await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({incident_id: current, approve, by:"supervisor"})});
+}
+document.getElementById("approve").onclick = () => judge(true);
+document.getElementById("reject").onclick = () => judge(false);
+for (const b of document.querySelectorAll("[data-run]")) b.onclick = async () => {
+  const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body: b.dataset.run});
+  if (!r.ok) alert((await r.json()).error);
+};
+async function health() {
+  try { const h = await (await fetch("/health")).json();
+    document.getElementById("health").innerHTML = ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
+      `<div><span>${k}</span><span class="${h[k].status === "ok" ? "v" : "x"}">${h[k].status}${h[k].breaker ? " · " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
+      + `<div><span>safe mode</span><span class="${h.safe_mode ? "x" : "v"}">${h.safe_mode}</span></div>`;
+  } catch { document.getElementById("health").textContent = "health unavailable"; }
+}
+load(); health(); setInterval(health, 15000);
+</script>
+</body>
+</html>
