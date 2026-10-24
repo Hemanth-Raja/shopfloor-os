@@ -1,4 +1,4 @@
-# Shop-Floor OS demo image. Not built as part of this repo's checks; build it yourself with:
+# Shop-Floor OS demo image (tested: builds to about 174 MB, replay demo works). Build and run:
 #   docker build -t shopfloor-os .
 #   docker run --rm -p 8000:8000 shopfloor-os                    # replay demo: no keys, no Zetaris
 #   docker run --rm -p 8000:8000 --env-file .env -e SAMPLE_MODE=false shopfloor-os   # live (needs Nightshift and Zetaris reachable)

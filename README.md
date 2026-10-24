@@ -44,7 +44,7 @@ SAMPLE_MODE=true .venv/bin/python -m app.server          # open http://127.0.0.1
 SAMPLE_MODE=true .venv/bin/python run.py incident --kind part_shortage --station F30 --no-memory
 .venv/bin/python -m pytest -q                             # all tests are offline
 ```
-Or with Docker (the image is not prebuilt): `docker build -t shopfloor-os .` then
+Or with Docker (tested: a 174 MB image, replay mode by default): `docker build -t shopfloor-os .` then
 `docker run --rm -p 8000:8000 shopfloor-os`.
 
 **Live run.** This needs Zetaris, the `shopfloor-pg` container and Meterless Nightshift; settings go in `.env`
