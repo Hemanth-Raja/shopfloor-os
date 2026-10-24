@@ -25,7 +25,8 @@ DRAIN_WALL_S = 600  # live: wait at most 10 minutes for open incidents after the
 class Shift:
     def __init__(self, plant, sim, make_orchestrator: Callable, minutes: float = 10, seed: int = 7, workers: int = 3,
                  threads: bool = False, sentinel_llm: Callable | None = None, on_event: Callable | None = None,
-                 sim_lock=None, memory=None, rate_per_min: float = 1.0, journal=None):
+                 sim_lock=None, memory=None, rate_per_min: float = 1.0, journal=None, history_sql=None,
+                 telemetry: bool = True):
         self.plant, self.sim, self.minutes, self.seed = plant, sim, minutes, seed
         self.journal = journal  # app/journal.py: durable, hash-chained record of the shift
         outer = on_event or (lambda kind, data: None)
@@ -44,15 +45,19 @@ class Shift:
             self.leases.next_token = journal.recover()["last_token"] + 1  # fencing tokens never go backwards
         from app.connectors import SimFleet
         self.fleet = SimFleet(sim)
-        self.signals = generate_signals(plant, minutes, seed, rate_per_min)
+        from app.autonomy.detectors import Detectors, load_baselines
+        from app.investigate.sources import sql_runner
+        baselines = load_baselines(history_sql or sql_runner("true"))  # per machine and shift, from history
+        self.signals = generate_signals(plant, minutes, seed, rate_per_min, baselines, telemetry=telemetry)
         self.start_tick = sim.tick
-        self.sentinel = Sentinel(sentinel_llm, on_event=self.on_event)
+        self.sentinel = Sentinel(sentinel_llm, on_event=self.on_event, detectors=Detectors(baselines))
         self.traces: dict[str, object] = {}
         self.dispatcher = Dispatcher(lambda inc, risk: self._with_fleet(make_orchestrator(inc, risk, self.leases,
                                                                                           self.sim_lock)),
                                      plant.stats, workers=workers, threads=threads, on_event=self.on_event,
                                      on_done=self._done, leases=self.leases, sim=sim)
         self.returns: dict[str, tuple] = {}  # responders to send back once they are free
+        self.restocked: dict[str, int] = {}  # station -> tick a part shortage there was resolved (closed loop)
         self.next_signal = 0
         self.stopped = False
         self.wall_started = time.perf_counter()
@@ -67,12 +72,14 @@ class Shift:
                                                   "signals": len(self.signals)})
 
     def _done(self, trace, result) -> None:
-        self.sentinel.close(result["incident"])
+        self.sentinel.close(result["incident"], self.sim.tick)
         if trace is not None:
             self.traces[trace.incident.id] = trace
             if trace.gate == "auto_executed":
                 for aid, cell in trace.dispatch.items():
                     self.returns[aid] = tuple(cell)
+                if trace.incident.kind in ("part_shortage", "agv_fault") and trace.incident.station_id:
+                    self.restocked[trace.incident.station_id] = self.sim.tick  # the kit was delivered
             if self.memory is not None:
                 self.memory.record(trace)
         with self.sim_lock:
@@ -118,6 +125,9 @@ class Shift:
     def watch(self) -> None:
         """One Sentinel pass over the signals that arrived since the last pass."""
         for sig in self.due():
+            if sig["type"] == "stock_level" and sig["station"] in self.restocked:  # closed loop: delivered stock
+                since = self.sim.tick - self.restocked[sig["station"]]
+                sig = {**sig, "minutes_left": round(max(sig["minutes_left"], 13.0 - since / 10.0), 1)}
             inc = self.sentinel.process(sig, self.sim.tick, self._raise)
             if inc is not None:
                 self.dispatcher.submit(inc, detected_tick=self.sim.tick)

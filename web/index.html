@@ -655,7 +655,7 @@ function showShift(st) {
   const row = (x, extra) => `<div class="inc" data-inc="${esc(x.incident)}"><span class="r">${Math.round(x.risk)}</span><span class="k">${esc(x.kind.replace("_", " "))}</span><span>${esc(x.station || "")}</span>${extra}</div>`;
   const wait = x => x.gate === "awaiting_approval" || x.gate === "advisory";
   $("shift").innerHTML = `<div class="note">${st.running ? "running" : "finished"} · ${st.elapsed_min} of ${st.minutes} min · ${st.signals_seen}/${st.signals} signals ·
-      Sentinel raised ${st.sentinel.raised}, merged ${st.sentinel.deduped + st.sentinel.correlated}, triaged ${st.sentinel.triaged}</div>
+      Sentinel raised ${st.sentinel.raised} (${st.sentinel.early_warnings || 0} early warnings from drift and trends), merged ${st.sentinel.deduped + st.sentinel.correlated}, triaged ${st.sentinel.triaged} · ${st.sentinel.telemetry || 0} sensor readings watched</div>
     <div class="shiftbar"><i style="width:${pct}%"></i></div>
     <div class="sfeed" id="sfeed">${shiftFeed.slice(-8).map(esc).join("<br>") || "Sentinel is watching…"}</div>
     <h2 style="margin-top:10px">Active (${st.active.length})</h2>${st.active.map(x => row(x, `<span class="muted">→ ${esc(x.at)} · hop ${x.hops}</span>`)).join("") || '<div class="note">none</div>'}
