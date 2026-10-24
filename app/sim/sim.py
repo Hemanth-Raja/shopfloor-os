@@ -97,10 +97,12 @@ class Sim:
         """Plan a collision-free path (optionally through a pickup cell `via`) to the nearest free walkable
         cell at `goal`, and start moving."""
         agent = self.agents[agent_id]
-        others = {a.pos for a in self.agents.values() if a.id != agent_id} | self.geofence
+        # The fence keeps AGVs out of the incident area; the people responding to it may enter.
+        fence = set() if agent.kind == "worker" else self.geofence
+        others = {a.pos for a in self.agents.values() if a.id != agent_id} | fence
         target = self._free_cell_near(*goal, others)
         self.res.release(agent_id)
-        blocked = self.geofence - {agent.pos}
+        blocked = fence - {agent.pos}
         path = None
         if via is not None:
             pickup = self._free_cell_near(*via, others)

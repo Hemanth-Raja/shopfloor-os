@@ -34,7 +34,7 @@ def run_sql(sql, limit=1000):
             "X-Request-ID": str(uuid.uuid4()),
         },
         json={"queryId": str(uuid.uuid4()), "sql": sql, "source": "SqlEditor", "limit": limit},
-        timeout=300,
+        timeout=60,  # bounded: a Zetaris request should answer within a minute
     )
     if not response.ok:
         raise RuntimeError(_scrub(f"Zetaris HTTP {response.status_code}: {response.text[:500]}"))

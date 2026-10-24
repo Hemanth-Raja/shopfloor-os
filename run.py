@@ -2,6 +2,7 @@
 
     python run.py context --zone FINAL # one Zetaris query -> Meterless World Model -> Nemotron summary
     python run.py models               # model ids offered by Nightshift
+    python run.py run input_examples/example_1.json   # JSON in, JSON out (programmatic entry point)
     python run.py incident --kind part_shortage --station F30            # full agent loop on one incident
     python run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2
     python run.py incident --kind overheat --station F10 --false-alarm
@@ -9,6 +10,7 @@
 """
 
 import argparse
+from pathlib import Path
 import json
 import re
 
@@ -85,7 +87,7 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
     inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
     from app.engines.playbooks import PlaybookStore
     memory = PlaybookStore() if use_memory else None
-    trace = Orchestrator(plant, sim, chat_json, chat_text, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    trace = Orchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=f"{inc.id}").handle(inc, stall=(0, stall_after) if stall_after is not None else None)
     print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
     for st in trace.steps:
         d = st.detail
@@ -132,6 +134,17 @@ def lab(write: bool, target: str = "zetaris"):
         print("Proposal (not written):", json.dumps(row))
 
 
+def run_file(path: str, out: str | None):
+    from app.api import run_request
+
+    req = json.loads(Path(path).read_text())
+    result = run_request(req, echo=True)
+    text = json.dumps(result, indent=2, default=str)
+    print(text)
+    if out:
+        Path(out).write_text(text + "\n")
+
+
 def health():
     from app.runtime import health as check
 
@@ -150,6 +163,9 @@ if __name__ == "__main__":
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
+    rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
+    rf.add_argument("file")
+    rf.add_argument("--out", default=None, help="also write the JSON result to this file")
     lab_p = sub.add_parser("lab", help="Lab Level 2: hypothesis, seeded replays, bootstrap CI, experiment proposal")
     lab_p.add_argument("--write", action="store_true", help="insert the proposal into ops.experiments")
     lab_p.add_argument("--target", choices=["zetaris", "local"], default="zetaris",
@@ -170,6 +186,8 @@ if __name__ == "__main__":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
     elif args.command == "health":
         health()
+    elif args.command == "run":
+        run_file(args.file, args.out)
     elif args.command == "lab":
         lab(args.write, args.target)
     else:

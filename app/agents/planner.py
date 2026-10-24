@@ -12,7 +12,8 @@ from typing import Callable
 from app.contracts import Incident, Plan, Violation
 from app.engines.shopfloor_world import ground
 
-PLANNER_TIMEOUT_S = 120  # the deep lane reasons before answering; 20 s is too short
+LAST_MODEL: dict[str, str | None] = {}  # which model answered the last planner call (for the trace)
+PLANNER_TIMEOUT_S = 90  # the deep lane reasons before answering; 20 s is too short
 
 SYSTEM = (
     "You are the dispatch planner for a car final-assembly hall. Choose assignees ONLY from the candidate ids "
@@ -41,6 +42,7 @@ def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: lis
                                        for v in feedback])})
     reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S)
     plan = reply.data if hasattr(reply, "data") else reply
+    LAST_MODEL["planner"] = getattr(reply, "model", None)
     return plan.model_copy(update={"incident_id": incident.id})
 
 
@@ -53,6 +55,21 @@ def grounding_violations(plan: Plan, cands: dict, world) -> list[Violation]:
     out += [Violation(rule_id="GROUNDING", cfr_ref="Candidates", detail=f"{i} was not offered as a candidate")
             for i in ids if i not in offered and not any(v.detail.startswith(i) for v in out)]
     return out
+
+
+def rule_based_plan(messages: list[dict]) -> Plan:
+    """Deterministic planner used in SAMPLE_MODE when no recorded reply exists for this input. It reads the
+    same payload the model gets and still goes through the critic, dry-run and restraint gate."""
+    payload = json.loads(messages[1]["content"])
+    inc = payload["incident"]
+    workers = [c["id"] for c in payload["worker_candidates"][:1]]
+    agvs = [c["id"] for c in payload["agv_candidates"][:1]]
+    routes = [{"agv_id": agvs[0], "to_station": inc["station_id"], "speed_mps": 1.0, "crossing_speed_mps": 0.5}] \
+        if agvs and inc.get("station_id") else []
+    cites = [c["ref"] for c in payload.get("relevant_clauses", [])[:2]]
+    return Plan(incident_id=inc["id"], assignee_ids=workers or agvs or ["none"], agv_routes=routes, priority="high",
+                rationale="Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.",
+                citations=cites)
 
 
 def fallback_plan(incident: Incident, cands: dict) -> Plan:

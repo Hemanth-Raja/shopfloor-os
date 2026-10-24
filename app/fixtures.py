@@ -2,8 +2,10 @@
 
     SAMPLE_MODE=false   (default) call Nightshift normally
     SAMPLE_MODE=record  call Nightshift and save each reply to logs/fixtures/<hash>.json
-    SAMPLE_MODE=true    replay saved replies only, with no network; a missing reply raises LLMUnavailable,
-                        so the orchestrator falls back to safe mode instead of failing
+    SAMPLE_MODE=true    replay saved replies only, with no network. For an input with no recorded planner
+                        reply, a deterministic rule-based planner answers instead; the critic, dry-run and
+                        restraint gate still check it, so sample mode runs real agent logic on any input.
+                        Other missing replies raise LLMUnavailable (safe mode, or the rule-based fallback).
 
 The key is a sha256 of (kind, lane, schema, messages), so a replay matches when the scenario and seed match.
 Replays use the offline plant (no Zetaris either). Record with the same `--offline` setting you replay with.
@@ -50,6 +52,11 @@ def maybe_sample(fn: Callable, kind: str, mode: str | None = None, folder: Path 
         path = folder / f"{key}.json"
         if mode == "true":
             if not path.exists():
+                if kind == "json" and getattr(schema, "__name__", "") == "Plan":
+                    from app.agents.planner import rule_based_plan  # real agent logic, no model: still checked by the critic
+                    plan = rule_based_plan(messages)
+                    return SimpleNamespace(data=plan, text=plan.model_dump_json(), model="rule-based (sample mode)",
+                                           latency_s=0.0)
                 raise LLMUnavailable(f"SAMPLE_MODE: no recorded reply {key} for this scenario")
             saved = json.loads(path.read_text())
             if kind == "json":

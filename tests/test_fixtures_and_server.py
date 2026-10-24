@@ -24,8 +24,20 @@ def test_record_then_replay_without_the_model(tmp_path):
     recorded = maybe_sample(fake_json, "json", mode="record", folder=tmp_path)("deep", msgs, Plan)
     replayed = maybe_sample(None, "json", mode="true", folder=tmp_path)("deep", msgs, Plan)
     assert replayed.data == recorded.data and replayed.model == "m (replay)"
-    with pytest.raises(LLMUnavailable):
-        maybe_sample(None, "json", mode="true", folder=tmp_path)("deep", [{"role": "user", "content": "new"}], Plan)
+    from app.lab.experiment import Hypothesis
+    with pytest.raises(LLMUnavailable):  # no recording and no rule-based stand-in for this schema
+        maybe_sample(None, "json", mode="true", folder=tmp_path)("deep", [{"role": "user", "content": "new"}], Hypothesis)
+
+
+def test_unrecorded_plan_uses_the_rule_based_planner(tmp_path):
+    payload = {"incident": {"id": "SIM-9-001", "kind": "part_shortage", "station_id": "T20"},
+               "worker_candidates": [{"id": "worker:plant:W-18"}], "agv_candidates": [{"id": "agv:plant:AGV-2"}],
+               "relevant_clauses": [{"ref": "29 CFR 1910.178(n)(4)", "text": "slow down"}]}
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": json.dumps(payload)}]
+    reply = maybe_sample(None, "json", mode="true", folder=tmp_path)("deep", msgs, Plan)
+    plan = reply.data
+    assert reply.model.startswith("rule-based") and plan.assignee_ids == ["worker:plant:W-18"]
+    assert plan.agv_routes[0].crossing_speed_mps == 0.5 and plan.citations == ["29 CFR 1910.178(n)(4)"]
 
 
 def test_passthrough_when_sample_mode_is_off():

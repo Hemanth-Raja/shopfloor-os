@@ -1,0 +1,5 @@
+{
+  "run_id": "example-1",
+  "input": {"kind": "part_shortage", "station": "F30", "seed": 42},
+  "options": {"sample_mode": true}
+}

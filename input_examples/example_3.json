@@ -1,0 +1,5 @@
+{
+  "run_id": "example-3",
+  "input": {"kind": "overheat", "station": "F10", "false_alarm": true, "seed": 42},
+  "options": {"sample_mode": true}
+}

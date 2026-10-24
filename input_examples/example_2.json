@@ -1,0 +1,5 @@
+{
+  "run_id": "example-2",
+  "input": {"kind": "agv_fault", "agv": "AGV-3", "station": "F30", "stall_after": 2, "seed": 42},
+  "options": {"sample_mode": true}
+}

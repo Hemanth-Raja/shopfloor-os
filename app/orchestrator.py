@@ -19,7 +19,7 @@ from app.agents.candidates import find_candidates
 from app.agents.dryrun import dry_run
 from app.agents.executor import execute, verify
 from app.agents.monitor import assess
-from app.agents.planner import fallback_plan, grounding_violations, make_plan
+from app.agents.planner import LAST_MODEL, fallback_plan, grounding_violations, make_plan
 from app.agents.reflex import reflex
 from app.agents.restraint import decide
 from app.agents.safety_critic import review
@@ -35,10 +35,14 @@ VERIFY_TICKS = 6
 class Orchestrator:
     def __init__(self, plant, sim, llm_json: Callable, llm_text: Callable | None = None,
                  trace_path: Path | None = TRACE_PATH, memory=None, on_step: Callable | None = None,
-                 citations=None):
+                 citations=None, run_id: str | None = None, echo: bool = False):
         self.plant, self.sim = plant, sim
         self.llm_json, self.llm_text = llm_json, llm_text
+        self.run_id = run_id
+        if run_id and trace_path == TRACE_PATH:
+            trace_path = TRACE_PATH.parent / f"trace-{run_id}.jsonl"  # one JSONL file per run
         self.trace_path = trace_path
+        self.echo = echo  # also print one [INFO] line per step to stdout
         self.lessons: list = []
         self.memory = memory  # optional PlaybookStore: lessons from past incidents seed the planner
         self.on_step = on_step  # optional callback(incident_id, StepResult), e.g. the web server's event bus
@@ -55,8 +59,14 @@ class Orchestrator:
         if self.trace_path:
             self.trace_path.parent.mkdir(parents=True, exist_ok=True)
             with self.trace_path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id,
-                                     "tick": self.sim.tick, **result.model_dump()}, default=str) + "\n")
+                fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "run_id": self.run_id,
+                                     "incident": trace.incident.id, "agent": name, "tick": self.sim.tick,
+                                     **result.model_dump()}, default=str) + "\n")
+        if self.echo:
+            extra = {k: detail[k] for k in ("model", "attempt", "decision", "playbook") if detail.get(k) is not None}
+            if name == "critic" and detail.get("violations"):
+                extra["violations"] = [v["rule_id"] for v in detail["violations"]]
+            print(f"[INFO] run_id={self.run_id} agent={name} ok={ok} ms={result.ms} {json.dumps(extra, default=str)}", flush=True)
 
     def _plan_loop(self, trace: Trace, incident: Incident, cands: dict):
         feedback = list(self.lessons) or None  # critic findings carry over to a re-plan
@@ -65,7 +75,7 @@ class Orchestrator:
             clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
             plan = make_plan(incident, cands, self.llm_json, feedback, clauses)
             cited = self.citations.resolve(plan.citations)
-            self._step(trace, "planner", t, True, attempt=attempt, assignees=plan.assignee_ids,
+            self._step(trace, "planner", t, True, attempt=attempt, model=LAST_MODEL.get("planner"), assignees=plan.assignee_ids,
                        agv_routes=[r.model_dump() for r in plan.agv_routes], priority=plan.priority,
                        citations=cited, uncited=[r for r in plan.citations if r not in self.citations.by_ref])
             t = time.perf_counter()

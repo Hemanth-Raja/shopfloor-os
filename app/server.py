@@ -10,6 +10,7 @@
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
     POST /run          {"kind", "station", "agv", "false_alarm", "stall_after", "seed"} -> runs the agent loop
     POST /approve      {"incident_id", "approve": true|false, "by"} -> a human judges the decision
+    POST /api/run      JSON run contract (see app/api.py): runs one incident synchronously, returns JSON
 
 Humans judge: an ACT plan is already executing, and rejecting it stops the agents involved. ESCALATE,
 SAFE_HOLD and VERIFY wait for a person. Approving one executes its plan, and every judgement is logged
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import threading
 import time
@@ -130,7 +132,7 @@ class App:
     def _run(self, inc, req) -> None:
         try:
             llm_json, llm_text = self.llm()
-            orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory,
+            orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
                                 on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
             with self.lock:
@@ -313,6 +315,10 @@ def make_handler(app: App):
                     return self._send(202, {"incident_id": app.run(self._json())})
                 if self.path == "/approve":
                     return self._send(200, app.approve(self._json()))
+                if self.path == "/api/run":  # synchronous JSON contract (app/api.py); independent of the UI sim
+                    from app.api import run_request
+                    result = run_request(self._json(), echo=True)
+                    return self._send(200 if result["status"] == "success" else 422, result)
                 if self.path == "/lab/run":
                     app.lab()
                     return self._send(202, {"status": "running"})
@@ -336,7 +342,7 @@ def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1") -> N
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     ap.add_argument("--offline", action="store_true", help="no Zetaris: offline plant (use with SAMPLE_MODE)")
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 inside a container")
     a = ap.parse_args()

@@ -1,0 +1,5 @@
+{
+  "run_id": "example-4",
+  "input": {"kind": "spill", "station": "F20", "seed": 7},
+  "options": {"sample_mode": true}
+}
