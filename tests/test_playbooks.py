@@ -45,3 +45,16 @@ def test_recall_falls_back_to_same_kind_elsewhere(plant, grid, tmp_path):
         sim.inject("part_shortage", plant, station_id="F30"))
     assert memory.recall("part_shortage", "T20")["key"] == "part_shortage@F30"
     assert memory.recall("spill", "F20") is None
+
+
+def test_lessons_live_in_hmem_and_get_outcome_feedback(plant, grid, tmp_path):
+    memory = PlaybookStore(tmp_path / "pb.json")
+    for seed in (7, 8):
+        sim = Sim.from_plant(plant, grid, seed=seed, shift="B")
+        Orchestrator(plant, sim, FakePlanner(), trace_path=None, memory=memory).handle(
+            sim.inject("part_shortage", plant, station_id="F30"))
+    lesson = memory._lesson("part_shortage", "F30", "R-CROSSING")
+    assert lesson["source"].startswith("SIM-7-") and lesson["rule_id"] == "R-CROSSING"
+    assert lesson["confidence"] == 0.75  # 0.7 + helpful: the recalled lesson held on the second incident
+    actions = [e["action"] for e in memory.hmem.ledger.history(lesson["id"])]
+    assert actions[0] == "create" and "read" in actions and actions[-1] == "feedback"

@@ -9,22 +9,52 @@
       "engine": "World Model",
       "spec": "github.com/Meterless/Meterless engines/world-model (Apache-2.0)",
       "implementation": "app/engines/world_model.py (Python port)",
-      "used_by": ["app/engines/shopfloor_world.py (run.py context)", "app/engines/plant_world.py (agent loop: candidates, grounding, critic)"],
+      "used_by": [
+        "app/engines/shopfloor_world.py (run.py context)",
+        "app/engines/plant_world.py (agent loop: candidates, grounding, critic)"
+      ],
       "evidence": "tests/test_world_model.py ports the spec's 8 conformance checks plus the reference smoke tests"
+    },
+    {
+      "engine": "H-MEM",
+      "spec": "github.com/Meterless/Meterless engines/hmem (Apache-2.0)",
+      "implementation": "app/engines/hmem.py (Python port)",
+      "used_by": [
+        "app/engines/playbooks.py (critic lessons recalled before planning, outcome feedback)"
+      ],
+      "evidence": "tests/test_hmem.py runs the spec's 13 conformance vectors (tests/fixtures/hmem_vectors.json)"
     }
   ],
-  "memory": "app/engines/playbooks.py: H-MEM-style playbooks learned from incident outcomes (built without the H-MEM spec)",
+  "memory": "app/engines/playbooks.py: incident playbooks running on the H-MEM engine",
   "models": {
     "provider": "Meterless Nightshift (OpenAI-compatible)",
-    "lanes": {"deep": "NEMOTRON_DEEP (planner, lab hypothesis)", "fast": "NEMOTRON_FAST (monitor one-line summary)"},
+    "lanes": {
+      "deep": "NEMOTRON_DEEP (planner, lab hypothesis)",
+      "fast": "NEMOTRON_FAST (monitor one-line summary)"
+    },
     "call_layer": "app/llm.py only"
   },
   "data_platform": "Zetaris (four Postgres sources federated as sf_fleet, sf_hr, sf_plant, sf_ops); one federated query per incident",
-  "agent_loop": ["reflex", "monitor", "memory", "candidates", "planner", "safety_critic", "dryrun", "restraint", "executor", "verifier"],
+  "agent_loop": [
+    "reflex",
+    "monitor",
+    "memory",
+    "candidates",
+    "planner",
+    "safety_critic",
+    "dryrun",
+    "restraint",
+    "executor",
+    "verifier"
+  ],
   "safety": "Deterministic critic over OSHA 29 CFR 1910 rule summaries; restraint gate (ACT, SAFE_HOLD, VERIFY, ESCALATE, DO_NOTHING); circuit-breaker safe mode",
   "demo": {
     "offline": "SAMPLE_MODE=true python -m app.server  (replays recorded Nemotron replies; no keys, no Zetaris)",
-    "cases": ["part_shortage at F30 (critic rejection then retry)", "agv_fault AGV-3 with stall (verifier re-plan)", "overheat false alarm at F10 (VERIFY)"]
+    "cases": [
+      "part_shortage at F30 (critic rejection then retry)",
+      "agv_fault AGV-3 with stall (verifier re-plan)",
+      "overheat false alarm at F10 (VERIFY)"
+    ]
   },
   "tests": "python -m pytest  (offline)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",

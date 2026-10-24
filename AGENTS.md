@@ -14,6 +14,8 @@ Shop-Floor OS is a multi-agent dispatch system for a fictional car final-assembl
 - **Meterless Engine (hackathon requirement):** the World Model engine (`app/engines/world_model.py`) is a
   Python port of github.com/Meterless/Meterless `engines/world-model`. It powers `run.py context`, and its
   conformance checks pass in `tests/test_world_model.py`. Keep them green when you change the engine.
+- **Second Meterless Engine:** H-MEM (`app/engines/hmem.py`) runs the incident playbooks; its 13
+  conformance vectors pass in `tests/test_hmem.py`. Keep them green too.
 
 ## Repo layout
 Folders marked (planned) do not exist yet; create them when the first module needs them.
