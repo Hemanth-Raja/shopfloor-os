@@ -25,6 +25,11 @@
 - **Second terminal:** `cd ~/hackathon/shopfloor-os && .venv/bin/python run.py watch`. This prints one line per step, Nemotron call and approval.
 - **Raw logs:** each incident writes its own file, `logs/trace-<incident id>.jsonl`; `logs/llm.jsonl` records every Nemotron call. For example `tail -f logs/llm.jsonl`, or `ls -t logs/trace-*.jsonl | head -1 | xargs tail -f` for the newest incident. The old single `logs/trace.jsonl` is no longer written.
 
+### Showing that Meterless Nightshift does the AI work
+- The **Powered by** strip at the top of our UI shows the last Nightshift call (model, latency, time) and how many **signed compute receipts** Nightshift has written for app `shopfloor-os`, with the latest receipt's summary, e.g. `ok · Nemotron 3.5 Super VL 120B A12B`.
+- Every request from `app/llm.py` carries the header `meterless-app: shopfloor-os`, so Nightshift attributes it to our app. The receipts are in Nightshift's state folder: on Windows `%LOCALAPPDATA%\ai.meterless.runtime\receipts.jsonl`, one signed JSON receipt per request with `"app": "shopfloor-os"`.
+- Nightshift's **Night → Live field** view is for overnight batch jobs. Our app does not use it, so a lane showing "silent" there is unrelated. Look for our requests in Nightshift's daytime runtime and receipts views (for example MONITOR in the left rail), or in the receipts file above.
+
 ## 2. The demo flow (follow `docs/demo-script.md`)
 | Step | Click | What the audience sees | Live timing |
 |---|---|---|---|

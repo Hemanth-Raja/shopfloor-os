@@ -305,6 +305,9 @@ def make_handler(app: App):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
             if self.path == "/api/state":
                 return self._send(200, app.snapshot())  # lock-free read: the loop may hold the lock during LLM calls
+            if self.path == "/api/powered":
+                from app.powered import powered
+                return self._send(200, powered(sample_mode=app.replay))
             if self.path == "/api/lab_last":
                 return self._send(200, app.last_lab or {})
             if self.path == "/api/last":

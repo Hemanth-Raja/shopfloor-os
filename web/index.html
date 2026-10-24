@@ -80,6 +80,8 @@
   .loop.flash { animation:flashloop 1.2s ease-in-out 2; }
   @keyframes flashloop { 50% { background:#5b3fa0; color:#fff; } }
   #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
+  #powered { margin:10px 18px 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
+  #powered b { color:var(--ink); font-weight:600; } #powered .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
 </style>
 </head>
@@ -102,6 +104,7 @@
   <button data-view="know">What the agents know</button>
 </nav>
 
+<div id="powered" aria-live="polite"><span>Powered by…</span></div>
 <div id="howto" role="note">
   <div>
     <b>How to read this page.</b> The map is a car assembly hall seen from above: one square is about 2 m.
@@ -374,7 +377,7 @@ function showDecision(d) { const dec = d.decision ? d.decision.decision : "none"
   $("decision").innerHTML = `<span class="pill ${dec}">${dec}</span> · critic rejections <b>${d.critic_rejections}</b> · re-plans <b>${d.replans}</b>${d.safe_mode ? ' · <span class="bad-t">SAFE MODE</span>' : ""}`
     + (d.plan ? `<div class="muted" style="margin-top:6px">${esc(d.plan.rationale)}</div>` : "")
     + gateBox(d.gate, d.gate_reasons);
-  gate = d.gate || "none"; setButtons(true); load(); }
+  gate = d.gate || "none"; setButtons(true); load(); poweredBy(); }
 function gateBox(g, reasons) {
   const r = (reasons || []).map(esc).join("; ");
   if (g === "auto_executed") return `<div class="gate auto"><b>Auto-executed: you can override.</b> <span class="muted">${r}</span></div>`;
@@ -480,7 +483,18 @@ async function health() {
   } catch { $("health").textContent = "checking… (retrying)"; setTimeout(health, 3000); }
 }
 if (location.search.includes("shot")) $("trace").style.maxHeight = "none";  // full trace for screenshots
-flowReset(); load(); health(); restoreLast(); setInterval(health, 15000);
+async function poweredBy() {
+  try {
+    const p = await (await fetch("/api/powered")).json(), c = p.last_call, r = p.nightshift_receipts;
+    const when = c ? new Date(c.ts).toLocaleTimeString() : "";
+    $("powered").innerHTML =
+      `<span><span class="dot"></span><b>Meterless Nightshift</b> → ${c ? `<b>${esc(String(c.model).split("/").pop())}</b> · last call ${Number(c.latency_s).toFixed(1)} s at ${esc(when)} (${esc(c.lane)} lane)` : "no live call yet"}</span>`
+      + (r && r.count ? `<span>Nightshift signed <b>${r.count}</b> compute receipts for app <b>shopfloor-os</b> · latest: ${esc(r.last_summary || "")}</span>` : "")
+      + `<span>Engines: <b>${p.engines.map(esc).join("</b> + <b>")}</b></span><span>Data: <b>Zetaris</b></span>`
+      + (p.sample_mode ? '<span class="muted">(sample mode: replaying recorded Nemotron replies)</span>' : "");
+  } catch { /* keep the previous strip */ }
+}
+flowReset(); load(); health(); restoreLast(); poweredBy(); setInterval(health, 15000); setInterval(poweredBy, 10000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
 if (["#lab", "#know", "#flow"].includes(location.hash)) show(location.hash.slice(1));
 </script>
