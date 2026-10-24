@@ -50,7 +50,7 @@ REGISTRY = {
     "investigator": "look up history through Zetaris (guarded SQL) and our own traces for this kind and station",
     "candidates": "rank qualified people and healthy AGVs from the World Model",
     "playbook": "build the plan from a proven H-MEM playbook (no model call)",
-    "verify_plan": "send one qualified person to check first, no AGVs (no model call)",
+    "verify_plan": "the alarm is in doubt: send one qualified person to check first, no AGVs (no model call)",
     "planner": "Nemotron writes a plan from the candidates and the governing clauses",
     "critic": "deterministic OSHA/SOP rule check of the latest plan",
     "dryrun": "60 s headless simulation of the latest plan",
@@ -191,8 +191,8 @@ class DynamicOrchestrator(Orchestrator):
         if s.cands is not None:
             if self.playbook_usable(s, trace.incident):
                 opts.append("playbook")
-            if s.cands["workers"]:
-                opts.append("verify_plan")
+            if s.cands["workers"] and (s.mon["p_real"] < 0.8 or not s.mon["sensor_agreement"]):
+                opts.append("verify_plan")  # a one-person check only makes sense while the alarm is in doubt
             opts.append("planner")
         if s.nightshift_down and "planner" in opts:
             opts[opts.index("planner")] = "safe_mode"  # health failure forces safe mode

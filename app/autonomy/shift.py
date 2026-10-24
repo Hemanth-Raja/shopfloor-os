@@ -18,6 +18,8 @@ from app.autonomy.sentinel import TICKS_PER_MIN, Sentinel, generate_signals
 from app.sim.sim import TICK_S
 
 DRAIN_TICKS = 600  # after the shift ends, finish what is open for up to 20 sim minutes
+LIVE_TICK_S = 0.5  # live (threaded) runs pace the floor clock like the UI: one 2 s tick per 0.5 s
+DRAIN_WALL_S = 600  # live: wait at most 10 minutes for open incidents after the shift ends
 
 
 class Shift:
@@ -99,8 +101,12 @@ class Shift:
         return self.sim.tick - self.start_tick >= self.minutes * TICKS_PER_MIN
 
     def finished(self) -> bool:
-        return self.stopped or (self.shift_over and self.next_signal >= len(self.signals) and self.dispatcher.idle()) \
-            or self.sim.tick - self.start_tick > self.minutes * TICKS_PER_MIN + DRAIN_TICKS
+        if self.stopped or (self.shift_over and self.next_signal >= len(self.signals) and self.dispatcher.idle()):
+            return True
+        if self.dispatcher.threads:  # live: model calls take seconds; wait for open incidents, up to a wall-clock cap
+            return self.shift_over and time.perf_counter() - self.wall_started > \
+                self.minutes * TICKS_PER_MIN * LIVE_TICK_S + DRAIN_WALL_S
+        return self.sim.tick - self.start_tick > self.minutes * TICKS_PER_MIN + DRAIN_TICKS
 
     def run_headless(self) -> dict:
         """Drive the floor clock ourselves: one tick, one Sentinel pass, one dispatcher step, repeat."""
@@ -110,8 +116,8 @@ class Shift:
             self.send_back()
             self.watch()
             self.dispatcher.step()
-            if self.dispatcher.threads and self.dispatcher.active:
-                time.sleep(0.05)
+            if self.dispatcher.threads:
+                time.sleep(LIVE_TICK_S)
         return self.summary()
 
     def poll(self) -> None:
@@ -145,5 +151,7 @@ class Shift:
             "preemptions": sum(1 for l in self.leases.log if l["op"] == "preempt"),
             "replans": sum(r["replans"] for r in done),
             "max_concurrent": self.dispatcher.max_active, "wall_seconds": round(time.perf_counter() - self.wall_started, 1),
+            "unfinished": [e["incident"].id for e in list(self.dispatcher.active.values())]
+            + [q["incident"] for q in self.dispatcher.queued()],
             "results": done,
         }
