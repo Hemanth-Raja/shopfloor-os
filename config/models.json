@@ -89,6 +89,16 @@
       "max_tokens": 2000,
       "why": "Proposes one testable policy change from history: deep reasoning.",
       "app": "shopfloor-os"
+    },
+    "sentinel": {
+      "chain": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
+      ],
+      "budget_s": 30,
+      "max_tokens": 1500,
+      "app": "shopfloor-os-fast",
+      "why": "Triage of ambiguous floor signals only (the rules decide the clear ones): a quick yes/no with a reason, so the fast model."
     }
   },
   "model_apps": {

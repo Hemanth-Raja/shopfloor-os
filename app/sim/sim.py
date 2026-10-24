@@ -54,7 +54,7 @@ class Sim:
         self.tick = 0
         self.agents: dict[str, Agent] = {}
         self.res = Reservations()
-        self.geofence: set[Cell] = set()
+        self.fences: dict[str, set[Cell]] = {}  # one geofence per open incident; AGVs avoid their union
         self.stalls: dict[str, int] = {}  # agent -> tick the stall starts
         self.collisions: list[tuple[int, Cell, str, str]] = []
         self.history: list[dict[str, Cell]] = []
@@ -99,7 +99,9 @@ class Sim:
         agent = self.agents[agent_id]
         # The fence keeps AGVs out of the incident area; the people responding to it may enter.
         fence = set() if agent.kind == "worker" else self.geofence
-        others = {a.pos for a in self.agents.values() if a.id != agent_id} | fence
+        # avoid where others stand and where others are heading: two responders never share a target cell
+        others = {a.pos for a in self.agents.values() if a.id != agent_id} | fence \
+            | {a.goal for a in self.agents.values() if a.id != agent_id and a.goal is not None and a.status == "moving"}
         target = self._free_cell_near(*goal, others)
         self.res.release(agent_id)
         blocked = fence - {agent.pos}
@@ -129,8 +131,15 @@ class Sim:
         agent.path, agent.goal, agent.status = [], None, status
         self.res.park(agent_id, agent.pos)
 
-    def set_geofence(self, cells: set[Cell]) -> None:
-        self.geofence = set(cells)
+    @property
+    def geofence(self) -> set[Cell]:
+        return set().union(*self.fences.values()) if self.fences else set()
+
+    def set_geofence(self, cells: set[Cell], key: str = "default") -> None:
+        self.fences[key] = set(cells)
+
+    def clear_geofence(self, key: str) -> None:
+        self.fences.pop(key, None)
 
     def inject_stall(self, agent_id: str, at_tick: int) -> None:
         self.stalls[agent_id] = at_tick

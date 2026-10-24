@@ -19,6 +19,7 @@ The linear pipeline (app/orchestrator.Orchestrator) is kept for comparison: run.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from dataclasses import dataclass, field
@@ -33,7 +34,7 @@ from app.agents.monitor import assess
 from app.agents.planner import LAST_CALL, LAST_MODEL, fallback_plan, grounding_violations, make_plan
 from app.agents.restraint import STAT_KIND, decide
 from app.agents.safety_critic import review
-from app.contracts import Incident, Plan, RestraintDecision, Trace
+from app.contracts import Incident, Plan, RestraintDecision, Trace, Violation
 from app.engines.citations import KIND_RULES
 from app import orchestrator as linear
 from app.llm import LLMUnavailable
@@ -101,6 +102,12 @@ class State:
     nightshift_down: bool = False
 
 
+def plan_resources(plan: Plan | None) -> list[str]:
+    if plan is None:
+        return []
+    return sorted({a for a in plan.assignee_ids if ":" in a} | {r.agv_id for r in plan.agv_routes})
+
+
 def incident_history(run_sql: Callable, incident: Incident) -> dict:
     """The investigator in incident mode: fixed, guarded SQL over sf_ops.incidents (no model call)."""
     from app.investigate.sqlguard import check
@@ -127,8 +134,12 @@ def incident_history(run_sql: Callable, incident: Incident) -> dict:
 
 
 class DynamicOrchestrator(Orchestrator):
-    def __init__(self, *args, router_llm: Callable | None = None, run_sql: Callable | None = None, **kwargs):
+    def __init__(self, *args, router_llm: Callable | None = None, run_sql: Callable | None = None,
+                 leases=None, risk: float = 0.0, sim_lock=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.leases = leases  # shift mode: a LeaseBook shared by every concurrent incident
+        self.risk = risk  # this incident's priority (app/autonomy/dispatcher.incident_risk)
+        self.sim_lock = sim_lock  # shift mode: hops that touch the floor run under the floor's lock
         self.router_llm = router_llm  # None: rule-based router only (SAMPLE_MODE, tests)
         self.run_sql = run_sql  # for the investigator; None: it is not offered
         self._hop: int | None = None
@@ -268,14 +279,34 @@ class DynamicOrchestrator(Orchestrator):
 
     # ---------------------------------------------------------------- the loop
 
+    UNLOCKED = {"monitor", "memory", "investigator", "planner"}  # no floor access: may run while others move
+
+    def _floor(self, agent: str):
+        return self.sim_lock if self.sim_lock is not None and agent not in self.UNLOCKED else contextlib.nullcontext()
+
     def _handle(self, incident: Incident, stall: tuple[int, int] | None = None) -> Trace:
+        steps = self.run_steps(incident, stall)
+        while True:
+            try:
+                next(steps)
+            except StopIteration as done:
+                return done.value
+
+    def run_steps(self, incident: Incident, stall: tuple[int, int] | None = None):
+        """The orchestrator as a generator: one yield per hop, so a dispatcher can interleave many incidents.
+        Returns the Trace (StopIteration.value)."""
         trace = Trace(incident=incident, mode="dynamic")
+        self.trace = trace
         s = State()
+        self.state = s
         t = time.perf_counter()
         from app.agents.reflex import reflex
         self._hop, self._route = 0, {"by": "code", "reason": "the reflex always runs first"}
         trace.path.append({"hop": 0, "agent": "reflex", **self._route})
-        self._step(trace, "reflex", t, True, **reflex(self.sim, incident))
+        with self._floor("reflex"):
+            fenced = reflex(self.sim, incident)
+        self._step(trace, "reflex", t, True, **fenced)
+        yield "reflex"
         if incident.kind not in linear.SUPPORTED_KINDS:  # no playbook, candidates or critic rules: a person takes over
             trace.decision = RestraintDecision(decision="ESCALATE", score=0.0, reasons=[
                 f"no response playbook for '{incident.kind}' yet: the area is fenced and a supervisor must take over"])
@@ -286,6 +317,7 @@ class DynamicOrchestrator(Orchestrator):
             return trace
         hop = 0
         while True:
+            self._check_preempted(s, trace)
             legal = self.legal(s, trace)
             if not legal:
                 break
@@ -304,7 +336,9 @@ class DynamicOrchestrator(Orchestrator):
             self._hop, self._route = hop, {"by": by, "reason": why,
                                            **({"model_call": self.last_router_call} if self.last_router_call else {})}
             trace.path.append({"hop": hop, "agent": agent, "by": by, "reason": why})
-            getattr(self, f"_do_{agent}")(s, trace, incident, stall, args)
+            with self._floor(agent):
+                getattr(self, f"_do_{agent}")(s, trace, incident, stall, args)
+            yield agent
         self._hop = self._route = None
         return trace
 
@@ -336,10 +370,12 @@ class DynamicOrchestrator(Orchestrator):
 
     def _do_candidates(self, s, trace, incident, stall, args):
         t = time.perf_counter()
-        s.cands = find_candidates(self.plant, self.sim, incident, exclude=s.excluded)
+        busy = self.leases.blocked_for(incident.id, self.risk) if self.leases else set()
+        s.cands = find_candidates(self.plant, self.sim, incident, exclude=s.excluded | busy)
         s.cands_stale = False
         self._step(trace, "candidates", t, bool(s.cands["workers"] or s.cands["agvs"]),
-                   workers=[c.id for c in s.cands["workers"]], agvs=[c.id for c in s.cands["agvs"]])
+                   workers=[c.id for c in s.cands["workers"]], agvs=[c.id for c in s.cands["agvs"]],
+                   **({"held_by_other_incidents": sorted(busy)} if busy else {}))
 
     def _new_plan(self, s, plan: Plan, source: str) -> None:
         s.plan, s.plan_source, s.critic_ok, s.dryrun = plan, source, None, None
@@ -406,6 +442,11 @@ class DynamicOrchestrator(Orchestrator):
         t = time.perf_counter()
         violations = grounding_violations(s.plan, s.cands, self.plant.world) + review(
             s.plan, incident, self.plant, self.sim, self.citations).violations
+        if self.leases:  # cross-incident check: nobody another, equally urgent incident is already using
+            for lease in self.leases.conflicts(incident.id, self.risk, plan_resources(s.plan)):
+                violations.append(Violation(rule_id="R-LEASE", cfr_ref="Resource arbitration",
+                                            detail=f"{lease.resource} is committed to {lease.incident} "
+                                                   f"(risk {lease.risk:g} >= {self.risk:g})"))
         governing = [] if violations else [c for rid in KIND_RULES.get(incident.kind, [])
                                            for c in self.citations.for_rule(rid, top_n=1)]
         self._step(trace, "critic", t, not violations, attempt=s.attempts, plan_source=s.plan_source,
@@ -453,6 +494,16 @@ class DynamicOrchestrator(Orchestrator):
             s.done = True
             return
         plan = executable_plan(trace)
+        if self.leases:
+            got = self.leases.acquire(incident.id, self.risk, plan_resources(plan))
+            if got["refused"]:  # another incident took them since the critic ran: re-plan without them
+                self._step(trace, "arbiter", t, False, refused=got["refused"], note="resources taken by a more urgent incident")
+                s.excluded |= set(got["refused"])
+                trace.replans += 1
+                return self._new_round(s, trace)
+            if got["preempted"]:
+                self._step(trace, "arbiter", t, True, preempted=got["preempted"],
+                           note="higher risk: these resources move to this incident; the others re-plan")
         for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
             if aid in self.sim.agents and aid not in trace.dispatch:
                 trace.dispatch[aid] = list(self.sim.agents[aid].pos)
@@ -477,6 +528,9 @@ class DynamicOrchestrator(Orchestrator):
             s.excluded.add(m["agent"])
             if self.sim.agents[m["agent"]].status == "stalled":
                 self.sim.stop(m["agent"], status="fault")
+        self._new_round(s, trace)
+
+    def _new_round(self, s, trace) -> None:
         if s.round >= MAX_ATTEMPTS:
             trace.decision = RestraintDecision(decision="ESCALATE", score=0.0, reasons=["verifier mismatches persisted"])
             s.done = True
@@ -486,8 +540,21 @@ class DynamicOrchestrator(Orchestrator):
         s.plan = s.plan_source = s.critic_ok = s.dryrun = s.expected = s.verified = None
         s.attempts, s.feedback, s.gated, s.executed = 0, None, False, False
         trace.decision, trace.gate, trace.gate_reasons = None, "none", []
-        s.cands = {k: [c for c in v if c.id not in s.excluded] for k, v in s.cands.items()}
+        if s.cands is not None:
+            s.cands = {k: [c for c in v if c.id not in s.excluded] for k, v in s.cands.items()}
         s.cands_stale = True
+
+    def _check_preempted(self, s, trace) -> None:
+        """A more urgent incident took some of our resources: drop them and plan again."""
+        lost = self.leases.take_preempted(trace.incident.id) if self.leases else set()
+        if not lost or s.done:
+            return
+        self._step(trace, "arbiter", time.perf_counter(), False, lost=sorted(lost),
+                   note="pre-empted by a higher-risk incident: re-plan without these resources")
+        s.excluded |= lost
+        trace.replans += 1
+        self.leases.release_all(trace.incident.id)
+        self._new_round(s, trace)
 
     def _do_safe_mode(self, s, trace, incident, stall, args):
         t = time.perf_counter()

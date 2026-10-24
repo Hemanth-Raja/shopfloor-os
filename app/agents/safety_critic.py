@@ -15,6 +15,7 @@ from app.sim.pathing import plan_path
 MAX_SPEED_MPS = 1.5
 CROSSING_SPEED_MPS = 0.5
 MIN_SEPARATION_CELLS = 2
+CELL_ENTRY_KINDS = {"robot_cell_fault", "overheat"}  # the responder steps into the robot cell or machine guarding
 
 
 def review(plan: Plan, incident: Incident, plant, sim, citations=None) -> CriticVerdict:
@@ -41,7 +42,8 @@ def _review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
             out.append(Violation(rule_id="R-LOTO", cfr_ref=ref("R-LOTO"),
                                  detail=f"{name} lockout/tagout not valid (expires {exp}) for "
                                         f"{'machine repair' if incident.kind == 'overheat' else 'robot cell recovery'}"))
-        if incident.zone_id in ("BODY", "PAINT") and not plant.cert_valid(w, "robot_cell_entry"):
+        if incident.zone_id in ("BODY", "PAINT") and incident.kind in CELL_ENTRY_KINDS \
+                and not plant.cert_valid(w, "robot_cell_entry"):
             out.append(Violation(rule_id="R-ROBOT-CELL", cfr_ref=ref("R-ROBOT-CELL"),
                                  detail=f"{name} has no valid robot-cell entry card for {incident.zone_id}"))
         if incident.kind == "part_shortage" and "tugger_driving" in w["attrs"]["skills"] \

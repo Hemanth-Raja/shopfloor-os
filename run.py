@@ -199,6 +199,71 @@ def ask(question: str, as_json: bool = False):
     print(f"\nmodels {result['models']} | trace {result['log_file']} | {result['execution_time_seconds']} s")
 
 
+def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool, as_json: bool, rate: float = 2.0):
+    from datetime import date
+
+    from app.autonomy.shift import Shift
+    from app.dynamic import DynamicOrchestrator
+    from app.engines.playbooks import PlaybookStore
+    from app.fixtures import maybe_sample, sample_mode
+    from app.investigate.sources import sql_runner
+    from app.runtime import chat as guarded_chat, chat_json as guarded_json, run_sql as guarded_sql
+    from app.sim.grid import Grid
+    from app.sim.offline import offline_plant
+    from app.sim.sim import Sim
+
+    replay = sample_mode() == "true"
+    offline = offline or replay
+    if offline:
+        plant, grid = offline_plant(), Grid.from_generator()
+    else:
+        from app.engines.plant_world import load_plant_world
+        plant = load_plant_world(guarded_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
+        grid = Grid.load(guarded_sql)
+    sim = Sim.from_plant(plant, grid, seed=seed, shift="B")
+    chat_json, chat_text = maybe_sample(guarded_json, "json"), maybe_sample(guarded_chat, "text")
+    memory = PlaybookStore(path=None) if replay else PlaybookStore()
+    runner = sql_runner("true") if offline else guarded_sql
+
+    from app.orchestrator import TRACE_PATH
+    shift_id = f"shift-{seed}-{int(__import__('time').time())}"
+
+    def make(inc, risk, leases, lock):
+        return DynamicOrchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=inc.id, autonomy=autonomy,
+                                   trace_path=TRACE_PATH.parent / f"trace-{shift_id}-{inc.id}.jsonl",
+                                   router_llm=None if replay else chat_json, run_sql=runner, leases=leases, risk=risk,
+                                   sim_lock=lock)
+
+    def show(kind, data):
+        if as_json:
+            return
+        if kind == "sentinel" and data["action"] in ("raised", "deduplicated", "correlated", "dismissed"):
+            print(f"  t={data['tick']:<4} SENTINEL {data['action']:<12} {data['signal']['type']:<16} "
+                  f"{data.get('incident') or ''} {data.get('note') or data.get('reason') or ''}")
+        elif kind == "started":
+            print(f"  START    {data['incident']} risk {data['risk']}")
+        elif kind == "finished":
+            print(f"  DONE     {data['incident']} {data['kind']:<16} {data['decision']:<9} {data['gate']:<18} "
+                  f"route {' > '.join(data['route'])}")
+        elif kind == "error":
+            print(f"  ERROR    {data}")
+
+    sh = Shift(plant, sim, make, minutes=minutes, seed=seed, workers=workers, threads=not replay,
+               sentinel_llm=None if replay else chat_json, on_event=show, memory=memory, rate_per_min=rate)
+    print(f"Shift: {minutes} min, seed {seed}, {len(sh.signals)} signals, {workers} concurrent incidents, "
+          f"autonomy {autonomy}, {'replay' if replay else 'offline plant' if offline else 'live'}")
+    result = sh.run_headless()
+    if as_json:
+        print(json.dumps(result, indent=2, default=str))
+        return
+    print(f"\nSUMMARY {result['incidents']} incidents from {result['signals']} signals "
+          f"(sentinel {result['sentinel']}); decisions {result['decisions']}")
+    print(f"  auto-resolved {result['auto_resolved']}, waiting for a person {len(result['waiting_for_a_person'])}, "
+          f"escalated {len(result['escalations'])}; mean {result['mean_minutes_to_resolve']} min to resolve; "
+          f"~{result['cars_saved_estimate']} cars saved; {result['preemptions']} pre-emptions; "
+          f"max {result['max_concurrent']} at once; {result['wall_seconds']} s")
+
+
 def watch():
     from app.watch import follow
 
@@ -229,6 +294,14 @@ if __name__ == "__main__":
     ask_p = sub.add_parser("ask", help="ask the investigator team a question about the plant and the agents' history")
     ask_p.add_argument("question")
     ask_p.add_argument("--json", action="store_true", help="print the full JSON result")
+    sh_p = sub.add_parser("shift", help="run a shift autonomously: Sentinel + concurrent incidents + leases")
+    sh_p.add_argument("--minutes", type=float, default=10)
+    sh_p.add_argument("--seed", type=int, default=7)
+    sh_p.add_argument("--workers", type=int, default=3, help="incidents handled at once")
+    sh_p.add_argument("--autonomy", choices=["auto", "supervised", "advisory"], default="auto")
+    sh_p.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
+    sh_p.add_argument("--rate", type=float, default=2.0, help="incidents per sim minute (busy floor: 3+)")
+    sh_p.add_argument("--json", action="store_true")
     sub.add_parser("watch", help="live, human-readable view of the agents' logs (run in a second terminal)")
     rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
     rf.add_argument("file")
@@ -259,6 +332,8 @@ if __name__ == "__main__":
         health()
     elif args.command == "ask":
         ask(args.question, args.json)
+    elif args.command == "shift":
+        shift(args.minutes, args.seed, args.workers, args.autonomy, args.offline, args.json, args.rate)
     elif args.command == "watch":
         watch()
     elif args.command == "run":

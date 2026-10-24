@@ -144,6 +144,7 @@ class App:
             try:
                 if req.get("seed") is not None or self.replay:
                     self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
+                self.sim.fences.clear()  # one incident at a time here: the new fence replaces the last one
                 inc = self.sim.inject(req["kind"], self.plant, station_id=req.get("station"), agv_id=agv,
                                       false_alarm=bool(req.get("false_alarm")), severity=req.get("severity") or None,
                                       note=req.get("note"))
