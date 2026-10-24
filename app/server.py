@@ -142,8 +142,57 @@ class App:
                     continue
                 self.sim.step()
                 self.bus.publish("tick", self.snapshot(full=False))
+            self._approval_timeouts()
             if self.shift is not None:
                 self._shift_tick()
+
+    def _approval_timeouts(self) -> None:
+        """A person who does not answer: remind, escalate, then decide safely (app/autonomy/approval.py)."""
+        from app.autonomy.approval import next_action
+        from app.autonomy.sentinel import TICKS_PER_MIN
+        for trace in list(self.traces.values()):
+            if trace.gate not in ("awaiting_approval", "advisory"):
+                continue
+            if trace.waiting_since_tick is None:
+                trace.waiting_since_tick = self.sim.tick
+                continue
+            waited = (self.sim.tick - trace.waiting_since_tick) / TICKS_PER_MIN
+            action = next_action(trace, waited, trace.autonomy)
+            if action:
+                self.timeout_action(trace, action, waited)
+
+    def timeout_action(self, trace, action: str, waited: float) -> dict:
+        from app.orchestrator import executable_plan
+        trace.escalations.append(action)
+        note = {"remind": "reminder sent to the approver",
+                "escalate": "escalated to the backup approver (shift manager)",
+                "auto_execute": "no answer: plan dispatched automatically (only the Supervised setting held it; "
+                                "critic and dry run passed, acting is cheaper than waiting)",
+                "hold": "no answer: safe hold kept (fence and stopped AGVs stay), reserved people and robots "
+                        "released, still escalated; nothing that needs a person's judgement was dispatched"}[action]
+        with self.lock:
+            if action == "auto_execute":
+                plan = executable_plan(trace)
+                if plan is not None:
+                    for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
+                        if aid in self.sim.agents:
+                            trace.dispatch.setdefault(aid, list(self.sim.agents[aid].pos))
+                    execute(plan, trace.incident, self.plant, self.sim)
+                    trace.gate = "auto_after_timeout"
+            elif action == "hold":
+                trace.gate = "timeout_hold"
+                if self.shift is not None:
+                    self.shift.leases.release_all(trace.incident.id)
+        record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": None,
+                  "by": "approval-timeout policy", "decision": trace.decision.decision if trace.decision else None,
+                  "gate": trace.gate, "action": note, "waited_min": round(waited, 1)}
+        if action in ("auto_execute", "hold"):
+            ev = self.audit.append("approval", record)
+            record["audit_hash"] = ev["hash"][:16]
+        self.journal.append("approval_timeout", {**record, "step": action})
+        self.bus.publish("approval_timeout", record)
+        self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
+        return record
 
     def snapshot(self, full: bool = True) -> dict:
         agents = [{"id": a.id, "kind": a.kind, "x": a.pos[0], "y": a.pos[1], "status": a.status}
@@ -340,7 +389,7 @@ class App:
         action = "none"
         with self.lock:
             plan = executable_plan(trace)
-            if trace.gate in ("awaiting_approval", "advisory"):
+            if trace.gate in ("awaiting_approval", "advisory", "timeout_hold"):  # a late answer still counts
                 if approved and plan is not None:
                     for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
                         if aid in self.sim.agents:
@@ -349,7 +398,7 @@ class App:
                     trace.gate, action = "approved", "plan dispatched after human approval"
                 else:
                     trace.gate, action = "rejected", "plan dropped by the human; nothing was dispatched"
-            elif trace.gate == "auto_executed" and not approved:
+            elif trace.gate in ("auto_executed", "auto_after_timeout") and not approved:
                 for aid, start in trace.dispatch.items():
                     if aid in self.sim.agents:
                         self.sim.stop(aid)

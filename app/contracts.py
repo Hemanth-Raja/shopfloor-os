@@ -100,7 +100,10 @@ class Trace(Strict):
     replans: int = 0
     safe_mode: bool = False
     autonomy: Literal["auto", "supervised", "advisory"] = "auto"
-    gate: Literal["none", "auto_executed", "awaiting_approval", "advisory", "approved", "rejected", "rolled_back"] = "none"
+    gate: Literal["none", "auto_executed", "awaiting_approval", "advisory", "approved", "rejected", "rolled_back",
+                  "auto_after_timeout", "timeout_hold"] = "none"
+    waiting_since_tick: int | None = None  # when the decision started waiting for a person (approval timeout policy)
+    escalations: list[str] = Field(default_factory=list)  # remind, escalate, auto_execute, hold (app/autonomy/approval.py)
     gate_reasons: list[str] = Field(default_factory=list)
     dispatch: dict[str, list[int]] = Field(default_factory=dict)  # agent -> cell it started from (for roll-back)
     mode: Literal["linear", "dynamic"] = "linear"

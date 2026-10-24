@@ -601,6 +601,8 @@ function gateBox(g, reasons) {
   if (g === "approved") return '<div class="gate done">Approved by you: dispatched.</div>';
   if (g === "rejected") return '<div class="gate done">Rejected by you: nothing was dispatched.</div>';
   if (g === "rolled_back") return '<div class="gate done">Rolled back by you: agents stopped and sent back.</div>';
+  if (g === "auto_after_timeout") return '<div class="gate auto"><b>No answer in time: dispatched automatically.</b> Only the Supervised setting held it; you can still roll it back.</div>';
+  if (g === "timeout_hold") return '<div class="gate wait"><b>No answer in time: held safe.</b> Fence and stopped AGVs stay, escalated to the shift manager. Approve still works.</div>';
   return "";
 }
 async function restoreLast() {
@@ -612,6 +614,10 @@ async function restoreLast() {
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
   addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (${esc(a.by)})`;
   gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(false); load(); });
+es.addEventListener("approval_timeout", e => { const a = JSON.parse(e.data);
+  if (a.incident !== current) return;
+  addStep({step: "timeout", ok: a.gate !== "timeout_hold", ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (after ${a.waited_min} min)`;
+  gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(true); });
 es.addEventListener("autonomy", e => markMode(JSON.parse(e.data).mode));
 function markMode(m) { document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); }
 for (const b of document.querySelectorAll(".seg button")) b.onclick = async () => {
@@ -623,9 +629,9 @@ es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
 es.addEventListener("lab_written", e => { $("labout").insertAdjacentHTML("beforeend", `<div class="ok-t" style="margin-top:8px">Saved ${esc(JSON.parse(e.data).experiment_id)} to sf_ops.experiments via Zetaris</div>`); });
 
 function setButtons(on) {
-  const labels = {auto_executed: ["Confirm", "Roll back"], awaiting_approval: ["Approve & dispatch", "Reject"], advisory: ["Dispatch", "Dismiss"]}[gate] || ["Approve", "Reject"];
+  const labels = {auto_executed: ["Confirm", "Roll back"], auto_after_timeout: ["Confirm", "Roll back"], awaiting_approval: ["Approve & dispatch", "Reject"], timeout_hold: ["Approve & dispatch", "Reject"], advisory: ["Dispatch", "Dismiss"]}[gate] || ["Approve", "Reject"];
   $("approve").textContent = labels[0]; $("reject").textContent = labels[1];
-  for (const id of ["approve", "reject"]) $(id).disabled = !on || !["auto_executed", "awaiting_approval", "advisory"].includes(gate);
+  for (const id of ["approve", "reject"]) $(id).disabled = !on || !["auto_executed", "auto_after_timeout", "awaiting_approval", "timeout_hold", "advisory"].includes(gate);
 }
 async function judge(approve) {
   await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: current, approve, by: "supervisor"})});
@@ -704,7 +710,7 @@ $("autopilot").onsubmit = async e => { e.preventDefault(); const f = e.target;
   if (!r.ok) return alert((await r.json()).error);
   shiftFeed = []; $("shiftpanel").style.display = ""; };
 $("shiftstop").onclick = async () => { const r = await fetch("/shift/stop", {method:"POST"}); if (!r.ok) alert((await r.json()).error); };
-const GATEWORD = {auto_executed:"done", awaiting_approval:"waiting for you", advisory:"advice only", approved:"approved", rejected:"rejected", rolled_back:"rolled back"};
+const GATEWORD = {auto_executed:"done", awaiting_approval:"waiting for you", advisory:"advice only", approved:"approved", rejected:"rejected", rolled_back:"rolled back", auto_after_timeout:"auto (no answer)", timeout_hold:"held (no answer)"};
 function showShift(st) {
   if (!st || st.running === undefined || (!st.running && !st.summary)) return;
   $("shiftpanel").style.display = "";
