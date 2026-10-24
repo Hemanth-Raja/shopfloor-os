@@ -12,8 +12,9 @@
    to both arms.
 3. Statistics: the paired per-incident differences give a bootstrap 95% CI (2,000 resamples, seeded) for
    the change in mean time to clear.
-4. Proposal: a row for ops.experiments with status "proposed". It is written only to the local Postgres
-   container; Zetaris stays read-only.
+4. Proposal: a row for ops.experiments with status "proposed". By default it is written through Zetaris
+   (INSERT INTO sf_ops.experiments, which writes through to the Postgres source). The local Postgres path
+   (docker exec psql) remains as a fallback.
 """
 
 from __future__ import annotations
@@ -175,6 +176,24 @@ def _lit(v) -> str:
     if isinstance(v, (int, float)):
         return str(v)
     return "$exp$" + str(v).replace("$exp$", "") + "$exp$"  # dollar quoting: no escaping problems
+
+
+def _spark_lit(v) -> str:
+    """Spark SQL literal: numbers as-is; strings single-quoted with backslashes and quotes escaped."""
+    if isinstance(v, (int, float)):
+        return repr(float(v)) if isinstance(v, float) else str(v)
+    return "'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def write_zetaris(row: dict, run_sql: Callable) -> str:
+    """INSERT the proposal through Zetaris into sf_ops.experiments (one statement)."""
+    cols = list(row)
+    values = [f"CAST({_spark_lit(row[c])} AS TIMESTAMP)" if c == "created_at" else _spark_lit(row[c]) for c in cols]
+    run_sql(f"INSERT INTO sf_ops.experiments ({', '.join(cols)}) VALUES ({', '.join(values)})")
+    found = run_sql(f"SELECT experiment_id FROM sf_ops.experiments WHERE experiment_id = {_spark_lit(row['experiment_id'])}")
+    if not found:
+        raise RuntimeError("Zetaris accepted the INSERT but the row is not visible")
+    return row["experiment_id"]
 
 
 def write_local(row: dict, container: str = "shopfloor-pg") -> str:

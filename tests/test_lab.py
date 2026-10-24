@@ -54,3 +54,19 @@ def test_run_experiment_offline_with_fake_model(grid):
 
 def test_sql_literals_are_safe():
     assert _lit("it's $exp$ ok") == "$exp$it's  ok$exp$" and _lit(-7.5) == "-7.5"
+
+
+def test_zetaris_write_is_one_insert_then_a_check():
+    from app.lab.experiment import _spark_lit, write_zetaris
+    calls = []
+
+    def fake_sql(sql):
+        calls.append(sql)
+        return [["EXP-1"]] if sql.startswith("SELECT") else []
+    row = {"experiment_id": "EXP-1", "created_at": "2026-10-24 06:00:00", "hypothesis": "AGV's kit", "policy": "{}",
+           "baseline_mean_s": 800.0, "treatment_mean_s": 740.0, "effect_pct": -7.5, "ci_low": -8.0, "ci_high": -6.0,
+           "status": "proposed"}
+    assert write_zetaris(row, fake_sql) == "EXP-1"
+    assert calls[0].startswith("INSERT INTO sf_ops.experiments") and "CAST('2026-10-24 06:00:00' AS TIMESTAMP)" in calls[0]
+    assert "'AGV\\'s kit'" in calls[0] and ";" not in calls[0] and len(calls) == 2
+    assert _spark_lit("a\\b") == "'a\\\\b'"

@@ -105,9 +105,9 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
           f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
 
 
-def lab(write: bool):
+def lab(write: bool, target: str = "zetaris"):
     from app.fixtures import maybe_sample
-    from app.lab.experiment import experiment_row, run_experiment, write_local
+    from app.lab.experiment import experiment_row, run_experiment, write_local, write_zetaris
     from app.runtime import chat_json as guarded_json, run_sql as guarded_sql
 
     result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
@@ -120,8 +120,14 @@ def lab(write: bool):
     print(f"Effect {result['effect_pct']}% (95% CI {result['ci_low_pct']}% to {result['ci_high_pct']}%), "
           f"{result['baseline_mean_s']} s -> {result['treatment_mean_s']} s | {result['status']}")
     row = experiment_row(result)
-    if write:
-        print(f"Wrote {write_local(row)} to local Postgres ops.experiments (Zetaris unchanged)")
+    if write and target == "zetaris":
+        try:
+            print(f"Wrote {write_zetaris(row, guarded_sql)} through Zetaris to sf_ops.experiments")
+        except Exception as err:  # noqa: BLE001 - keep the proposal: fall back to the local Postgres path
+            print(f"Zetaris write failed ({str(err)[:120]}); writing locally instead")
+            print(f"Wrote {write_local(row)} to local Postgres ops.experiments")
+    elif write:
+        print(f"Wrote {write_local(row)} to local Postgres ops.experiments")
     else:
         print("Proposal (not written):", json.dumps(row))
 
@@ -145,7 +151,9 @@ if __name__ == "__main__":
     sub.add_parser("models", help="list model ids offered by Nightshift")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
     lab_p = sub.add_parser("lab", help="Lab Level 2: hypothesis, seeded replays, bootstrap CI, experiment proposal")
-    lab_p.add_argument("--write", action="store_true", help="insert the proposal into local Postgres ops.experiments")
+    lab_p.add_argument("--write", action="store_true", help="insert the proposal into ops.experiments")
+    lab_p.add_argument("--target", choices=["zetaris", "local"], default="zetaris",
+                       help="write through Zetaris (default) or straight to the local Postgres container")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
     inc.add_argument("--kind", required=True, choices=["part_shortage", "agv_fault", "overheat", "spill"])
     inc.add_argument("--station", default=None)
@@ -163,6 +171,6 @@ if __name__ == "__main__":
     elif args.command == "health":
         health()
     elif args.command == "lab":
-        lab(args.write)
+        lab(args.write, args.target)
     else:
         models()
