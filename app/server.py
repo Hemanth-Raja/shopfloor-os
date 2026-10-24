@@ -474,6 +474,12 @@ class App:
             from app.runtime import health
             out = health(self.sim)
         out["invariants"] = self.invariants.summary()
+        try:
+            from app.receipts import verify_all
+            r = verify_all()
+            out["receipts"] = {"verified": r["verified"], "total": r["total"], "keys": r["keys"]}
+        except Exception:  # noqa: BLE001
+            out["receipts"] = None
         v = self.journal.verify()
         out["journal"] = {"events": v["events"], "chain_ok": v["ok"], "signed": v.get("signed", False),
                           "problem": v["reason"], "replicated_to_postgres": self.journal.replicated,

@@ -269,6 +269,18 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
     print(f"  runtime invariants: {sim.monitor.summary()['violations']} violations {sim.monitor.summary()['by_rule']}")
 
 
+def receipts(check: bool):
+    from app.receipts import verify_all
+    r = verify_all()
+    if r.get("note"):
+        raise SystemExit(r["note"])
+    print(f"{r['verified']}/{r['total']} Nightshift receipts for {r['app']}* verify (Ed25519), "
+          f"signing key(s): {r['keys']}")
+    if r["failed"]:
+        print(f"FAILED: {r['failed'][:10]}")
+    raise SystemExit(0 if r["all_verified"] else 1)
+
+
 def audit():
     """Verify the hash chains of the journal and of the approvals log (HMAC with JOURNAL_HMAC_KEY if set)."""
     from app.journal import LOGS, Journal
@@ -336,6 +348,8 @@ if __name__ == "__main__":
     sh_p.add_argument("--rate", type=float, default=2.0, help="incidents per sim minute (busy floor: 3+)")
     sh_p.add_argument("--json", action="store_true")
     sub.add_parser("audit", help="verify the hash-chained journal and approvals log")
+    rc_p = sub.add_parser("receipts", help="verify Meterless Nightshift's signed receipts for this app (Ed25519)")
+    rc_p.add_argument("--verify", action="store_true", default=True)
     sub.add_parser("watch", help="live, human-readable view of the agents' logs (run in a second terminal)")
     rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
     rf.add_argument("file")
@@ -368,6 +382,8 @@ if __name__ == "__main__":
         ask(args.question, args.json)
     elif args.command == "shift":
         shift(args.minutes, args.seed, args.workers, args.autonomy, args.offline, args.json, args.rate)
+    elif args.command == "receipts":
+        receipts(args.verify)
     elif args.command == "audit":
         audit()
     elif args.command == "watch":

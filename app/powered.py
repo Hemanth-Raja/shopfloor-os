@@ -76,4 +76,10 @@ def powered(sample_mode: bool = False) -> dict:
         out["nightshift_receipts"] = receipts_summary(receipts_path())
     except OSError:
         pass
+    try:  # Ed25519 signatures of those receipts, checked locally (app/receipts.py; cached per signature)
+        from app.receipts import verify_all
+        v = verify_all()
+        out["receipts_verified"] = {"verified": v["verified"], "total": v["total"], "keys": list(v["keys"])}
+    except Exception:  # noqa: BLE001 - verification is extra evidence, never a reason to fail the strip
+        out["receipts_verified"] = None
     return out

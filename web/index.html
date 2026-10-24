@@ -740,6 +740,7 @@ async function health() {
       + ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
       `<div class="kv"><span>${label[k]}</span><span class="${cls(h[k].status)}">${esc(h[k].note || h[k].status)}${h[k].breaker ? " · breaker " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
       + `<div class="kv"><span>Safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`
+      + (h.receipts && h.receipts.total ? `<div class="kv"><span>Nightshift receipts</span><span class="${h.receipts.verified === h.receipts.total ? "ok-t" : "bad-t"}">${h.receipts.verified}/${h.receipts.total} signatures verified</span></div>` : "")
       + (h.invariants ? `<div class="kv"><span>Runtime safety checks</span><span class="${h.invariants.violations ? "bad-t" : "ok-t"}">${h.invariants.violations ? h.invariants.violations + " violation(s) " + esc(JSON.stringify(h.invariants.by_rule)) : "no violations"}</span></div>` : "")
       + (h.journal ? `<div class="kv"><span>Journal</span><span class="${h.journal.chain_ok ? "ok-t" : "bad-t"}">${h.journal.events} events · chain ${h.journal.chain_ok ? "intact" : "BROKEN"}${h.journal.signed ? " · signed" : ""}${(h.journal.recovered_interrupted || []).length ? " · recovered " + h.journal.recovered_interrupted.length + " interrupted" : ""}</span></div>` : "")
       + (h.model_pins && h.model_pins.warnings.length ? `<div class="kv"><span>Model pins</span><span class="bad-t">${esc(h.model_pins.warnings.join("; "))}</span></div>` : "")
@@ -754,7 +755,9 @@ async function poweredBy() {
     const when = c ? new Date(c.ts).toLocaleTimeString() : "";
     $("powered").innerHTML =
       `<span><span class="dot"></span><b>Meterless Nightshift</b> → ${c ? `<b>${esc(String(c.model).split("/").pop())}</b> · last call ${Number(c.latency_s).toFixed(1)} s at ${esc(when)} (${esc(c.lane)} lane)` : "no live call yet"}</span>`
-      + (r && r.count ? `<span>Nightshift signed <b>${r.count}</b> compute receipts for app <b>shopfloor-os</b> · latest: ${esc(r.last_summary || "")}</span>` : "")
+      + (r && r.count ? `<span>Nightshift signed <b>${r.count}</b> compute receipts for app <b>shopfloor-os</b>`
+         + (p.receipts_verified ? ` · <b class="${p.receipts_verified.verified === p.receipts_verified.total ? "ok-t" : "bad-t"}">${p.receipts_verified.verified}/${p.receipts_verified.total} signatures verified</b> (Ed25519)` : "")
+         + ` · latest: ${esc(r.last_summary || "")}</span>` : "")
       + `<span>Engines: <b>${p.engines.map(esc).join("</b> + <b>")}</b></span><span>Data: <b>Zetaris</b></span>`
       + (p.sample_mode ? '<span class="muted">(sample mode: replaying recorded Nemotron replies)</span>' : "");
   } catch { /* keep the previous strip */ }
