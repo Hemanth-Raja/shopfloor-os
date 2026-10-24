@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from app.engines.markovian import ChunkConfig, MarkovianEngine, tokens
+from app.engines.markovian import ChunkConfig, MarkovianEngine, register_mode, tokens
 from app.journal import Journal
 
 SLICE = 40  # journal lines per chunk
@@ -27,6 +27,13 @@ GOAL = ("Prepare the handover for the next shift lead: incidents by kind, what w
 REFLECT = ("Write the handover note (max 180 words): 1) one-line summary with counts, 2) still open / waiting for a "
            "person, with ids, 3) what went wrong or was rolled back, 4) watch next shift. Use only facts from the state "
            "and the notes below.\n\nFinal state:\n{state}\n\nChunk notes:\n{notes}")
+# a direct, bounded instruction per chunk: the generic ARCHITECT template ("analyze, plan, start") made the model
+# reason at length over every slice
+register_mode("HANDOVER",
+              "{memory}Goal: {goal}\n\nJournal slice:\n{input}\n\nWrite at most 120 words of notes on this slice (counts "
+              "by kind, incidents waiting for a person with ids, roll-backs, pre-emptions). {rules}",
+              "Goal (summary): {goal_short}\n\nState so far:\n{carryover}\n\nNext journal slice:\n{input}\n\nWrite at most 120 "
+              "words of notes on what this slice adds or changes. {rules}")
 SKIP = {"lease", "release"}  # folded into per-resource counts; one line each would drown the slices
 
 
@@ -95,8 +102,8 @@ def handover(chat: Callable, journal_path: Path | None = None, events: list[dict
                              config or ChunkConfig(chunkSize=2000, maxChunks=24, carryoverTokens=256),
                              compressor=gen("handover", "fast"), reflector=gen("handover_reflect", "deep"),
                              **({"log_path": log_path} if log_path is not None else {}))
-    run = engine.run(GOAL, inputs, mode="ARCHITECT", system=SYSTEM, on_phase=on_phase, agent_id="handover",
-                     reflect_prompt=reflect_prompt)
+    run = engine.run(GOAL, inputs, mode="HANDOVER", system=SYSTEM, on_phase=on_phase, agent_id="handover",
+                     reflect_prompt=reflect_prompt, early_final=False)  # every slice of the journal must be read
     return {"events": len(events), "chunks": len(run.chunks), "completed": run.completed, "error": run.error,
             "note": run.reflection or run.final_state, "final_state": run.final_state, "run_id": run.id,
             "tokens": measure(run, inputs), "report": engine.report()}

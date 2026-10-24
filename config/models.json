@@ -70,13 +70,13 @@
     },
     "handover": {
       "chain": [
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b"
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
-      "budget_s": 60,
-      "max_tokens": 1500,
-      "why": "Markovian shift handover: reads one bounded slice of the journal per chunk; a fast model is enough.",
-      "app": "shopfloor-os-fast"
+      "budget_s": 150,
+      "max_tokens": 6000,
+      "why": "Markovian shift handover, one bounded journal slice per chunk. The model reasons before answering: with 1500-2000 tokens it spent the whole budget thinking and Nightshift returned an empty reply (HTTP 502), so the budget is 6000. Lightning still timed out on a 40-line slice.",
+      "app": "shopfloor-os"
     },
     "handover_reflect": {
       "chain": [
@@ -84,7 +84,7 @@
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 120,
-      "max_tokens": 1500,
+      "max_tokens": 6000,
       "why": "Writes the final handover note from the carried state: deep reasoning.",
       "app": "shopfloor-os"
     },

@@ -205,8 +205,9 @@ class MarkovianEngine:
     def run(self, goal: str, inputs: list[str], mode: str = "ARCHITECT", memory: str = "", system: str = "",
             on_chunk: Callable[[ChunkInfo], None] | None = None, on_phase: Callable[[str, str], None] | None = None,
             abort: Callable[[], bool] | None = None, run_id: str | None = None, agent_id: str | None = None,
-            reflect_prompt: Callable[[MarkovianRun], str] | None = None) -> MarkovianRun:
-        """Chain over `inputs` (one bounded input per chunk). Stops at the final marker, at maxChunks, or on abort."""
+            reflect_prompt: Callable[[MarkovianRun], str] | None = None, early_final: bool = True) -> MarkovianRun:
+        """Chain over `inputs` (one bounded input per chunk). Stops at the final marker, at maxChunks, or on abort.
+        early_final=False ignores a final marker before the last input (when every input must be read)."""
         cfg, started = self.config, time.perf_counter()
         run = MarkovianRun(id=uuid.uuid4().hex[:12], timestamp=time.time(), prompt=goal[:200], mode=mode,
                            runId=run_id, agentId=agent_id)
@@ -236,7 +237,7 @@ class MarkovianEngine:
                 run.chunks.append(chunk)
                 if on_chunk:
                     on_chunk(chunk)
-                if final:
+                if final and (early_final or i == len(steps) - 1):
                     run.completed = True
                     break
             else:

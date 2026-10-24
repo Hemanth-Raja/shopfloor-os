@@ -23,7 +23,7 @@ from typing import Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.investigate.catalog import CATALOG, NOTES
+from app.investigate.catalog import AGENT_CATALOG, AGENT_NOTES, CATALOG, NOTES, about_agents
 from app.investigate.sqlguard import GuardError, check
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -75,8 +75,11 @@ class AnswerDraft(Strict):
     recommendation: str = Field(min_length=3, max_length=800)
 
 
-def catalog_text() -> str:
-    return "\n".join(f"{t}({', '.join(cols)})" for t, cols in CATALOG.items()) + "\n" + NOTES
+def catalog_text(question: str = "") -> str:
+    text = "\n".join(f"{t}({', '.join(cols)})" for t, cols in CATALOG.items()) + "\n" + NOTES
+    if about_agents(question):  # the agents' own history, only when the question is about them
+        text += "\n" + "\n".join(f"{t}({', '.join(cols)})" for t, cols in AGENT_CATALOG.items()) + "\n" + AGENT_NOTES
+    return text
 
 
 # ---------------------------------------------------------------- rule-based stand-ins (no model)
@@ -147,6 +150,7 @@ class Investigator:
     def __init__(self, run_sql: Callable, llm_json: Callable | None, on_step: Callable | None = None,
                  ask_id: str | None = None, memory=None, sample: str = "false"):
         self.run_sql, self.llm_json, self.on_step = run_sql, llm_json, on_step
+        self.question = ""
         self.ask_id = ask_id or f"ask-{int(time.time())}-{os.urandom(2).hex()}"
         self.memory = memory
         self.sample = sample  # SAMPLE_MODE: the log agent's evidence is recorded/replayed too (logs differ per machine)
@@ -188,7 +192,7 @@ class Investigator:
                  "in parallel and cannot see each other's results, so never assume an answer (such as a particular AGV "
                  "or station) that the question does not name, and never refer to another task ('the AGV from task 1'): "
                  "each ask must stand alone, so rank or group instead (e.g. faults per AGV per shift).\n"
-                 + catalog_text()},
+                 + catalog_text(question)},
                 {"role": "user", "content": question}])
             tasks = [{"kind": t.kind, "ask": t.ask} for t in d.tasks]
             if not any(t["kind"] == "logs" for t in tasks):
@@ -222,7 +226,7 @@ class Investigator:
                              "(Spark SQL) SELECT that answers the task. Qualify every table as sf_<db>.<table> and use only "
                              "these tables and columns. Aggregate: use GROUP BY with count/sum/avg so the answer fits in "
                              "at most 20 rows, ordered by the most important measure; never return raw incident rows. "
-                             "Round averages to 1 decimal. Return the result column names in order.\n" + catalog_text()},
+                             "Round averages to 1 decimal. Return the result column names in order.\n" + catalog_text(self.question)},
                             {"role": "user", "content": task["ask"]}]
                     if context:  # this task builds on another one: give it those rows
                         msgs.append({"role": "user", "content": "Results of the task(s) this one depends on: "
@@ -374,6 +378,7 @@ class Investigator:
     def run(self, question: str) -> dict:
         started = time.perf_counter()
         t = time.perf_counter()
+        self.question = question
         tasks, how = self.plan(question)
         self._step("coordinator", t, True, question=question, tasks=[{"kind": x["kind"], "ask": x["ask"]} for x in tasks],
                    model=how, **self._call("coordinator", how))

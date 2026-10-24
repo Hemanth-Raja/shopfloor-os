@@ -82,3 +82,9 @@ def test_handover_reads_the_last_shift_in_bounded_slices(tmp_path):
     t = out["tokens"]
     assert t["markovian_prompt_tokens"] < t["standard_prompt_tokens"] and t["per_step"][0]["carryover"] == 0
     assert (tmp_path / "m.jsonl").exists()
+
+
+def test_early_final_marker_can_be_ignored_when_every_input_must_be_read():
+    gen, _ = echo_gen(final_at=1)
+    run = mk.MarkovianEngine(gen, log_path=None).run("g", ["x", "y", "z"], early_final=False)
+    assert run.completed and len(run.chunks) == 3

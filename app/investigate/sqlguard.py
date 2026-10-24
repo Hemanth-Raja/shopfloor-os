@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from app.investigate.catalog import CATALOG
+from app.investigate.catalog import AGENT_CATALOG, CATALOG
 
 MAX_ROWS = 200
 FORBIDDEN = ("insert", "update", "delete", "drop", "create", "alter", "merge", "grant", "revoke", "truncate",
@@ -45,9 +45,9 @@ def check(sql: str) -> str:
     refs = set(re.findall(r"\b(sf_[a-z]+)\.([a-z_]+)\b", low))
     if not refs:
         raise GuardError("query must read at least one qualified table such as sf_ops.incidents")
-    unknown = sorted(f"{s}.{t}" for s, t in refs if f"{s}.{t}" not in CATALOG)
+    unknown = sorted(f"{s}.{t}" for s, t in refs if f"{s}.{t}" not in CATALOG and f"{s}.{t}" not in AGENT_CATALOG)
     if unknown:
-        raise GuardError(f"unknown table(s): {', '.join(unknown)}; allowed: {', '.join(sorted(CATALOG))}")
+        raise GuardError(f"unknown table(s): {', '.join(unknown)}; allowed: {', '.join(sorted(CATALOG | AGENT_CATALOG))}")
     for m in re.finditer(r"\b(?:from|join)\s+([a-z_][a-z0-9_]*)(?!\.)\b(?!\s*\()", low):
         if m.group(1) not in ("select", "lateral") and not m.group(1).startswith("sf_"):
             # a bare table name or a CTE: allow CTE names declared with WITH ... AS

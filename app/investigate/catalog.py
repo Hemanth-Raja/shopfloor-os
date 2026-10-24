@@ -38,3 +38,30 @@ NOTES = """Values worth knowing:
 - sf_plant.weather_hourly.temperature_c is the outdoor temperature (Detroit) per hour, ts on the hour. Incidents
   already carry outdoor_temp_c; to join weather use date_trunc('HOUR', i.ts) = w.ts, never i.ts = w.ts.
 SQL dialect: Zetaris Lightning (Spark SQL). Qualify every table as sf_<db>.<table>. One SELECT, no semicolon."""
+
+
+# The agents' own history, copied from logs/ by app/logsync.py and app/journal.py. Shown to the models only when a
+# question is about the agents (keeps plant questions' prompts short and their recorded replies valid).
+AGENT_CATALOG: dict[str, list[str]] = {
+    'sf_ops.agent_steps': ['id', 'ts', 'run_id', 'incident', 'agent', 'ok', 'ms', 'attempt', 'model', 'decision', 'rules',
+                           'detail'],
+    'sf_ops.llm_calls': ['id', 'ts', 'role', 'requested_model', 'answering_model', 'latency_s', 'prompt_tokens',
+                         'completion_tokens', 'truncated'],
+    'sf_ops.journal': ['seq', 'ts', 'kind', 'data', 'prev', 'hash'],
+}
+AGENT_NOTES = """Agent history (our own logs, synced into the data layer):
+- sf_ops.agent_steps: one row per agent step. agent: reflex, monitor, memory, candidates, planner, critic, dryrun,
+  refine, restraint, gate, executor, verifier, router, safe_mode. ok is BOOLEAN (critic ok=false is a rejection);
+  rules is a comma list of violated rule ids (R-CROSSING, R-LOTO, R-TORQUE-QA...); decision is ACT, VERIFY,
+  SAFE_HOLD, ESCALATE or DO_NOTHING on restraint steps; model is the answering model.
+- sf_ops.llm_calls: one row per Nemotron call: role, requested_model vs answering_model, latency_s, tokens.
+- sf_ops.journal: the shift journal; kind is queued, started, finished, lease, release, preempt, approval,
+  shift_started, shift_finished; data is JSON text."""
+AGENT_WORDS = ("agent", "critic", "planner", "nemotron", "model", "router", "orchestrator", "reject", "rule",
+               "decision", "approv", "escalat", "roll", "journal", "lease", "pre-empt", "preempt", "latency", "token",
+               "verifier", "dry run", "dryrun", "restraint", "lesson")
+
+
+def about_agents(question: str) -> bool:
+    q = (question or "").lower()
+    return any(w in q for w in AGENT_WORDS)

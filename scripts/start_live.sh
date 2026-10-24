@@ -29,7 +29,8 @@ else
   bash scripts/load_data.sh
 fi
 
-echo "4/5 Zetaris datasources"
+echo "4/5 Zetaris datasources (agent logs synced into sf_ops.agent_steps and sf_ops.llm_calls first)"
+$PY run.py logsync > /dev/null || echo "    log sync skipped"
 if $PY -m app.zetaris "SHOW DATASOURCES" | grep -q sf_ops; then
   $PY -m app.zetaris refresh
 else

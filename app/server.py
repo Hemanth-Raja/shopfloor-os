@@ -104,6 +104,9 @@ class App:
         # crash left open: interrupted incidents go to a person, their leases are void, fencing tokens move on.
         from app.journal import Journal
         self.journal = Journal(replicate=not replay and not offline)
+        if not replay and not offline:  # agent steps and model calls into Postgres, queried as sf_ops.* through Zetaris
+            from app.logsync import sync_loop
+            threading.Thread(target=sync_loop, daemon=True).start()
         if not replay:  # model self-check: who really answers each pinned model? (background, ~1 s per model)
             from app import models as _models
             threading.Thread(target=_models.self_check, daemon=True).start()
