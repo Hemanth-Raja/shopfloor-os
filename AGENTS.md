@@ -21,13 +21,13 @@ Folders marked (planned) do not exist yet; create them when the first module nee
 | Path | What goes there |
 |---|---|
 | `app/data/` | Data generator (`generate.py`) and the optional rebuild of `data/seed/` (`fetch_sources.py`) |
-| `app/sim/` | (planned) Deterministic floor simulation: AGV movement, incidents, time stepping |
-| `app/agents/` | (planned) The reasoning agents and their Pydantic message models |
-| `app/lab/` | (planned) Offline experiments and replays of incident history |
+| `app/sim/` | Deterministic floor simulation: AGV movement, incidents, time stepping |
+| `app/agents/` | The reasoning agents and their Pydantic message models |
+| `app/lab/` | Offline experiments and replays of incident history |
 | `app/engines/` | Meterless engines and other non-LLM engines. `world_model.py` is the Meterless World Model; `shopfloor_world.py` builds it from one Zetaris query |
 | `app/zetaris.py` | The only data access layer |
 | `app/llm.py` | The only model-call layer |
-| `web/` | (planned) Demo UI |
+| `web/` | Demo UI served by `python -m app.server` (stdlib http.server, SSE) |
 | `tests/` | pytest tests (`.venv/bin/python -m pytest`) |
 | `logs/` | JSONL run logs (`*.jsonl` is git-ignored) |
 | `data/seed/` | Committed real-data summaries the generator reads |
