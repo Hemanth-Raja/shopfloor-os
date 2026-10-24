@@ -235,12 +235,12 @@ def make_handler(app: App):
     return Handler
 
 
-def serve(port: int = 8000, offline: bool = False) -> None:
+def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1") -> None:
     from app.fixtures import sample_mode
     replay = sample_mode() == "true"
     app = App(offline=offline or replay, replay=replay)
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
-    print(f"Shop-Floor OS on http://127.0.0.1:{port} ({'replay' if replay else 'offline' if app.offline else 'live'})")
+    server = ThreadingHTTPServer((host, port), make_handler(app))
+    print(f"Shop-Floor OS on http://{host}:{port} ({'replay' if replay else 'offline' if app.offline else 'live'})")
     server.serve_forever()
 
 
@@ -248,5 +248,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--offline", action="store_true", help="no Zetaris: offline plant (use with SAMPLE_MODE)")
+    ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 inside a container")
     a = ap.parse_args()
-    serve(a.port, a.offline)
+    serve(a.port, a.offline, a.host)

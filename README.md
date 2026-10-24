@@ -36,6 +36,46 @@ pip install -r requirements-data.txt
 python -m app.data.fetch_sources   # or name one source: ai4i, osha, bls, weather, bosch, mapf
 ```
 
+## Quick start
+**Demo without keys or Zetaris.** This replays recorded Nemotron replies with the offline plant:
+```
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+SAMPLE_MODE=true .venv/bin/python -m app.server          # open http://127.0.0.1:8000
+SAMPLE_MODE=true .venv/bin/python run.py incident --kind part_shortage --station F30 --no-memory
+.venv/bin/python -m pytest -q                             # all tests are offline
+```
+Or with Docker (the image is not prebuilt): `docker build -t shopfloor-os .` then
+`docker run --rm -p 8000:8000 shopfloor-os`.
+
+**Live run.** This needs Zetaris, the `shopfloor-pg` container and Meterless Nightshift; settings go in `.env`
+(see `.env.example`):
+```
+.venv/bin/python run.py health                                        # Zetaris and Nightshift via circuit breakers
+.venv/bin/python run.py incident --kind part_shortage --station F30   # critic rejects, planner retries
+.venv/bin/python run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2   # verifier re-plans
+.venv/bin/python run.py incident --kind overheat --station F10 --false-alarm                  # VERIFY, not a line stop
+.venv/bin/python run.py lab [--write]                                 # Lab Level 2 experiment proposal
+.venv/bin/python -m app.server                                        # live web UI
+```
+Add `--no-memory` to an incident to ignore the learned playbooks, which shows the critic loop again.
+`SAMPLE_MODE=record` saves fresh replies to `logs/fixtures/`.
+
+## How an incident is handled
+```
+reflex (geofence, stop/reroute AGVs, < 100 ms, rules only)
+ -> monitor (thresholds + Bosch vibration evidence; NEMOTRON_FAST one-line summary)
+ -> memory (playbook lessons from past outcomes)
+ -> candidates (one federated Zetaris query -> Meterless World Model: top workers and AGVs)
+ -> planner (NEMOTRON_DEEP, strict JSON, grounded in the world model) <-> safety critic (OSHA rules, up to 3 tries)
+ -> dry-run (60 s headless sim, A* with a reservation table) -> restraint (ACT | VERIFY | SAFE_HOLD | ESCALATE | DO_NOTHING)
+ -> executor -> verifier (re-plans when the world did not change as predicted)
+```
+Every step is appended to `logs/trace.jsonl`. If Nightshift is down, a circuit breaker switches to safe mode: a
+rule-based plan plus ESCALATE. In the web UI a supervisor approves or rejects each decision; approvals are
+logged to `logs/approvals.jsonl`. The lab (`app/lab/`) turns history into tested policy proposals: Nemotron
+writes the hypothesis, 20 seeded replays run without an LLM, a bootstrap CI decides, and the result goes into
+`ops.experiments` in the local Postgres only.
+
 ## Meterless engine: World Model
 Shop-Floor OS implements the **Meterless World Model** engine in Python, in `app/engines/world_model.py`. It is a
 port of the spec in github.com/Meterless/Meterless `engines/world-model` (Apache-2.0), and a reference copy of the
