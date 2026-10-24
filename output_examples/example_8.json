@@ -196,8 +196,8 @@
     }
   ],
   "models": [
+    "nvidia/nemotron-3.5-lightning-30b-a3b (replay)",
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based",
     "rules (Hungarian)"
   ],
   "trace_id": "trace-example-8",

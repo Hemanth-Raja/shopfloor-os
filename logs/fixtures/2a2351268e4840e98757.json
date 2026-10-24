@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"next_agent\": \"investigator\",\n  \"reason\": \"Fetch history for part_shortage at F30 to inform assignment.\"\n}",
+ "data": {
+  "next_agent": "investigator",
+  "reason": "Fetch history for part_shortage at F30 to inform assignment.",
+  "args": {}
+ }
+}

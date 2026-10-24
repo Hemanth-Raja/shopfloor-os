@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 153 offline tests
+.venv/bin/python -m pytest -q                          # 192 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -185,13 +185,20 @@ floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambigu
 - **Sentinel** (`app/autonomy/sentinel.py`) watches a stream of floor signals. The stream is generated from the
   historical incident mix in `sf_ops.incidents`, deterministic for a seed. The signals are line-side stock, AGV
   status, machine temperature with Bosch vibration, spill cameras, robot controllers, nutrunner torque, proximity
-  and quality checks.
+  and quality checks, plus continuous telemetry (machine temperature every 30 s, stock every 20 s).
+  - Adaptive detection (`app/autonomy/detectors.py`): each machine's temperature baseline per shift comes from
+    `sf_plant.machine_telemetry` and then follows the stream by EWMA (learning only from normal readings);
+    |z| >= 3 is an anomaly and 2-3 goes to triage; a CUSUM raises an early warning on a slow drift before any
+    single reading looks abnormal. Line-side stock is projected from its consumption trend, so a shortage is
+    raised before the 5-minute floor. Hard limits are fixed per machine (historical mean + 4 sd, at least 313 K)
+    and person-safety limits never adapt.
   - Rules raise the clear cases.
   - A repeat alarm is merged while its incident is open, and an AGV fault absorbs the shortage it causes at the
     station it was feeding.
   - Only ambiguous readings are triaged by the `sentinel` role (Lightning). A person-safety signal can never be
     dismissed.
-  - A station failing repeatedly in one shift gets a higher severity.
+  - A station failing repeatedly in one shift gets a higher severity; a persisting condition is not raised again
+    right after its incident is handled unless it gets worse (a hard-limit breach always gets through).
   - Every decision is logged in `logs/sentinel.jsonl`.
 - **Dispatcher** (`app/autonomy/dispatcher.py`) keeps a priority queue and runs several incidents at once, each
   with its own orchestrator.
@@ -208,8 +215,12 @@ floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambigu
 - **Human gate:** the autonomy setting still applies. The Shift panel lists what is waiting for you, with
   Approve and Reject per incident, and clicking an incident opens its route in the Flow tab.
 - **Summary:** incidents, decisions, how many were resolved without a person, how many waited, escalations, mean
-  time to resolve, pre-emptions, peak concurrency, and an estimate of cars saved. The estimate compares our time
-  to resolve with the historical downtime per kind.
+  time to resolve, pre-emptions, peak concurrency, quality holds (MES), and cars saved with a bootstrap 95%
+  interval over real historical incidents of each kind.
+- **Durable:** the queue, leases (with fencing tokens), dispatches, approvals and results go to a hash-chained
+  journal (`logs/journal.jsonl`, replicated to Postgres `ops.journal`); after a crash, interrupted incidents are
+  handed to a person (`run.py audit` verifies the chain).
+- **Runtime safety:** an invariant monitor checks the floor after every tick, independently of the critic.
 
 **Caching** (`app/cache.py`, hit rates in `/health`):
 - read-only Zetaris results, 120 s, cleared by any write;
@@ -461,18 +472,47 @@ window and Super VL 1M. Limits are enforced in code anyway:
 Tests cover each path: `tests/test_models.py`, `tests/test_dynamic.py`, `tests/test_agent_loop.py` and
 `tests/test_health.py`.
 
+## Resilience: what happens when things go wrong
+| Failure | What the system does | Where |
+|---|---|---|
+| NVIDIA endpoint returns 5xx, 429, an empty reply or times out | Retries on the same model with full-jitter exponential backoff, inside the incident's deadline; then the next model in the role's chain | `app/models.py`, `app/resilience.py` |
+| A model gets slow or overloaded | A per-model AIMD concurrency limit halves on errors or very slow replies and grows back slowly; the router, monitor and Sentinel hedge to the next model after 1.5x their median latency | same |
+| A model keeps failing | Its circuit breaker opens; half-open lets exactly one probe through | `app/agents/health.py` |
+| Nightshift serves a different model than pinned | Startup self-check and live drift rates; the effective chain skips it; Health warns | `app/models.py` |
+| The model's JSON is broken | Mechanical repair first, then one re-ask, then the next model | `app/resilience.py` |
+| The model is slow or down during an incident | Anytime planning: the optimal-assignment plan (v1) is ready in milliseconds; the model's v2 replaces it only if it passes the critic and the dry run and scores better; with Nightshift down, v1 is used and a person approves | `app/agents/assign.py`, `app/dynamic.py` |
+| A plan breaks a safety rule | The critic rejects it with the clause; a rule it cannot check blocks automatic action (default-deny) | `app/agents/safety_critic.py` |
+| Something unsafe happens anyway on the floor | The runtime invariant monitor stops the AGV (AGV in a fence with a person, fast at a crossing) or escalates (no lockout/tagout in a robot-cell area); the fleet layer caps AGVs at 0.5 m/s on crossings whatever the plan says | `app/sim/invariants.py`, `app/sim/sim.py` |
+| Two incidents want the same person or robot | Leases with fencing tokens; higher risk pre-empts, the loser re-plans; a stale holder's command is refused; repeated dispatches are idempotent | `app/autonomy/leases.py`, `app/connectors.py` |
+| The process crashes mid-shift | The hash-chained journal is replayed: interrupted incidents go to a person, their leases are void, tokens resume above the last one | `app/journal.py` |
+| Someone edits the logs | Journal and approvals are hash chains (HMAC with `JOURNAL_HMAC_KEY`); `run.py audit` finds the first bad line | `app/journal.py` |
+| Zetaris is slow or down | Breaker, 60 s timeout, read cache cleared by any write; sample mode runs offline | `app/runtime.py`, `app/cache.py` |
+| Sensors drift slowly | EWMA baselines from history plus CUSUM raise an early warning before any fixed threshold; hard limits never adapt | `app/autonomy/detectors.py` |
+
+Every one of these has tests, including seeded property-based fuzzing of the critic and the runtime monitor
+(`tests/test_fuzz_safety.py`, `FUZZ_SEEDS=25` for a longer run).
+
 ## Limitations
-- The floor is a 2D grid simulation, not a digital twin: AGVs move one 2 m cell per 2 s tick, and kinematics are
-  simplified.
-- The plant, people and incidents are synthetic. Patterns were planted for the agents to find, and the cost
-  figures are our own assumptions.
-- The Bosch vibration features separate real faults from noise only weakly (they come from milling machines,
-  standing in for a nutrunner). The monitor treats them as one piece of evidence, not a classifier.
-- One incident is handled at a time. There is no arbitration between simultaneous incidents competing for the
-  same AGVs and people.
-- Deep-lane planning takes about 5–90 s per call, depending on Nightshift routing and load.
-- Paraphrased rule summaries and short clause excerpts are not legal advice. Check the full eCFR text.
-- Not production-ready: there is no authentication on the web UI, and it is intended for a local demo.
+- **Simulated floor.** The plant is a 2D grid simulation (one 2 m cell per 2 s tick), not a digital twin, and
+  the connectors to fleet manager, MES and PLC are simulator implementations of real interfaces
+  (`app/connectors.py`). Nothing drives real equipment.
+- **Synthetic data, real anchors.** Plant, people, incidents and the signal stream are generated, anchored on real
+  public data (AI4I, Bosch CNC vibration, OSHA, BLS, Open-Meteo). Patterns were planted for the agents to find;
+  costs are our assumptions. "Cars saved" is an estimate with a bootstrap 95% interval, not a measurement.
+- **Rules are a sample, not a safety case.** About a dozen rules are checked; only the OSHA clauses are real (the
+  SOPs are synthetic); a rule the critic cannot check blocks automatic action instead of being ignored. Clause
+  excerpts are not legal advice.
+- **Two models really answer.** On our Nightshift, NVIDIA's free endpoints serve Nemotron 3.5 Super VL and
+  Lightning; Llama-3.3-Nemotron-Super 49B only works as a Nightshift verify lane and Nemotron 3 Super 120B is not
+  enabled for our key. Per-role pinning relies on lane allowlists in Nightshift's `app-policy.json` (no cockpit
+  control); the self-check and drift warnings make any change visible.
+- **Latency.** A live incident takes about 30-90 s and an investigation 1-3 min, mostly model time; the reflex is
+  instant and the rules plan is ready in milliseconds. Free endpoints throttle under load, so live demos run two
+  model calls per model at a time.
+- **One process.** Incidents run concurrently inside one server; the journal makes a crash recoverable but there is
+  no second node. The UI has no login: approvals carry a name, not an identity. Local demo only.
+- **Detectors.** The Sentinel uses statistics (EWMA, CUSUM, trends) and rules, plus Lightning triage of ambiguous
+  signals, not a learned anomaly model; the Bosch vibration features separate faults from noise only weakly.
 
 ## Pre-existing components
 None. The repository was started inside the build window (first commit on 23 October 2026). Open-source

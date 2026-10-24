@@ -330,7 +330,7 @@ if __name__ == "__main__":
     sh_p = sub.add_parser("shift", help="run a shift autonomously: Sentinel + concurrent incidents + leases")
     sh_p.add_argument("--minutes", type=float, default=10)
     sh_p.add_argument("--seed", type=int, default=7)
-    sh_p.add_argument("--workers", type=int, default=3, help="incidents handled at once")
+    sh_p.add_argument("--workers", type=int, default=2, help="incidents handled at once")
     sh_p.add_argument("--autonomy", choices=["auto", "supervised", "advisory"], default="auto")
     sh_p.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
     sh_p.add_argument("--rate", type=float, default=2.0, help="incidents per sim minute (busy floor: 3+)")

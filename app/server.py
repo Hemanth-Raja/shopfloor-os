@@ -229,7 +229,7 @@ class App:
             raise RuntimeError("an incident or a shift is already running")
         minutes = min(max(float(req.get("minutes") or 8), 1), 60)
         seed, rate = int(req.get("seed") or 7), min(max(float(req.get("rate") or 2.5), 0.2), 8)
-        workers = min(max(int(req.get("workers") or 3), 1), 6)
+        workers = min(max(int(req.get("workers") or 2), 1), 6)
         llm_json, llm_text = self.llm()
         run_sql = sql_runner("true") if self.offline else self.run_sql
         stamp = int(time.time())

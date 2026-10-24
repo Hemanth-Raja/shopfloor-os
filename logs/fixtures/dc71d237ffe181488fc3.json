@@ -1,0 +1,26 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [{\"agv_id\": \"agv:plant:AGV-5\", \"to_station\": \"F30\", \"speed_mps\": 1.0}], \"priority\": \"high\", \"rationale\": \"High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response/incident_command). Dispatch AGV-5 (nearest, 8 cells away, 90% battery) to F30 at 1.0 m/s per SOP-KIT-01 \u00a73.\", \"citations\": [\"SOP-KIT-01 \u00a73\", \"29 CFR 1910.178(n)(8)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [
+   {
+    "agv_id": "agv:plant:AGV-5",
+    "to_station": "F30",
+    "speed_mps": 1.0,
+    "crossing_speed_mps": null
+   }
+  ],
+  "priority": "high",
+  "rationale": "High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response/incident_command). Dispatch AGV-5 (nearest, 8 cells away, 90% battery) to F30 at 1.0 m/s per SOP-KIT-01 \u00a73.",
+  "citations": [
+   "SOP-KIT-01 \u00a73",
+   "29 CFR 1910.178(n)(8)"
+  ]
+ }
+}

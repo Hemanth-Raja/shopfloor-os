@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\":\"candidates\",\"reason\":\"Monitor confirms real fault; rank qualified staff and healthy AGVs for station B10\",\"args\":{}}",
+ "data": {
+  "next_agent": "candidates",
+  "reason": "Monitor confirms real fault; rank qualified staff and healthy AGVs for station B10",
+  "args": {}
+ }
+}

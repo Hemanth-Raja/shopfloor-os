@@ -2,7 +2,7 @@
   "run_id": "example-2",
   "status": "success",
   "output": {
-    "summary": "agv fault at F30: ACT, Medium AGV fault E52_NAV_LOST at F30. Assign worker:plant:W-18 Rosa Novak, 9 cells away with agv_reset skill, score 91.0. Dispatch agv:plant:AGV-2 to F30 at 1.0 m/s, crossing 0.5 m/s; 6 cells away, score 106.0.",
+    "summary": "agv fault at F30: ACT, Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.",
     "incident": {
       "id": "SIM-42-001",
       "kind": "agv_fault",
@@ -40,11 +40,10 @@
           "crossing_speed_mps": 0.5
         }
       ],
-      "priority": "medium",
-      "rationale": "Medium AGV fault E52_NAV_LOST at F30. Assign worker:plant:W-18 Rosa Novak, 9 cells away with agv_reset skill, score 91.0. Dispatch agv:plant:AGV-2 to F30 at 1.0 m/s, crossing 0.5 m/s; 6 cells away, score 106.0.",
+      "priority": "high",
+      "rationale": "Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.",
       "citations": [
         "SOP-AGV-01 \u00a72",
-        "29 CFR 1910.178(n)(4)",
         "SOP-AGV-02 \u00a71"
       ]
     },
@@ -54,12 +53,6 @@
         "title": "AGV traffic at pedestrian crossings (synthetic plant SOP)",
         "text": "Every AGV route that crosses X-WEST or X-EAST must slow to 0.5 m/s or less from one cell before the crossing until it has left it, and sound the horn. Body carriers are not exempt.",
         "doc": "sop"
-      },
-      {
-        "ref": "29 CFR 1910.178(n)(4)",
-        "title": "Powered industrial trucks.",
-        "text": "(4) The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed. If the load being carried obstructs forward view, the driver shall be required to travel with the load trailing.",
-        "doc": "osha"
       },
       {
         "ref": "SOP-AGV-02 \u00a71",
@@ -271,7 +264,7 @@
   ],
   "models": [
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based",
+    "rule-based (sample mode)",
     "rules (Hungarian)"
   ],
   "trace_id": "trace-example-2",

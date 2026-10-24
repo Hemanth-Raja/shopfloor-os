@@ -39,7 +39,7 @@
       "rationale": "Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 14.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
         "SOP-NEARMISS-01 \u00a71",
-        "29 CFR 1910.178(n)(4)"
+        "29 CFR 1910.178(m)(1)"
       ]
     },
     "citations": [
@@ -50,9 +50,9 @@
         "doc": "sop"
       },
       {
-        "ref": "29 CFR 1910.178(n)(4)",
+        "ref": "29 CFR 1910.178(m)(1)",
         "title": "Powered industrial trucks.",
-        "text": "(4) The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed. If the load being carried obstructs forward view, the driver shall be required to travel with the load trailing.",
+        "text": "(m) Truck operations. (1) Trucks shall not be driven up to anyone standing in front of a bench or other fixed object.",
         "doc": "osha"
       }
     ],
@@ -180,8 +180,8 @@
     }
   ],
   "models": [
+    "nvidia/nemotron-3.5-lightning-30b-a3b (replay)",
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based",
     "rules (Hungarian)"
   ],
   "trace_id": "trace-example-7",

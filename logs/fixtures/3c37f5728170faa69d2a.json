@@ -2,7 +2,7 @@
  "kind": "json",
  "lane": "deep",
  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
- "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-20\"], \"agv_routes\": [], \"priority\": \"low\", \"rationale\": \"Assign W-20 Tara Quintero: 2 cells away with quality_inspection and torque_audit skills (score 98.0). Tag affected unit at E10, check cars built since last good unit, decide rework or hold per SOP-QUAL-01 \u00a71.\", \"citations\": [\"SOP-QUAL-01 \u00a71\"]}",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-20\"], \"agv_routes\": [], \"priority\": \"low\", \"rationale\": \"Low-severity torque_out_of_spec defect at E10/EOL affecting 1 unit. Assign W-20 Tara Quintero: 2 cells away, quality_inspection and torque_audit skills, score 98.0. Per SOP-QUAL-01 \u00a71, inspector tags units, checks cars since last good unit, decides rework or hold. No AGV needed.\", \"citations\": [\"SOP-QUAL-01 \u00a71\"]}",
  "data": {
   "incident_id": "SIM-42-001",
   "assignee_ids": [
@@ -10,7 +10,7 @@
   ],
   "agv_routes": [],
   "priority": "low",
-  "rationale": "Assign W-20 Tara Quintero: 2 cells away with quality_inspection and torque_audit skills (score 98.0). Tag affected unit at E10, check cars built since last good unit, decide rework or hold per SOP-QUAL-01 \u00a71.",
+  "rationale": "Low-severity torque_out_of_spec defect at E10/EOL affecting 1 unit. Assign W-20 Tara Quintero: 2 cells away, quality_inspection and torque_audit skills, score 98.0. Per SOP-QUAL-01 \u00a71, inspector tags units, checks cars since last good unit, decides rework or hold. No AGV needed.",
   "citations": [
    "SOP-QUAL-01 \u00a71"
   ]

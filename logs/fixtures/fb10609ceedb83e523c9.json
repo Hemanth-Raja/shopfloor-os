@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\": \"investigator\", \"reason\": \"Retrieve history and sensor traces for near-miss at station F30\", \"args\": {}}",
+ "data": {
+  "next_agent": "investigator",
+  "reason": "Retrieve history and sensor traces for near-miss at station F30",
+  "args": {}
+ }
+}

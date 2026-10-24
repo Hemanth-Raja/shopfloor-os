@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "Near-miss at F30: AGV-5 passed 0.7m from a person at 0.9m/s (confirmed real, p=0.95)",
+ "data": null
+}

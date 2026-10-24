@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\": \"planner\", \"reason\": \"Generate optimal assignment plan for torque defect at E10.\", \"args\": {}}",
+ "data": {
+  "next_agent": "planner",
+  "reason": "Generate optimal assignment plan for torque defect at E10.",
+  "args": {}
+ }
+}

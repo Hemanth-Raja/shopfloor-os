@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "Spill at F20 confirmed real (p=0.86); camera confidence 0.86.",
+ "data": null
+}

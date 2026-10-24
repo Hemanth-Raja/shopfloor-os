@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\":\"planner\",\"reason\":\"Real torque fault confirmed; planner generates optimal worker assignment for station F10.\",\"args\":{}}",
+ "data": {
+  "next_agent": "planner",
+  "reason": "Real torque fault confirmed; planner generates optimal worker assignment for station F10.",
+  "args": {}
+ }
+}

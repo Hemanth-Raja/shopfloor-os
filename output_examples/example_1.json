@@ -44,22 +44,22 @@
       "priority": "high",
       "rationale": "Optimal assignment (Hungarian) over 5 candidates for 2 role(s); total cost 92.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
-        "29 CFR 1910.178(n)(8)",
-        "SOP-KIT-01 \u00a73"
+        "SOP-KIT-01 \u00a73",
+        "29 CFR 1910.178(n)(8)"
       ]
     },
     "citations": [
-      {
-        "ref": "29 CFR 1910.178(n)(8)",
-        "title": "Powered industrial trucks.",
-        "text": "(8) Under all travel conditions the truck shall be operated at a speed that will permit it to be brought to a stop in a safe manner.",
-        "doc": "osha"
-      },
       {
         "ref": "SOP-KIT-01 \u00a73",
         "title": "Line-side part shortage (synthetic plant SOP)",
         "text": "Send the nearest healthy kitting AGV from the supermarket exit (7, 13) to the station's line-side rack. A tugger or forklift may be driven only by a person whose forklift training is in date. The team leader confirms delivery at the station.",
         "doc": "sop"
+      },
+      {
+        "ref": "29 CFR 1910.178(n)(8)",
+        "title": "Powered industrial trucks.",
+        "text": "(8) Under all travel conditions the truck shall be operated at a speed that will permit it to be brought to a stop in a safe manner.",
+        "doc": "osha"
       }
     ],
     "critic_rejections": 1,
@@ -210,8 +210,8 @@
     }
   ],
   "models": [
+    "nvidia/nemotron-3.5-lightning-30b-a3b (replay)",
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based",
     "rules (Hungarian)"
   ],
   "trace_id": "trace-example-1",

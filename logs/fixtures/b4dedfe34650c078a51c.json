@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "F10 torque fault confirmed real (p=0.93); 96.3 Nm vs 110-130 Nm spec, 3 NOK in a row.",
+ "data": null
+}

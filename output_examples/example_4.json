@@ -38,7 +38,7 @@
       "rationale": "Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 0.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
         "29 CFR 1910.22(a)(1)",
-        "29 CFR 1910.22(d)(2)"
+        "SOP-SPILL-01 \u00a72"
       ]
     },
     "citations": [
@@ -49,10 +49,10 @@
         "doc": "osha"
       },
       {
-        "ref": "29 CFR 1910.22(d)(2)",
-        "title": "General requirements.",
-        "text": "(2) Hazardous conditions on walking-working surfaces are corrected or repaired before an employee uses the walking-working surface again. If the correction or repair cannot be made immediately, the hazard must be guarded to prevent employees from using the walking-working surface until the hazard is corrected or repaired; and",
-        "doc": "osha"
+        "ref": "SOP-SPILL-01 \u00a72",
+        "title": "Fluid spill response (synthetic plant SOP)",
+        "text": "Fence the spill area with a two-cell geofence and keep AGVs out until it is dry. A person with spill_response brings the nearest spill kit, absorbs, cleans and dries the floor, then releases the area.",
+        "doc": "sop"
       }
     ],
     "critic_rejections": 0,
@@ -179,8 +179,8 @@
     }
   ],
   "models": [
-    "rule-based",
-    "rule-based (sample mode)",
+    "nvidia/nemotron-3.5-lightning-30b-a3b (replay)",
+    "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
     "rules (Hungarian)"
   ],
   "trace_id": "trace-example-4",

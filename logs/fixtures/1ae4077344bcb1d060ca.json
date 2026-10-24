@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "Confirmed AGV fault at F30 (p=0.97), code E52_NAV_LOST. Investigate navigation loss immediately.",
+ "data": null
+}

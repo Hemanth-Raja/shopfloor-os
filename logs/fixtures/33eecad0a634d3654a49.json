@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"next_agent\": \"candidates\", \"reason\": \"Monitor confirms real torque fault with agreeing sensors; no ambiguity, so rank responders and AGVs directly.\", \"args\": {}}",
+ "data": {
+  "next_agent": "candidates",
+  "reason": "Monitor confirms real torque fault with agreeing sensors; no ambiguity, so rank responders and AGVs directly.",
+  "args": {}
+ }
+}

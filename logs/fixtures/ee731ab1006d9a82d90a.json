@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"next_agent\": \"candidates\",\n  \"reason\": \"Rank qualified responders and healthy AGVs for F30 AGV fault.\",\n  \"args\": {}\n}",
+ "data": {
+  "next_agent": "candidates",
+  "reason": "Rank qualified responders and healthy AGVs for F30 AGV fault.",
+  "args": {}
+ }
+}

@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\":\"investigator\",\"reason\":\"Investigate fault history and traces for AGV nav loss at F30\",\"args\":{}}",
+ "data": {
+  "next_agent": "investigator",
+  "reason": "Investigate fault history and traces for AGV nav loss at F30",
+  "args": {}
+ }
+}

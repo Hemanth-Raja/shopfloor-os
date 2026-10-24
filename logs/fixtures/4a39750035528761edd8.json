@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "F30 part shortage confirmed (p=0.95); only 4.6 min line-side stock remains.",
+ "data": null
+}

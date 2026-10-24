@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "B10 robot cell fault: SRVO-050 collision detected, cell stopped, gate closed, p=0.97.",
+ "data": null
+}

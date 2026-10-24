@@ -121,7 +121,7 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (offline: Meterless conformance tests/test_world_model.py and tests/test_hmem.py, guardrails tests/test_dynamic.py, model registry tests/test_models.py, SQL guard tests/test_investigate.py, autopilot tests/test_shift.py, caches tests/test_cache.py)",
+  "tests": "python -m pytest  (192 offline tests: Meterless conformance, guardrails, model registry and resilience, anytime planning, journal, autopilot, detectors, caches, SQL guard, property-based safety fuzzing)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",
@@ -206,5 +206,15 @@
     "leases": "per worker/AGV with expiry; pre-emption by risk; critic rule R-LEASE; arbiter steps in the trace",
     "caching": "app/cache.py: Zetaris read cache (write invalidates), incident history, clause retrieval, replay hits; /health",
     "tests": "tests/test_shift.py, tests/test_cache.py"
+  },
+  "resilience": {
+    "model_calls": "retries with full-jitter backoff on 5xx/429/empty/timeouts, per-model AIMD concurrency, hedged requests for router/monitor/sentinel, incident deadline, JSON repair then one re-ask, half-open single probe (app/models.py, app/resilience.py)",
+    "anytime_planning": "optimal assignment (Hungarian) plan v1 in milliseconds; Nemotron v2 swapped in only if it passes critic + dry run and scores better (app/agents/assign.py, refine hop)",
+    "model_self_check": "startup probe per pinned model, effective chain, live pin-drift warnings in /health",
+    "durable_state": "hash-chained (HMAC) journal with crash recovery, fencing tokens, idempotent dispatch, signed approvals; run.py audit (app/journal.py, app/connectors.py)",
+    "runtime_safety": "invariant monitor after every tick (AGV in fence with a person, crossing speed, lockout/tagout, collisions); fleet-layer crossing speed limit; default-deny for uncheckable rules; property-based fuzzing (app/sim/invariants.py, tests/test_fuzz_safety.py)",
+    "adaptive_detection": "EWMA baselines from sf_plant.machine_telemetry per machine and shift, CUSUM drift, stock trend, fixed per-machine hard limits (app/autonomy/detectors.py)",
+    "cars_saved": "bootstrap 95% interval over historical incidents per kind",
+    "connectors": "FleetManager / MES / PLC interfaces with simulator implementations (app/connectors.py)"
   }
 }

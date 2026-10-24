@@ -1,0 +1,21 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-7-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [], \"priority\": \"high\", \"rationale\": \"High-severity coolant spill at F20. Assign W-18 (0 cells away, spill_response, score 100.0) to fetch the nearest spill kit, absorb, clean and dry the floor per SOP-SPILL-01 \u00a72; geofence the area and keep AGVs out until dry per 29 CFR 1910.22.\", \"citations\": [\"29 CFR 1910.22(a)(1)\", \"SOP-SPILL-01 \u00a72\", \"29 CFR 1910.22(a)(2)\", \"29 CFR 1910.22(d)(2)\"]}",
+ "data": {
+  "incident_id": "SIM-7-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [],
+  "priority": "high",
+  "rationale": "High-severity coolant spill at F20. Assign W-18 (0 cells away, spill_response, score 100.0) to fetch the nearest spill kit, absorb, clean and dry the floor per SOP-SPILL-01 \u00a72; geofence the area and keep AGVs out until dry per 29 CFR 1910.22.",
+  "citations": [
+   "29 CFR 1910.22(a)(1)",
+   "SOP-SPILL-01 \u00a72",
+   "29 CFR 1910.22(a)(2)",
+   "29 CFR 1910.22(d)(2)"
+  ]
+ }
+}

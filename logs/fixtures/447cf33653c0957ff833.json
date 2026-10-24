@@ -1,0 +1,11 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\"next_agent\":\"investigator\",\"reason\":\"Check prior robot\u2011cell fault logs at B10 to inform assignment.\",\"args\":{}}",
+ "data": {
+  "next_agent": "investigator",
+  "reason": "Check prior robot\u2011cell fault logs at B10 to inform assignment.",
+  "args": {}
+ }
+}

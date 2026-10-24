@@ -1,0 +1,21 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-19\"], \"agv_routes\": [], \"priority\": \"high\", \"rationale\": \"Assign W-19: only candidate with valid lockout/tagout and robot-cell entry for servicing; W-12 lacks lockout/tagout. Isolate energy, lock out cell, inspect/repair weld robot, remove own lock before restart.\", \"citations\": [\"SOP-ROBOT-02 \u00a72\", \"SOP-ROBOT-01 \u00a71\", \"29 CFR 1910.147(c)(1)\", \"29 CFR 1910.212(a)(3)(ii)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-19"
+  ],
+  "agv_routes": [],
+  "priority": "high",
+  "rationale": "Assign W-19: only candidate with valid lockout/tagout and robot-cell entry for servicing; W-12 lacks lockout/tagout. Isolate energy, lock out cell, inspect/repair weld robot, remove own lock before restart.",
+  "citations": [
+   "SOP-ROBOT-02 \u00a72",
+   "SOP-ROBOT-01 \u00a71",
+   "29 CFR 1910.147(c)(1)",
+   "29 CFR 1910.212(a)(3)(ii)"
+  ]
+ }
+}

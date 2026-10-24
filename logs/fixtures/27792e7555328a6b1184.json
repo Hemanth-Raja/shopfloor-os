@@ -1,0 +1,7 @@
+{
+ "kind": "text",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "Quality defect at E10 confirmed real (p=0.90); 1 unit torque out of spec.",
+ "data": null
+}
