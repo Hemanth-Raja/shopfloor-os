@@ -13,6 +13,7 @@ from app.contracts import Incident, Plan, Violation
 from app.engines.shopfloor_world import ground
 
 LAST_MODEL: dict[str, str | None] = {}  # which model answered the last planner call (for the trace)
+LAST_CALL: dict[str, dict] = {}  # requested/answering model, latency and Nightshift receipt of the last call
 PLANNER_TIMEOUT_S = 90  # the deep lane reasons before answering; 20 s is too short
 
 SYSTEM = (
@@ -40,9 +41,11 @@ def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: lis
                          "violation and return a corrected plan: "
                          + json.dumps([v.model_dump(exclude={"citations"}) | {"clauses": [c.ref for c in v.citations]}
                                        for v in feedback])})
-    reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S)
+    reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S, role="planner")
     plan = reply.data if hasattr(reply, "data") else reply
     LAST_MODEL["planner"] = getattr(reply, "model", None)
+    from app.models import call_info
+    LAST_CALL["planner"] = call_info(reply)
     return plan.model_copy(update={"incident_id": incident.id})
 
 

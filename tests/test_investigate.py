@@ -172,3 +172,18 @@ def test_a_task_that_names_another_runs_after_it_and_sees_its_rows():
         return SimpleNamespace(model="m", data=AnswerDraft(summary="fine.", findings=[], recommendation="none"))
     Investigator(lambda sql: [["AGV-3"]], llm, ask_id="ask-d").run("Which AGV is least reliable and when?")
     assert seen[0] == "rank AGVs by faults" and "AGV-3" in seen[1] and "depends on" in seen[1]
+
+
+def test_evidence_critic_model_can_only_drop_claims():
+    from app.investigate.investigator import ClaimCheck
+    llm = fake_llm({"Decomposition": Decomposition(tasks=[{"kind": "sql", "ask": "downtime by station"}]),
+                    "SqlDraft": SqlDraft(sql="SELECT station_id, sum(downtime_min) FROM sf_ops.incidents GROUP BY 1",
+                                         columns=["station_id", "d"], purpose="downtime"),
+                    "AnswerDraft": AnswerDraft(summary="F10 worst.", recommendation="check", findings=[
+                        Finding(claim="F10 lost 2205.5 minutes.", evidence=["E1"]),
+                        Finding(claim="F10 is worse than F30 at 900.0 minutes.", evidence=["E1"])]),
+                    "ClaimCheck": ClaimCheck(verdicts=[{"index": 1, "supported": False, "reason": "overstated"},
+                                                       {"index": 7, "supported": False, "reason": "no such claim"}])})
+    r = Investigator(lambda sql: [["F10", 2205.5], ["F30", 900.0]], llm, ask_id="ask-c").run("Why does F10 stop?")
+    assert [f["claim"] for f in r["findings"]] == ["F10 lost 2205.5 minutes."]
+    assert r["dropped"][0]["reason"].startswith("evidence critic model")

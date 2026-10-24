@@ -103,3 +103,5 @@ class Trace(Strict):
     gate: Literal["none", "auto_executed", "awaiting_approval", "advisory", "approved", "rejected", "rolled_back"] = "none"
     gate_reasons: list[str] = Field(default_factory=list)
     dispatch: dict[str, list[int]] = Field(default_factory=dict)  # agent -> cell it started from (for roll-back)
+    mode: Literal["linear", "dynamic"] = "linear"
+    path: list[dict[str, Any]] = Field(default_factory=list)  # dynamic mode: hop, agent, chosen by, reason

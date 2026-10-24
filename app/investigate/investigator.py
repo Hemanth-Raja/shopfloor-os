@@ -59,6 +59,16 @@ class Finding(Strict):
     evidence: list[str] = Field(min_length=1)
 
 
+class ClaimVerdict(Strict):
+    index: int
+    supported: bool
+    reason: str = Field(max_length=300)
+
+
+class ClaimCheck(Strict):
+    verdicts: list[ClaimVerdict] = Field(max_length=12)
+
+
 class AnswerDraft(Strict):
     summary: str = Field(min_length=5, max_length=1500)
     findings: list[Finding] = Field(max_length=10)
@@ -144,6 +154,7 @@ class Investigator:
         self.models: set[str] = set()
         self._lock = threading.Lock()
         self.analyst_error: str | None = None
+        self.role_calls: dict[str | None, dict] = {}
 
     def _step(self, name: str, started: float, ok: bool, **detail) -> None:
         rec = {"step": name, "ok": ok, "ms": round((time.perf_counter() - started) * 1000, 2), "detail": detail}
@@ -154,17 +165,22 @@ class Investigator:
         if self.on_step:
             self.on_step(self.ask_id, rec)
 
-    def _llm(self, schema, messages, lane="deep", timeout_s=TIMEOUT_S):
+    def _llm(self, schema, messages, lane="deep", timeout_s=TIMEOUT_S, role=None, sink: dict | None = None):
         if self.llm_json is None:
             raise RuntimeError("no model configured")
-        reply = self.llm_json(lane, messages, schema, timeout_s=timeout_s)
+        reply = self.llm_json(lane, messages, schema, timeout_s=timeout_s, role=role)
         self.models.add(str(getattr(reply, "model", "?")))
+        from app.models import call_info
+        info = call_info(reply)
+        self.role_calls[role] = info
+        if sink is not None:
+            sink["model_call"] = info
         return reply.data if hasattr(reply, "data") else reply
 
     # -- coordinator
     def plan(self, question: str) -> tuple[list[dict], str]:
         try:
-            d = self._llm(Decomposition, [
+            d = self._llm(Decomposition, role="coordinator", messages=[
                 {"role": "system", "content": "You coordinate a team investigating a car final-assembly hall. Split the "
                  "question into 1-4 sub-tasks. Use kind 'sql' for questions the plant data can answer (the SQL agent "
                  "queries these tables through Zetaris) and at most one kind 'logs' task for what the agents themselves "
@@ -213,7 +229,7 @@ class Investigator:
                                      + json.dumps(context, default=str)})
                     if error:
                         msgs.append({"role": "user", "content": f"Your previous query failed: {error}. Fix it."})
-                    drafts.append(self._llm(SqlDraft, msgs, lane="fast"))
+                    drafts.append(self._llm(SqlDraft, msgs, lane="fast", role="sql_agent", sink=ev))
                 except Exception as err:  # noqa: BLE001
                     ev.update(ok=False, error=f"SQL agent unavailable: {str(err)[:160]}")
                     return ev
@@ -307,7 +323,7 @@ class Investigator:
             try:
                 return self._llm(AnswerDraft, messages if attempt == 1 else messages + [
                     {"role": "user", "content": "Reply with the JSON object only, matching the schema."}],
-                    timeout_s=ANALYST_TIMEOUT_S), "nemotron"
+                    timeout_s=ANALYST_TIMEOUT_S, role="analyst"), "nemotron"
             except Exception as err:  # noqa: BLE001
                 self.analyst_error = f"{type(err).__name__}: {str(err)[:200]}"
         # rule-based analyst (no model): describe the top rows
@@ -350,13 +366,17 @@ class Investigator:
                 kept.append({"claim": f.claim, "evidence": f.evidence})
         return kept, dropped
 
+    def _call(self, role: str, how: str) -> dict:
+        info = self.role_calls.get(role)
+        return {"model_call": info} if info and how and how != "rule-based" else {}
+
     # -- the whole investigation
     def run(self, question: str) -> dict:
         started = time.perf_counter()
         t = time.perf_counter()
         tasks, how = self.plan(question)
         self._step("coordinator", t, True, question=question, tasks=[{"kind": x["kind"], "ask": x["ask"]} for x in tasks],
-                   model=how)
+                   model=how, **self._call("coordinator", how))
         def work(n_task):
             n, task = n_task
             t = time.perf_counter()
@@ -381,10 +401,30 @@ class Investigator:
         t = time.perf_counter()
         draft, how_a = self.analyse(question, evidence)
         self._step("analyst", t, True, summary=draft.summary, findings=len(draft.findings), model=how_a,
+                   **self._call("analyst", how_a),
                    **({"fallback_reason": self.analyst_error} if how_a == "rule-based" and self.analyst_error else {}))
         t = time.perf_counter()
         kept, dropped = self.critic(draft, evidence)
-        self._step("critic", t, not dropped, kept=len(kept), dropped=dropped)
+        checked_by = ["rules"]
+        if kept and self.llm_json is not None:  # second, independent check by a different model: it can only drop
+            try:
+                verdict = self._llm(ClaimCheck, role="evidence_critic", timeout_s=120, messages=[
+                    {"role": "system", "content": "You are an evidence critic. For each claim, say whether the cited "
+                     "evidence rows really support it (numbers, ids and the direction of the comparison). Be strict: "
+                     "unsupported or over-stated claims get supported=false with a short reason."},
+                    {"role": "user", "content": json.dumps({"claims": [{"index": i, **k} for i, k in enumerate(kept)],
+                                                            "evidence": [{x: e.get(x) for x in ("id", "columns", "preview",
+                                                                                                "summary") if e.get(x)}
+                                                                         for e in evidence]}, default=str)}])
+                bad = {v.index: v.reason for v in verdict.verdicts if not v.supported and 0 <= v.index < len(kept)}
+                dropped += [{"claim": k["claim"], "reason": f"evidence critic model: {bad[i]}"}
+                            for i, k in enumerate(kept) if i in bad]
+                kept = [k for i, k in enumerate(kept) if i not in bad]
+                checked_by.append(self.role_calls.get("evidence_critic", {}).get("answering") or "model")
+            except Exception as err:  # noqa: BLE001 - the rule check stands on its own
+                checked_by.append(f"model check skipped ({type(err).__name__})")
+        self._step("critic", t, not dropped, kept=len(kept), dropped=dropped, checked_by=checked_by,
+                   **self._call("evidence_critic", "model" if len(checked_by) > 1 and "skipped" not in checked_by[-1] else ""))
         return {"ask_id": self.ask_id, "question": question, "summary": draft.summary, "findings": kept,
                 "dropped": dropped, "recommendation": draft.recommendation, "evidence": evidence,
                 "models": sorted(self.models) or ["rule-based"], "coordinator": how, "analyst": how_a,

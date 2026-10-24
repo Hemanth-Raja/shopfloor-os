@@ -19,7 +19,7 @@ from app.agents.candidates import find_candidates
 from app.agents.dryrun import dry_run
 from app.agents.executor import execute, verify
 from app.agents.monitor import assess
-from app.agents.planner import LAST_MODEL, fallback_plan, grounding_violations, make_plan
+from app.agents.planner import LAST_CALL, LAST_MODEL, fallback_plan, grounding_violations, make_plan
 from app.agents.reflex import reflex
 from app.agents.restraint import decide
 from app.agents.safety_critic import review
@@ -121,7 +121,8 @@ class Orchestrator:
                       "agv_candidates": [c.id.split(":")[-1] for c in cands["agvs"]],
                       "clauses_shown": [c["ref"] for c in clauses],
                       "critic_feedback": [v.rule_id for v in (feedback or [])]}
-            self._step(trace, "planner", t, True, attempt=attempt, model=LAST_MODEL.get("planner"), prompt=prompt,
+            self._step(trace, "planner", t, True, attempt=attempt, model=LAST_MODEL.get("planner"),
+                       model_call=LAST_CALL.get("planner"), prompt=prompt,
                        assignees=plan.assignee_ids,
                        agv_routes=[r.model_dump() for r in plan.agv_routes], priority=plan.priority,
                        citations=cited, uncited=[r for r in plan.citations if r not in self.citations.by_ref])

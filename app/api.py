@@ -97,8 +97,18 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
         except KeyError as err:
             raise RunError("InvalidInput", f"unknown station {inp.get('station')}", recoverable=False) from err
         memory = PlaybookStore() if opts.get("memory") else None
-        orch = Orchestrator(plant, sim, llm_json, llm_text, memory=memory, run_id=run_id, echo=echo,
-                            autonomy=opts.get("autonomy", "auto"))
+        mode = opts.get("mode", "dynamic")
+        if mode not in ("dynamic", "linear"):
+            raise RunError("InvalidInput", "options.mode must be dynamic or linear", recoverable=False)
+        common = dict(memory=memory, run_id=run_id, echo=echo, autonomy=opts.get("autonomy", "auto"))
+        if mode == "linear":
+            orch = Orchestrator(plant, sim, llm_json, llm_text, **common)
+        else:
+            from app.dynamic import DynamicOrchestrator
+            from app.investigate.sources import sql_runner
+            orch = DynamicOrchestrator(plant, sim, llm_json, llm_text, **common,
+                                       router_llm=None if sample else llm_json,  # sample mode: rule-based router
+                                       run_sql=sql_runner("true") if sample else runtime.run_sql)
         stall = (0, int(inp["stall_after"])) if inp.get("stall_after") not in (None, "") else None
         trace = orch.handle(incident, stall=stall)
     except RunError as err:
@@ -117,7 +127,7 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
         a["runs"] += 1
         a["ok"] = a["ok"] and st.ok
     models = sorted({str(st.detail.get("model")) for st in steps if st.detail.get("model")})
-    planner = [st for st in steps if st.step == "planner"]
+    planner = [st for st in steps if st.step in ("planner", "playbook", "verify_plan")]
     decision = trace.decision
     plan = trace.plan
     summary = (f"{incident.kind.replace('_', ' ')} at {incident.station_id or incident.zone_id}: "
@@ -136,6 +146,7 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
             "critic_rejections": trace.critic_rejections, "replans": trace.replans,
             "safe_mode": trace.safe_mode, "collisions": len(sim.collisions),
             "autonomy": trace.autonomy, "gate": trace.gate, "gate_reasons": trace.gate_reasons,
+            "mode": trace.mode, "path": trace.path,
         },
         "agents": list(agents.values()),
         "models": models,

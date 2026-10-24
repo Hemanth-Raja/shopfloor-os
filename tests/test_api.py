@@ -15,7 +15,9 @@ def test_examples_run_in_sample_mode_and_differ():
     assert len(set(decisions)) >= 2  # different inputs, different outcomes
     for r in results:
         assert r["output"]["collisions"] == 0 and r["log_file"].startswith("logs/trace-")
-        assert {a["name"] for a in r["agents"]} >= {"reflex", "monitor", "candidates", "planner", "critic", "restraint"}
+        names = {a["name"] for a in r["agents"]}
+        assert names >= {"reflex", "monitor", "candidates", "critic", "restraint"} and names & {"planner", "verify_plan", "playbook"}
+        assert r["output"]["mode"] == "dynamic" and r["output"]["path"][0]["agent"] == "reflex"
         assert Path(Path(__file__).resolve().parents[1] / r["log_file"]).exists()
 
 

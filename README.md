@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 120 offline tests
+.venv/bin/python -m pytest -q                          # 139 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -141,16 +141,17 @@ None of them contain secrets.
 | Agent | Role | Model |
 |---|---|---|
 | reflex | Geofences the incident and stops or re-routes AGVs, in under 100 ms | none (rules) |
-| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | NEMOTRON_FAST (summary only) |
+| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | `monitor` role (summary only) |
 | memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) |
 | candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none |
-| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | NEMOTRON_DEEP |
+| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | `planner` role |
 | safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none |
 | dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none |
 | restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none |
 | executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none |
 | health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none |
-| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | NEMOTRON_DEEP (hypothesis only) |
+| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | `lab` role (hypothesis only) |
+| orchestrator | Chooses the next agent at each decision point, within the legal moves (see below) | `router` role |
 
 ## Ask the floor: investigating what happened
 The incident loop reacts to one incident. *Ask the floor* looks back over everything that happened. A question such
@@ -158,12 +159,12 @@ as "Why does F10 keep stopping?" goes to a team of agents (`app/investigate/`):
 
 | Agent | Role | Model |
 |---|---|---|
-| coordinator | Splits the question into 1–4 sub-tasks: SQL over the plant data, and the agents' own logs | NEMOTRON_DEEP |
-| SQL agent | Writes one read-only Spark SQL query per sub-task from the table catalogue, runs it on Zetaris; on a guard refusal or Zetaris error it gets the message and one retry. A task that builds on another runs after it and sees its rows | NEMOTRON_FAST |
+| coordinator | Splits the question into 1–4 sub-tasks: SQL over the plant data, and the agents' own logs | `coordinator` role |
+| SQL agent | Writes one read-only Spark SQL query per sub-task from the table catalogue, runs it on Zetaris; on a guard refusal or Zetaris error it gets the message and one retry. A task that builds on another runs after it and sees its rows | `sql_agent` role |
 | SQL guard | One `SELECT`/`WITH` only, no `;`, no DDL/DML/`SET`/`REFRESH`, only whitelisted `sf_*` tables, `LIMIT` capped at 200 | none (rules) |
 | log agent | Searches `logs/trace-*.jsonl` (decisions, critic rejections by rule, re-plans), `logs/llm.jsonl` (calls, latency, models) and H-MEM lessons | none |
-| analyst | Correlates the evidence into findings, each citing evidence ids (E1, E2…) | NEMOTRON_DEEP |
-| critic | Drops any finding that cites missing or failed evidence, or quotes a number not found in the cited rows (totals of up to three values in one column are allowed) | none (rules) |
+| analyst | Correlates the evidence into findings, each citing evidence ids (E1, E2…) | `analyst` role |
+| critic | First rules: drops any finding that cites missing or failed evidence, or quotes a number not found in the cited rows (totals of up to three values in one column are allowed). Then a different model re-checks the remaining claims against the rows; it can only drop | rules, then `evidence_critic` role |
 
 Independent sub-tasks run in parallel. The answer shows its evidence: the SQL, row counts, the top rows and log
 references, plus the claims the critic dropped and why. Each step streams to the UI and to `run.py watch`, and is
@@ -171,16 +172,47 @@ written to `logs/trace-ask-<id>.jsonl`. Without Nightshift, a rule-based coordin
 In sample mode the three example questions replay recorded Nemotron replies and Zetaris rows; any other question
 runs on an offline SQLite copy of the four sources, built from `data/seed` on first use.
 
-## How an incident is handled
-```
-reflex (geofence, stop/reroute AGVs, < 100 ms, rules only)
- -> monitor (thresholds + Bosch vibration evidence; NEMOTRON_FAST one-line summary)
- -> memory (H-MEM lessons from past outcomes)
- -> candidates (one federated Zetaris query -> Meterless World Model: top workers and AGVs)
- -> planner (NEMOTRON_DEEP, strict JSON, grounded in the world model, cites clauses) <-> safety critic (OSHA rules + SOPs, up to 3 tries)
- -> dry-run (60 s headless sim, A* with a reservation table) -> restraint (ACT | VERIFY | SAFE_HOLD | ESCALATE | DO_NOTHING)
- -> executor -> verifier (re-plans when the world did not change as predicted) -> human approve/reject (web UI)
-```
+## How an incident is handled: a dynamic orchestrator
+There is no fixed pipeline. After the reflex, an **orchestrator agent** (`app/dynamic.py`) chooses which agent runs
+next, hop by hop. At each decision point the router model (role `router` in `config/models.json`) gets a compact
+state and the agents that are legal right now, and returns strict JSON `{next_agent, reason, args}`.
+
+| Agent | What it does | Model |
+|---|---|---|
+| reflex | Geofence, stop or re-route AGVs, in under 100 ms. Always first | none (rules) |
+| monitor | Real alarm or sensor noise, from thresholds and Bosch vibration evidence; one-line summary | `monitor` role |
+| memory | H-MEM lessons and the playbook for this kind and station | none (H-MEM ranking) |
+| investigator | History through Zetaris (guarded SQL) for this kind, station and AGV: false-alarm share, downtime | none |
+| candidates | Top qualified people and healthy AGVs from the World Model (one federated Zetaris query) | none |
+| playbook | Re-uses a proven H-MEM playbook on today's candidates: no model call | none |
+| check first (`verify_plan`) | One qualified person inspects before anything else moves: no model call | none |
+| planner | Strict-JSON plan grounded in the World Model, citing clauses | `planner` role |
+| safety critic | OSHA rules and SOPs with exact clause citations; violations go back as feedback | none (rules) |
+| dry run | 60 s headless simulation, A* with a reservation table | none |
+| restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence, sensors and cost | none |
+| human gate, executor, verifier | Autonomy-level approval; dispatch; check the world changed as predicted | none |
+
+**Guardrails are code, not prompts.** The model can only choose among the legal agents, and:
+- the reflex always runs first;
+- the executor runs only after the latest plan passed the critic and the dry run, and the human gate allowed it;
+- the human gate always runs before anything moves;
+- an illegal or unknown choice is rejected, logged as a `router` step, and the rule-based router decides;
+- once Nightshift is unavailable, the planner is replaced by safe mode (rule-based plan, ESCALATE);
+- a hop budget (24) ends a runaway loop with ESCALATE; at most 6 router model calls per incident, and a forced move
+  (one legal agent) costs no call.
+
+**Different incidents take different routes** (`output_examples/` shows each one):
+- false alarm: monitor → investigator → check first → critic → VERIFY, with no planner call;
+- a case the floor has handled well before: memory → playbook → critic, with no planner call;
+- ambiguous: investigator before planning;
+- critic rejection: back to the planner with the violations, or to candidates;
+- verifier mismatch: back to candidates without the failed AGV, then the planner.
+
+The rule-based router follows the same policy without a model. It is used in sample mode, when Nightshift is
+down, and after the router-call budget. The Flow tab draws the route as a graph with numbered hops, the reason
+for each hop and who chose it, and can show the previous incident's route next to it. The original fixed
+pipeline is kept for comparison: `run.py incident --linear`, `options.mode: "linear"` or `POST /run {"mode": "linear"}`.
+
 **Autonomy and the human gate.** The UI switch, or `options.autonomy` in the API, sets how much the agents may do alone:
 - **Auto (default):** a routine ACT that passed the critic and the dry-run runs at once, and a person can *Roll back*, which stops the agents and sends them back. A person entering a hazard (spill clean-up, machine repair), a lapsed certificate, or an ESCALATE, SAFE_HOLD or DO_NOTHING decision waits for *Approve*.
 - **Supervised:** every dispatch waits for approval.
@@ -217,11 +249,7 @@ breakers in `app/runtime.py`.
     `tests/test_hmem.py` runs all 13 official vectors.
   - **Meterless Nightshift** is the only model provider: every call goes through `app/llm.py` to
     `MODEL_BASE_URL`.
-- **NVIDIA.** Nemotron models reached through Nightshift:
-  - `nvidia/nemotron-3.5-super-vl-120b-a12b` (deep lane) plans, re-plans after critic feedback and writes lab
-    hypotheses.
-  - `nvidia/nemotron-3.5-lightning-30b-a3b` (fast lane) writes the monitor's one-line summaries.
-  - `logs/llm.jsonl` and the trace record which model actually answered each request.
+- **NVIDIA.** Every model is a Nemotron model reached through Nightshift; see *Models* below.
 - **Cursor.** The project rules live in `.cursor/rules/shopfloor.mdc` and `AGENTS.md`. Cursor built the model
   layer (`app/llm.py`) and its tests. Claude Code was also used (see Disclosure).
 - **What is unique:**
@@ -229,6 +257,38 @@ breakers in `app/runtime.py`.
     regulatory clauses.
   - The LLM never acts unchecked: every plan is critic-checked with clause citations, simulated, gated by
     restraint and verified.
+
+## Models: which model serves which agent
+`config/models.json` maps each agent role to a chain of models, chosen by capability. `app/models.py` tries the
+chain in order through Nightshift.
+
+| Role | Preferred model, then fallbacks | Why |
+|---|---|---|
+| router (orchestrator), monitor | Nemotron 3.5 Lightning 30B A3B → 3.5 Super VL → Llama-3.3-Nemotron-Super 49B | small, frequent decisions: lowest latency (3B active parameters) |
+| planner | Nemotron 3.5 Super VL 120B → Llama-3.3-Nemotron-Super 49B → Lightning | grounded multi-constraint planning with citations |
+| coordinator, analyst, lab | Nemotron 3.5 Super VL 120B → Lightning → Llama-3.3-Nemotron-Super 49B | deep reasoning |
+| sql_agent | Llama-3.3-Nemotron-Super 49B v1.5 → 3.5 Super VL → Lightning | NVIDIA's code- and tool-tuned model. The coder models in the list (Qwen2.5-Coder, Codestral) are non-NVIDIA local models that would load on the PC |
+| evidence_critic | Llama-3.3-Nemotron-Super 49B v1.5 → 3.5 Super VL → Lightning | a different model family from the analyst, for an independent check; it can only drop claims |
+
+The safety critic, dry run, restraint gate and executor are deterministic code and use no model.
+
+- Each model has its own circuit breaker. After two failures it opens, and the next model in the chain answers at once.
+- Every role has a latency budget (the call timeout) and a token budget.
+- Every call records the **requested** and the **answering** model. Nightshift can serve a different model from
+  the one requested.
+- Every call also records the id of **Nightshift's signed receipt** for that request, matched on the response id.
+- All of this appears in the trace (`model_call`), in `logs/llm.jsonl`, in the Flow tab's nodes, and in the *Models* panel, which
+  shows live latency and breaker states.
+
+`scripts/probe_models.py` asks every NVIDIA model Nightshift lists for a one-word reply. It records who really
+answered in `data/model_probe.json`. The three models in the chains have Nightshift lanes. Nightshift's own app
+policy decides the final route, though. While the `shopfloor-os` app rule is in auto mode, Nightshift's receipts
+show `requested_mode: meterless/auto` and its learned router serves Nemotron 3.5 Super VL for every id. The
+registry never hides this: the trace, `logs/llm.jsonl` and the Models panel show "asked Lightning, answered by
+Super VL". Once Nightshift honours the requested model, the chains take effect with no code change. The receipts
+also show `raced: 1`, so one request is never fanned out to every lane.
+Local-runtime models and `meterless/*` aliases are listed but never called by the probe, because calling them
+can load or download a model.
 
 ## Meterless engine: World Model
 Shop-Floor OS implements the **Meterless World Model** engine in Python, in `app/engines/world_model.py`. It is a

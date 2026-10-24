@@ -14,6 +14,7 @@
       "severity": "medium",
       "agv_id": "agv:plant:AGV-3",
       "machine_id": null,
+      "note": null,
       "sensors": {
         "fault_code": "E52_NAV_LOST"
       }
@@ -75,6 +76,117 @@
     "gate": "auto_executed",
     "gate_reasons": [
       "routine ACT: critic and dry-run passed; you can override"
+    ],
+    "mode": "dynamic",
+    "path": [
+      {
+        "hop": 0,
+        "agent": "reflex",
+        "by": "code",
+        "reason": "the reflex always runs first"
+      },
+      {
+        "hop": 1,
+        "agent": "monitor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 2,
+        "agent": "candidates",
+        "by": "rules",
+        "reason": "find qualified people and healthy robots"
+      },
+      {
+        "hop": 3,
+        "agent": "planner",
+        "by": "rules",
+        "reason": "no playbook fits: plan with Nemotron"
+      },
+      {
+        "hop": 4,
+        "agent": "critic",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 5,
+        "agent": "dryrun",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 6,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 7,
+        "agent": "gate",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 8,
+        "agent": "executor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 9,
+        "agent": "verifier",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 10,
+        "agent": "candidates",
+        "by": "rules",
+        "reason": "re-pick people and robots without the ones that failed"
+      },
+      {
+        "hop": 11,
+        "agent": "planner",
+        "by": "rules",
+        "reason": "no playbook fits: plan with Nemotron"
+      },
+      {
+        "hop": 12,
+        "agent": "critic",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 13,
+        "agent": "dryrun",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 14,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 15,
+        "agent": "gate",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 16,
+        "agent": "executor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 17,
+        "agent": "verifier",
+        "by": "forced",
+        "reason": "the only legal next step"
+      }
     ]
   },
   "agents": [

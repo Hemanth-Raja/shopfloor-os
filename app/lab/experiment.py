@@ -82,7 +82,7 @@ def propose(summary: list[list], llm_json: Callable | None) -> tuple[Hypothesis,
                  "fluid_spill) or preposition_agv (stage a loaded kitting AGV at a station; helps part_shortage). "
                  f"Spill kits today: {[k[0] + '@' + str(k[1:]) for k in g.SPILL_KITS]}; the supermarket exit is "
                  "at (7, 13). Use a station id from the data."},
-                {"role": "user", "content": json.dumps(rows)}], Hypothesis, timeout_s=120)
+                {"role": "user", "content": json.dumps(rows)}], Hypothesis, timeout_s=120, role="lab")
             return (reply.data if hasattr(reply, "data") else reply), "nemotron"
         except Exception:  # noqa: BLE001 - fall back to a rule-based hypothesis
             pass

@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from app import llm, zetaris
+from app import llm, models, zetaris
 from app.agents.health import CircuitBreaker, check_health
 
 BREAKERS = {"nightshift": CircuitBreaker("nightshift", threshold=2, cooldown_s=60),
             "zetaris": CircuitBreaker("zetaris", threshold=3, cooldown_s=30)}
 
-chat_json = BREAKERS["nightshift"].wrap(llm.chat_json)
-chat = BREAKERS["nightshift"].wrap(llm.chat)
+# every model call goes through the role registry (config/models.json): per-model breakers and fallback chains
+# inside, and this Nightshift-wide breaker outside (all models failing means safe mode)
+chat_json = BREAKERS["nightshift"].wrap(models.chat_json)
+chat = BREAKERS["nightshift"].wrap(models.chat)
 run_sql = BREAKERS["zetaris"].wrap(zetaris.run_sql)
 
 PROBES = {"zetaris": lambda: zetaris.run_sql("SELECT 1"), "nightshift": llm.list_models}
 
 
 def health(sim=None) -> dict:
-    return check_health(BREAKERS, PROBES, sim)
+    out = check_health(BREAKERS, PROBES, sim)
+    out["models"] = {m: b.status() for m, b in models.BREAKERS.items()}  # per-model breakers
+    return out

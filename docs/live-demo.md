@@ -25,6 +25,12 @@
 - **Second terminal:** `cd ~/hackathon/shopfloor-os && .venv/bin/python run.py watch`. This prints one line per step, Nemotron call and approval.
 - **Raw logs:** each incident writes its own file, `logs/trace-<incident id>.jsonl`; `logs/llm.jsonl` records every Nemotron call. For example `tail -f logs/llm.jsonl`, or `ls -t logs/trace-*.jsonl | head -1 | xargs tail -f` for the newest incident. The old single `logs/trace.jsonl` is no longer written.
 
+### Which model does what
+The **Models** panel (Flow tab) lists each agent role, its model chain from `config/models.json`, breaker states
+and the last call: which model answered, latency and the Nightshift receipt id. Run
+`.venv/bin/python scripts/probe_models.py` beforehand to refresh which models Nightshift really serves. With a
+single lane configured, every NVIDIA id is answered by Nemotron 3.5 Super VL, and the panel says so.
+
 ### Showing that Meterless Nightshift does the AI work
 - The **Powered by** strip at the top of our UI shows the last Nightshift call (model, latency, time) and how many **signed compute receipts** Nightshift has written for app `shopfloor-os`, with the latest receipt's summary, e.g. `ok · Nemotron 3.5 Super VL 120B A12B`.
 - Every request from `app/llm.py` carries the header `meterless-app: shopfloor-os`, so Nightshift attributes it to our app. The receipts are in Nightshift's state folder: on Windows `%LOCALAPPDATA%\ai.meterless.runtime\receipts.jsonl`, one signed JSON receipt per request with `"app": "shopfloor-os"`.
@@ -34,6 +40,7 @@
 | Step | Click | What the audience sees | Live timing |
 |---|---|---|---|
 | 1 | *Part shortage · F30* (Auto) | The critic rejects the plan (AGV too fast at the crossing) with the clause 29 CFR 1910.178(n)(4); Nemotron re-plans at 0.5 m/s; ACT, auto-executed; the AGV moves | 30–90 s (two Nemotron calls) |
+| 1b | *Part shortage · F30* again, then the **Flow** tab with *compare* ticked | Two incidents, two routes: the second goes memory → playbook, with no planner call and no critic rejection | 10–30 s |
 | 2 | Switch to **Supervised**, then *Part shortage · F30* again | "Waiting for you", and nothing moves. Press **Approve & dispatch** and it moves. Switch back to **Auto** | 10–60 s |
 | 3 | *AGV-3 fault + stall* | AGV-3 is fenced; the replacement AGV stalls; the verifier re-plans with another AGV | 30–90 s |
 | 4 | *Overheat · F10 (false alarm)* | The monitor sees the sensors disagree, so VERIFY: "Waiting for you" (a technician would enter the machine area). **Approve** | 10–60 s |

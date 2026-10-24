@@ -27,13 +27,13 @@ def test_offline_health_reports_each_dependency(monkeypatch):
     assert h["floor"]["status"] == "ok" and h["overall"] == "ok"
 
 
-def test_flow_tab_has_every_agent_and_both_loops():
-    assert 'data-view="flow"' in HTML and 'id="flownodes"' in HTML and 'id="flowdetail"' in HTML
-    flow = HTML.split("const FLOW = [")[1].split("];")[0]
-    for step in ("reflex", "monitor", "memory", "candidates", "planner", "critic", "dryrun", "restraint", "gate",
-                 "executor", "verifier"):
-        assert f'"{step}"' in flow
-    assert 'id="loop-critic"' in HTML and 'id="loop-replan"' in HTML
+def test_flow_tab_is_a_route_graph_with_every_agent_and_a_models_panel():
+    assert 'data-view="flow"' in HTML and 'id="flowgraph"' in HTML and 'id="flowdetail"' in HTML and 'id="hops"' in HTML
+    nodes = HTML.split("const NODES = {")[1].split("};")[0]
+    for step in ("reflex", "monitor", "memory", "investigator", "candidates", "playbook", "verify_plan", "planner",
+                 "critic", "dryrun", "restraint", "gate", "executor", "verifier", "safe_mode"):
+        assert f"{step}:" in nodes
+    assert 'id="cmp"' in HTML and 'id="models"' in HTML and "/api/models" in HTML
 
 
 def test_watch_describes_steps_in_plain_english():

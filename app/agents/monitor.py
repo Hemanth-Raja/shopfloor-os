@@ -52,15 +52,17 @@ def assess(incident: Incident, llm_text: Callable | None = None) -> dict:
         evidence.append(f"reported by a person{': ' + incident.note if incident.note else ''}")
     verdict = "real" if p_real >= 0.5 else "likely_noise"
     summary = f"{incident.kind} at {incident.station_id or incident.zone_id}: {verdict} (p={p_real:.2f}); " + "; ".join(evidence)
-    model = None
+    model, model_call = None, None
     if llm_text is not None:
         try:
             reply = llm_text("fast", [{"role": "user", "content": "In one line (max 20 words), summarise for a shift "
-                                       f"supervisor: {summary}"}], max_tokens=300)
+                                       f"supervisor: {summary}"}], role="monitor")
             if reply.text.strip():
                 summary = reply.text.strip().splitlines()[0]
                 model = getattr(reply, "model", None)
+                from app.models import call_info
+                model_call = call_info(reply)
         except Exception:  # noqa: BLE001 - the summary is optional; the classification stands without it
             pass
     return {"p_real": p_real, "verdict": verdict, "sensor_agreement": agreement, "evidence": evidence, "summary": summary,
-            "model": model or "rule-based"}
+            "model": model or "rule-based", **({"model_call": model_call} if model_call else {})}

@@ -2,7 +2,7 @@
   "run_id": "example-3",
   "status": "success",
   "output": {
-    "summary": "overheat at F10: VERIFY, High-severity overheat at F10/M-06. Assign W-19 (17 cells away, machine_repair skill, valid lockout_tagout, score 83.0). No AGV candidates available; none dispatched. Per SOP-OVERHEAT-01 \u00a71, the single temperature alarm is not confirmed by a second sensor (vibration label normal; air temperature below threshold), so a technician verifies the machine before the line is stopped and before lockout/service.",
+    "summary": "overheat at F10: VERIFY, Inspection first: Sanjay Fontaine checks the overheat before anything else moves.",
     "incident": {
       "id": "SIM-42-001",
       "kind": "overheat",
@@ -14,6 +14,7 @@
       "severity": "high",
       "agv_id": null,
       "machine_id": "machine:plant:M-06",
+      "note": null,
       "sensors": {
         "process_temp_k": 315.1,
         "temp_threshold_k": 313.0,
@@ -38,27 +39,13 @@
         "worker:plant:W-19"
       ],
       "agv_routes": [],
-      "priority": "high",
-      "rationale": "High-severity overheat at F10/M-06. Assign W-19 (17 cells away, machine_repair skill, valid lockout_tagout, score 83.0). No AGV candidates available; none dispatched. Per SOP-OVERHEAT-01 \u00a71, the single temperature alarm is not confirmed by a second sensor (vibration label normal; air temperature below threshold), so a technician verifies the machine before the line is stopped and before lockout/service.",
+      "priority": "medium",
+      "rationale": "Inspection first: Sanjay Fontaine checks the overheat before anything else moves.",
       "citations": [
-        "SOP-OVERHEAT-01 \u00a71",
-        "29 CFR 1910.147(c)(1)",
         "29 CFR 1910.147(c)(4)(i)"
       ]
     },
     "citations": [
-      {
-        "ref": "SOP-OVERHEAT-01 \u00a71",
-        "title": "Machine temperature alarm (synthetic plant SOP)",
-        "text": "A single temperature alarm that is not confirmed by a second sensor (vibration or air temperature) is verified first: a technician checks the machine before the line is stopped. A confirmed alarm stops the machine and starts SOP-LOTO-01.",
-        "doc": "sop"
-      },
-      {
-        "ref": "29 CFR 1910.147(c)(1)",
-        "title": "The control of hazardous energy (lockout/tagout).",
-        "text": "(c) General\u2014(1) Energy control program. The employer shall establish a program consisting of energy control procedures, employee training and periodic inspections to ensure that before any employee performs any servicing or maintenance on a machine or equipment where the unexpected energizing, start up or release of stored energy could occur and cause injury, the machine or equipment shall be isolated from the energy source, and rendered inoperative.",
-        "doc": "osha"
-      },
       {
         "ref": "29 CFR 1910.147(c)(4)(i)",
         "title": "The control of hazardous energy (lockout/tagout).",
@@ -74,6 +61,63 @@
     "gate": "awaiting_approval",
     "gate_reasons": [
       "a person would enter the overheat hazard area"
+    ],
+    "mode": "dynamic",
+    "path": [
+      {
+        "hop": 0,
+        "agent": "reflex",
+        "by": "code",
+        "reason": "the reflex always runs first"
+      },
+      {
+        "hop": 1,
+        "agent": "monitor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 2,
+        "agent": "investigator",
+        "by": "rules",
+        "reason": "the alarm is ambiguous: look at the history before planning"
+      },
+      {
+        "hop": 3,
+        "agent": "candidates",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 4,
+        "agent": "verify_plan",
+        "by": "rules",
+        "reason": "sensors disagree: one person checks first, no planner needed"
+      },
+      {
+        "hop": 5,
+        "agent": "critic",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 6,
+        "agent": "dryrun",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 7,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 8,
+        "agent": "gate",
+        "by": "forced",
+        "reason": "the only legal next step"
+      }
     ]
   },
   "agents": [
@@ -90,14 +134,20 @@
       "ok": true
     },
     {
+      "name": "investigator",
+      "role": "",
+      "runs": 1,
+      "ok": true
+    },
+    {
       "name": "candidates",
       "role": "Ranks qualified workers and healthy AGVs from the Meterless World Model (one Zetaris query)",
       "runs": 1,
       "ok": true
     },
     {
-      "name": "planner",
-      "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
+      "name": "verify_plan",
+      "role": "",
       "runs": 1,
       "ok": true
     },
@@ -127,7 +177,6 @@
     }
   ],
   "models": [
-    "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
     "rule-based"
   ],
   "trace_id": "trace-example-3",

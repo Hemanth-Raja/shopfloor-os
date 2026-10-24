@@ -7,6 +7,7 @@
     GET  /events       Server-Sent Events: trace steps, sim ticks, decisions, approvals
     GET  /health       health agent report (circuit breakers, floor vitals)
     GET  /api/knowledge what the agents know: World Model entities and checks, H-MEM lessons and ledger
+    GET  /api/models   role -> model chain, breaker states and the last call per role (config/models.json)
     POST /ask          investigator team in the background -> 'ask_step' and 'ask_result' events; GET /api/ask_last
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
     POST /run          {"kind", "station", "agv", "severity", "note", "false_alarm", "stall_after", "seed"} -> runs the agent loop
@@ -84,7 +85,9 @@ class App:
             self.plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
         self.grid = Grid.load(self.run_sql)
         self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift="B")
-        self.memory = None if replay else PlaybookStore()  # learned lessons would change the replay keys
+        # replay: an in-memory store per session, so a repeated incident can take the playbook route
+        self.memory = PlaybookStore(path=None) if replay else PlaybookStore()
+        self.mode = "dynamic"  # or "linear" (POST /run {"mode": "linear"}) for comparison
         self.traces: dict[str, object] = {}
         self.last_lab: dict | None = None
         self.last_ask: dict | None = None
@@ -154,9 +157,16 @@ class App:
     def _run(self, inc, req) -> None:
         try:
             llm_json, llm_text = self.llm()
-            orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
-                                autonomy=req.get("autonomy") or self.autonomy, echo=True,
-                                on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
+            common = dict(memory=self.memory, run_id=inc.id, autonomy=req.get("autonomy") or self.autonomy, echo=True,
+                          on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
+            if (req.get("mode") or self.mode) == "linear":
+                orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, **common)
+            else:
+                from app.dynamic import DynamicOrchestrator
+                from app.investigate.sources import sql_runner
+                orch = DynamicOrchestrator(self.plant, self.sim, llm_json, llm_text, **common,
+                                           router_llm=None if self.replay else llm_json,
+                                           run_sql=sql_runner("true") if self.offline else self.run_sql)
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
             with self.lock:
                 trace = orch.handle(inc, stall=stall)
@@ -165,7 +175,8 @@ class App:
                                           "plan": trace.plan.model_dump() if trace.plan else None,
                                           "critic_rejections": trace.critic_rejections, "replans": trace.replans,
                                           "safe_mode": trace.safe_mode, "gate": trace.gate,
-                                          "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy})
+                                          "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy,
+                                          "mode": trace.mode, "path": trace.path})
         except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
             self.bus.publish("error", {"incident": inc.id, "error": f"{type(err).__name__}: {err}"[:300]})
         finally:
@@ -221,7 +232,8 @@ class App:
                              "plan": trace.plan.model_dump() if trace.plan else None,
                              "critic_rejections": trace.critic_rejections, "replans": trace.replans,
                              "safe_mode": trace.safe_mode, "gate": trace.gate,
-                             "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy}}
+                             "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy,
+                             "mode": trace.mode, "path": trace.path}}
 
     def knowledge(self) -> dict:
         """What the agents know: the plant World Model (with live sim state) and the H-MEM lessons."""
@@ -355,6 +367,9 @@ def make_handler(app: App):
             if self.path == "/api/powered":
                 from app.powered import powered
                 return self._send(200, powered(sample_mode=app.replay))
+            if self.path == "/api/models":
+                from app.models import mapping
+                return self._send(200, mapping())
             if self.path == "/api/ask_last":
                 return self._send(200, app.last_ask or {})
             if self.path == "/api/lab_last":

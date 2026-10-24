@@ -14,6 +14,7 @@
       "severity": "high",
       "agv_id": null,
       "machine_id": null,
+      "note": null,
       "sensors": {
         "camera_confidence": 0.86,
         "fluid": "coolant"
@@ -62,6 +63,57 @@
     "gate": "awaiting_approval",
     "gate_reasons": [
       "a person would enter the spill hazard area"
+    ],
+    "mode": "dynamic",
+    "path": [
+      {
+        "hop": 0,
+        "agent": "reflex",
+        "by": "code",
+        "reason": "the reflex always runs first"
+      },
+      {
+        "hop": 1,
+        "agent": "monitor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 2,
+        "agent": "candidates",
+        "by": "rules",
+        "reason": "find qualified people and healthy robots"
+      },
+      {
+        "hop": 3,
+        "agent": "planner",
+        "by": "rules",
+        "reason": "no playbook fits: plan with Nemotron"
+      },
+      {
+        "hop": 4,
+        "agent": "critic",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 5,
+        "agent": "dryrun",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 6,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 7,
+        "agent": "gate",
+        "by": "forced",
+        "reason": "the only legal next step"
+      }
     ]
   },
   "agents": [

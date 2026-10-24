@@ -65,7 +65,8 @@ def context(zone):
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
-def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True, offline=False, severity=None, note=None):
+def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True, offline=False, severity=None, note=None,
+             linear=False):
     from datetime import date
 
     from app.engines.plant_world import load_plant_world
@@ -88,7 +89,16 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
     inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm, severity=severity, note=note)
     from app.engines.playbooks import PlaybookStore
     memory = PlaybookStore() if use_memory else None
-    trace = Orchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=f"{inc.id}").handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    if linear:
+        orch = Orchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=f"{inc.id}")
+    else:
+        from app.dynamic import DynamicOrchestrator
+        from app.investigate.sources import sql_runner
+        replay = sample_mode() == "true"
+        orch = DynamicOrchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=f"{inc.id}",
+                                   router_llm=None if replay else chat_json,
+                                   run_sql=sql_runner("true") if offline else guarded_sql)
+    trace = orch.handle(inc, stall=(0, stall_after) if stall_after is not None else None)
     print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
     for st in trace.steps:
         d = st.detail
@@ -102,10 +112,22 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
                 "executor": lambda: f"eta_s={d['eta_s']}",
                 "verifier": lambda: "as predicted" if st.ok else f"MISMATCH {d['mismatches']} -> re-plan",
                 "safe_mode": lambda: d.get("error", ""),
-                "memory": lambda: f"playbook {d['playbook']} lessons {d['lessons']} success {d['success_rate']}"}.get(st.step, lambda: "")()
-        print(f"  {'ok ' if st.ok else 'XX '} {st.step:<10} {st.ms:>8.1f} ms  {note}")
-    print(f"DECISION {trace.decision.decision} | critic rejections {trace.critic_rejections} | replans {trace.replans}"
-          f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
+                "memory": lambda: f"playbook {d['playbook']} lessons {d['lessons']} success {d['success_rate']}",
+                "investigator": lambda: d.get("summary", ""),
+                "playbook": lambda: f"{d['playbook']} -> {d['assignees']}",
+                "verify_plan": lambda: f"check first: {d['assignees']}",
+                "gate": lambda: f"{d['gate']} {d['reasons']}",
+                "router": lambda: f"REJECTED {d.get('rejected')} -> {d.get('fallback')}" if d.get("rejected") else d.get("note", ""),
+                }.get(st.step, lambda: "")()
+        route = d.get("route") or {}
+        hop = f"#{d['hop']:<2} " if "hop" in d else ""
+        print(f"  {'ok ' if st.ok else 'XX '} {hop}{st.step:<12} {st.ms:>8.1f} ms  {note}")
+        if route and st.step != "reflex":
+            print(f"        chosen by {route['by']}: {route['reason']}")
+    print(f"DECISION {trace.decision.decision if trace.decision else None} | critic rejections {trace.critic_rejections}"
+          f" | replans {trace.replans} | safe mode {trace.safe_mode} | collisions {len(sim.collisions)} | {trace.mode}")
+    if trace.path:
+        print("PATH " + " -> ".join(p["agent"] for p in trace.path))
 
 
 def lab(write: bool, target: str = "zetaris"):
@@ -225,13 +247,14 @@ if __name__ == "__main__":
     inc.add_argument("--no-memory", action="store_true", help="ignore learned playbooks (shows the critic loop)")
     inc.add_argument("--severity", choices=["low", "medium", "high", "critical"], default=None)
     inc.add_argument("--note", default=None, help="free text from the person reporting it")
+    inc.add_argument("--linear", action="store_true", help="the fixed pipeline instead of the dynamic orchestrator")
     inc.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
     args = parser.parse_args()
     if args.command == "context":
         context(args.zone)
     elif args.command == "incident":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline,
-                 args.severity, args.note)
+                 args.severity, args.note, args.linear)
     elif args.command == "health":
         health()
     elif args.command == "ask":

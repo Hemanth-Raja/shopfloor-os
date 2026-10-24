@@ -27,26 +27,99 @@
   ],
   "memory": "app/engines/playbooks.py: incident playbooks running on the H-MEM engine",
   "models": {
-    "provider": "Meterless Nightshift (OpenAI-compatible)",
-    "lanes": {
-      "deep": "NEMOTRON_DEEP (planner, lab hypothesis, investigation coordinator and analyst)",
-      "fast": "NEMOTRON_FAST (monitor one-line summary, investigation SQL agent)"
+    "provider": "Meterless Nightshift only (OpenAI-compatible); every model is NVIDIA",
+    "registry": "config/models.json (role -> model chain, latency and token budgets); app/models.py (per-model circuit breakers, fallback, requested vs answering model, Nightshift receipt id per call)",
+    "roles": {
+      "router": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      ],
+      "monitor": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      ],
+      "planner": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "coordinator": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      ],
+      "sql_agent": [
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "analyst": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      ],
+      "evidence_critic": [
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "lab": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      ]
     },
-    "call_layer": "app/llm.py only"
+    "deterministic_no_model": [
+      "reflex",
+      "safety_critic",
+      "dryrun",
+      "restraint",
+      "gate",
+      "executor",
+      "verifier"
+    ],
+    "probe": "scripts/probe_models.py -> data/model_probe.json (which model Nightshift really serves per requested id)",
+    "nightshift_routing_note": "Nightshift's app policy for shopfloor-os decides the final route; every call records requested vs answering model and the receipt id, so logs never claim a model that did not answer"
   },
   "data_platform": "Zetaris (four Postgres sources federated as sf_fleet, sf_hr, sf_plant, sf_ops); one federated query per incident",
-  "agent_loop": [
-    "reflex",
-    "monitor",
-    "memory",
-    "candidates",
-    "planner",
-    "safety_critic",
-    "dryrun",
-    "restraint",
-    "executor",
-    "verifier"
-  ],
+  "agent_loop": {
+    "kind": "dynamic orchestrator (app/dynamic.py); the fixed pipeline is kept as --linear",
+    "router": "router role (config/models.json) returns strict JSON {next_agent, reason, args} per decision point; rule-based router in sample mode, when Nightshift is down, and after 6 router calls",
+    "agents": [
+      "reflex",
+      "monitor",
+      "memory",
+      "investigator",
+      "candidates",
+      "playbook",
+      "verify_plan",
+      "planner",
+      "safety_critic",
+      "dryrun",
+      "restraint",
+      "gate",
+      "executor",
+      "verifier",
+      "safe_mode"
+    ],
+    "guardrails_in_code": [
+      "reflex always first",
+      "executor only after critic + dry run + human gate",
+      "human gate per autonomy level",
+      "illegal or unknown router choices rejected and logged",
+      "Nightshift down -> safe mode replaces the planner",
+      "hop budget 24 -> ESCALATE"
+    ],
+    "routes": {
+      "false_alarm": "monitor -> investigator -> verify_plan -> critic -> VERIFY (no planner)",
+      "known_case": "memory -> playbook -> critic (no planner)",
+      "critic_rejection": "-> planner with violations, or candidates",
+      "verifier_mismatch": "-> candidates without the failed AGV -> planner"
+    },
+    "tests": "tests/test_dynamic.py"
+  },
   "safety": "Deterministic critic over OSHA 29 CFR 1910 rule summaries; restraint gate (ACT, SAFE_HOLD, VERIFY, ESCALATE, DO_NOTHING); circuit-breaker safe mode",
   "demo": {
     "offline": "SAMPLE_MODE=true python -m app.server  (replays recorded Nemotron replies; no keys, no Zetaris)",
@@ -56,7 +129,7 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (120 offline tests, including Meterless conformance: tests/test_world_model.py, tests/test_hmem.py, and the SQL guard: tests/test_investigate.py)",
+  "tests": "python -m pytest  (offline: Meterless conformance tests/test_world_model.py and tests/test_hmem.py, guardrails tests/test_dynamic.py, model registry tests/test_models.py, SQL guard tests/test_investigate.py)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",

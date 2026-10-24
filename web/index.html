@@ -69,6 +69,14 @@
   .gate { margin-top:8px; padding:8px 10px; border-radius:8px; font-size:13px; }
   .gate.auto { background:#16302a; border:1px solid #2b6e50; } .gate.wait { background:#3b2f14; border:1px solid #8a6a22; }
   .gate.done { background:var(--panel2); border:1px solid var(--line); }
+  .hops { margin:8px 0 0; padding-left:22px; font-size:12.5px; } .hops li { margin:2px 0; } .hops .by { color:var(--muted); }
+  .hops .rej { color:var(--bad); } svg.fg { width:100%; height:auto; background:#0a0d11; border-radius:8px; }
+  svg.fg .nd rect { fill:#1b2129; stroke:#2c3642; } svg.fg .nd.v rect { stroke:#2b6e50; fill:#16241e; }
+  svg.fg .nd.f rect { stroke:#7a3430; fill:#2a1a1b; } svg.fg .nd.a rect { stroke:#5aa9ff; fill:#16263a; }
+  svg.fg .nd.s rect { stroke:#f0c674; stroke-width:2; } svg.fg .nd { cursor:pointer; }
+  svg.fg text { fill:#e7eaee; font:600 12px system-ui; } svg.fg text.m { fill:#8b95a1; font:10px system-ui; }
+  svg.fg .ed { fill:none; stroke:#5aa9ff; stroke-width:1.6; opacity:.85; } svg.fg .ed.r { stroke:#a78bfa; }
+  svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
   .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
   .node { position:relative; width:170px; min-height:96px; padding:9px 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); cursor:pointer; transition:all .25s; }
   .node h3 { margin:0 0 4px; font-size:13px; } .node .what { font-size:11px; color:var(--muted); }
@@ -183,16 +191,29 @@
 </section>
 
 <section class="view" id="flow">
-  <div class="panel">
-    <h2>How the agents handled the incident</h2>
-    <p class="note">Each box is one agent. The box lights up while it works, turns green or red when done, and shows its
-      last output and how long it took. Click a box to see everything it received and produced, including what was sent
-      to Nemotron, the model that answered, and its latency. Start an incident on the Live floor tab and come back here,
-      or keep both visible.</p>
-    <div class="flow" id="flownodes"></div>
-    <div><span class="loop" id="loop-critic">⟲ critic → planner retries: 0</span><span class="loop" id="loop-replan">⟲ verifier → re-plans: 0</span></div>
+  <div class="grid2">
+    <div>
+      <div class="panel">
+        <h2>Which agents ran, in what order, and why</h2>
+        <p class="note">An orchestrator agent picks the next agent at every hop. Arrows are numbered in the order taken; the
+          list underneath gives the reason for each hop and who chose it: <b>Nemotron</b> (the router model), <b>rules</b>
+          (the rule-based router) or <b>forced</b> (only one legal move). Code decides what is legal, so the critic, the dry run
+          and the human gate cannot be skipped. Click a node for everything it received and produced.</p>
+        <div class="row" style="margin-top:0"><label class="note"><input type="checkbox" id="cmp"> compare with the previous incident</label>
+          <span class="note" id="flowmode"></span></div>
+        <div id="flowgraph"></div>
+        <ol id="hops" class="hops"></ol>
+        <div id="flowprev" style="display:none"><h2 style="margin-top:14px" id="prevtitle">Previous incident</h2><div id="flowgraph2"></div><ol id="hops2" class="hops"></ol></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent node.</div></div>
+      <div class="panel"><h2>Models: which model serves which agent</h2>
+        <p class="note">From <code>config/models.json</code>; all through Meterless Nightshift. A role tries its chain in order; a failing
+          model's circuit breaker opens and the next one answers. "answered by" is what Nightshift really served.</p>
+        <div id="models" class="muted">loading…</div></div>
+    </div>
   </div>
-  <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent box.</div></div>
 </section>
 
 <section class="view" id="ask">
@@ -325,6 +346,10 @@ function narrate(st) {
       SAFE_HOLD: "SAFE HOLD: keep the area safe and wait for a person.", ESCALATE: "ESCALATE: a human must decide.", DO_NOTHING: "DO NOTHING: almost certainly a false alarm."}[d.decision] || d.decision];
     case "executor": return ["Executor", "dispatched the people and robots on the map. Watch them move."];
     case "verifier": return ["Verifier", st.ok ? "everything moved as predicted. Done." : `${(d.mismatches||[]).map(m => short(m.agent)).join(", ")} did not move as expected (stalled). Re-planning without it.`];
+    case "investigator": return ["Investigator", `looked up the history in Zetaris: ${d.summary || d.error || ""}.`];
+    case "playbook": return ["Playbook (H-MEM)", `re-used what worked before (${d.playbook}, success ${Math.round(100 * (d.success_rate || 0))}%): send ${(d.assignees||[]).map(short).join(" + ")}. No model call.`];
+    case "verify_plan": return ["Check first", `send ${(d.assignees||[]).map(short).join(", ")} to check before anything else moves. No model call.`];
+    case "router": return ["Orchestrator", d.rejected ? `the router model chose "${d.rejected}", which is not allowed now: rejected by the guardrails, ${d.fallback} instead.` : (d.note || "")];
     case "safe_mode": return ["Safe mode", "the AI service is unavailable, so a rule-based plan is used and a human decides."];
     case "gate": return ["Human gate", d.gate === "auto_executed" ? "routine, safe ACT: executing now. You can still override with Roll back."
       : d.gate === "advisory" ? "advisory mode: this is only a recommendation. Press Dispatch to send it." : "waiting for you: nothing moves until you approve (" + (d.reasons||[]).join("; ") + ")."];
@@ -333,49 +358,101 @@ function narrate(st) {
   }
 }
 
-const FLOW = [["reflex", "Reflex", "geofence, stop robots (rules)"], ["monitor", "Monitor", "real alarm or noise?"],
-  ["memory", "Memory (H-MEM)", "lessons from the past"], ["candidates", "Candidates", "World Model via one Zetaris query"],
-  ["planner", "Planner", "Nemotron proposes a plan"], ["critic", "Safety critic", "OSHA rules + citations"],
-  ["dryrun", "Dry run", "60 s simulation"], ["restraint", "Restraint", "ACT / VERIFY / ESCALATE"],
-  ["gate", "Human gate", "auto or wait for you"], ["executor", "Executor", "dispatch on the floor"],
-  ["verifier", "Verifier", "did the world change as predicted?"]];
-const flowLast = {}; let loops = {critic: 0, replan: 0}, flowSel = null;
-function flowReset() {
-  for (const k in flowLast) delete flowLast[k]; loops = {critic: 0, replan: 0}; flowSel = null;
-  $("flownodes").innerHTML = FLOW.map(([k, name, what], i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="node" id="node-${k}" data-k="${k}">
-    <h3>${name}</h3><div class="what">${what}</div><div class="dur"></div><div class="out muted">waiting</div></div>`).join("");
-  for (const n of document.querySelectorAll(".node")) n.onclick = () => flowShow(n.dataset.k);
-  $("loop-critic").textContent = "⟲ critic → planner retries: 0"; $("loop-replan").textContent = "⟲ verifier → re-plans: 0";
-  $("flowdetail").innerHTML = "Click an agent box."; $("flowdetail").classList.add("muted"); $("flowtitle").textContent = "Details";
+const NODES = {reflex:[70,90,"Reflex"], monitor:[210,90,"Monitor"], investigator:[350,90,"Investigator"], memory:[490,90,"Memory (H-MEM)"],
+  candidates:[630,90,"Candidates"], safe_mode:[770,90,"Safe mode"], verify_plan:[350,250,"Check first"], playbook:[490,250,"Playbook"],
+  planner:[630,250,"Planner"], critic:[770,250,"Safety critic"], verifier:[210,410,"Verifier"], executor:[350,410,"Executor"],
+  gate:[490,410,"Human gate"], restraint:[630,410,"Restraint"], dryrun:[770,410,"Dry run"]};
+const MODELLED = {monitor:1, planner:1};
+const flowLast = {}; let flowSel = null, flowPath = [], flowPrev = null, flowRejects = [], flowMeta = "";
+const shortModel = m => String(m || "").replace("nvidia/", "").replace("-120b-a12b", "").replace(" (replay)", " ↺");
+function modelOf(st) { const d = st.detail || {}; const c = d.model_call || (d.route || {}).model_call;
+  if (c && c.answering) return shortModel(c.answering) + (c.requested && c.requested !== c.answering ? " (asked " + shortModel(c.requested) + ")" : "");
+  return d.model && d.model !== "rule-based" ? shortModel(d.model) : ""; }
+function graphSVG(path, last, rejects) {
+  const visits = {}; path.forEach(p => visits[p.agent] = (visits[p.agent] || 0) + 1);
+  let edges = "", nums = "";
+  const W = 60, H = 21, seen = {};
+  const edgePt = (P, Q) => { const dx = Q[0] - P[0], dy = Q[1] - P[1]; const t = Math.min(dx ? W / Math.abs(dx) : 1e9, dy ? H / Math.abs(dy) : 1e9, 1);
+    return [P[0] + dx * t, P[1] + dy * t]; };
+  for (let i = 1; i < path.length; i++) {
+    const A = NODES[path[i-1].agent], B = NODES[path[i].agent]; if (!A || !B || A === B) continue;
+    const key = path[i-1].agent + ">" + path[i].agent, k = seen[key] = (seen[key] || 0) + 1;
+    const sameRow = A[1] === B[1], back = B[0] < A[0];
+    // same row: arc above (forward) or below (backward), higher for longer hops; other rows: a gentle side bend
+    const span = Math.abs(B[0] - A[0]), lift = sameRow ? (34 + span * 0.18 + (k - 1) * 14) * (back ? -1 : 1) : 0;
+    const mx = (A[0] + B[0]) / 2 + (sameRow ? 0 : (back ? -1 : 1) * (22 + (k - 1) * 12)), my = (A[1] + B[1]) / 2 - lift;
+    const s0 = edgePt(A, [mx, my]), s1 = edgePt(B, [mx, my]);
+    edges += `<path class="ed${path[i].by && path[i].by.startsWith("nemotron") ? " r" : ""}" d="M${s0[0]},${s0[1]} Q${mx},${my} ${s1[0]},${s1[1]}" marker-end="url(#ah)"/>`;
+    const bx = (s0[0] + 2 * mx + s1[0]) / 4, by = (s0[1] + 2 * my + s1[1]) / 4;
+    nums += `<g class="hn"><circle cx="${bx}" cy="${by}" r="9"/><text x="${bx}" y="${by + 3.5}" text-anchor="middle">${path[i].hop}</text></g>`;
+  }
+  const nodes = Object.entries(NODES).map(([k, [x, y, name]]) => { const st = (last || {})[k];
+    const cls = !visits[k] ? "" : st && !st.ok ? " f" : " v";
+    const act = path.length && path[path.length - 1].agent === k ? " a" : "", sel = flowSel === k ? " s" : "";
+    const m = st ? modelOf(st) : "";
+    return `<g class="nd${cls}${act}${sel}" data-k="${k}"><rect x="${x-60}" y="${y-21}" width="120" height="42" rx="9"/>
+      <text x="${x}" y="${y-3}" text-anchor="middle">${esc(name)}${visits[k] > 1 ? " ×" + visits[k] : ""}</text>
+      <text class="m" x="${x}" y="${y+12}" text-anchor="middle">${esc(m ? m.slice(0, 26) : visits[k] ? "rules / code" : "")}</text></g>`; }).join("");
+  return `<svg class="fg" viewBox="0 0 840 480" role="img" aria-label="Agent route graph"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+    markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/></marker></defs>${edges}${nodes}${nums}</svg>`;
+}
+function hopsHTML(path, rejects) {
+  return path.map(p => `<li value="${p.hop}"><b>${esc(p.agent)}</b> <span class="by">· ${esc(p.by)}:</span> ${esc(p.reason)}</li>`).join("")
+    + rejects.map(r => `<li class="rej" value="${r.hop}">router chose <b>${esc(r.rejected || "?")}</b>: not legal, rejected; ${esc(r.fallback || "rules")} instead</li>`).join("");
+}
+function flowRender() {
+  $("flowgraph").innerHTML = graphSVG(flowPath, flowLast, flowRejects);
+  $("hops").innerHTML = hopsHTML(flowPath, flowRejects);
+  $("flowmode").textContent = flowMeta;
+  for (const n of document.querySelectorAll("#flowgraph .nd")) n.onclick = () => flowShow(n.dataset.k);
+  const show = $("cmp").checked && flowPrev;
+  $("flowprev").style.display = show ? "" : "none";
+  if (show) { $("prevtitle").textContent = "Previous incident: " + flowPrev.meta; $("flowgraph2").innerHTML = graphSVG(flowPrev.path, flowPrev.last, flowPrev.rejects);
+    $("hops2").innerHTML = hopsHTML(flowPrev.path, flowPrev.rejects); }
+}
+$("cmp").onchange = flowRender;
+function flowReset(meta) {
+  if (flowPath.length) flowPrev = {path: flowPath, last: {...flowLast}, rejects: flowRejects, meta: flowMeta};
+  for (const k in flowLast) delete flowLast[k]; flowSel = null; flowPath = []; flowRejects = []; flowMeta = meta || "";
+  $("flowdetail").innerHTML = "Click an agent node."; $("flowdetail").classList.add("muted"); $("flowtitle").textContent = "Details";
+  flowRender();
 }
 function flowStep(st) {
-  const n = $("node-" + st.step); if (!n) return;
-  if (st.step === "planner" && (st.detail || {}).attempt > 1) { loops.critic++; $("loop-critic").textContent = `⟲ critic → planner retries: ${loops.critic}`;
-    $("loop-critic").classList.remove("flash"); void $("loop-critic").offsetWidth; $("loop-critic").classList.add("flash"); }
-  if (st.step === "candidates" && flowLast.verifier && !flowLast.verifier.ok) { loops.replan++; $("loop-replan").textContent = `⟲ verifier → re-plans: ${loops.replan}`;
-    $("loop-replan").classList.remove("flash"); void $("loop-replan").offsetWidth; $("loop-replan").classList.add("flash");
-    for (const k of ["candidates", "planner", "critic", "dryrun", "restraint", "gate", "executor", "verifier"]) { const m = $("node-" + k); if (m) m.className = "node"; } }
-  document.querySelectorAll(".node.active").forEach(x => x.classList.remove("active"));
+  const d = st.detail || {};
+  if (st.step === "router") { flowRejects.push({...d, hop: flowPath.length}); flowRender(); return; }
+  if (!NODES[st.step]) return;
   flowLast[st.step] = st;
-  n.className = "node " + (st.ok ? "ok" : "fail") + (flowSel === st.step ? " sel" : "");
-  const idx = FLOW.findIndex(f => f[0] === st.step), next = FLOW[idx + 1];
-  if (next && st.step !== "verifier" && !(st.step === "gate" && (st.detail || {}).gate !== "auto_executed")) $("node-" + next[0])?.classList.add("active");
-  n.querySelector(".dur").textContent = st.ms >= 100 ? (st.ms / 1000).toFixed(1) + " s" : st.ms.toFixed(1) + " ms";
-  n.querySelector(".out").classList.remove("muted"); n.querySelector(".out").textContent = narrate(st)[1].slice(0, 110);
+  if (d.hop !== undefined) flowPath.push({hop: d.hop, agent: st.step, by: (d.route || {}).by || "", reason: (d.route || {}).reason || ""});
+  else flowPath.push({hop: flowPath.length, agent: st.step, by: "linear", reason: "fixed pipeline order"});
+  flowRender();
   if (flowSel === st.step) flowShow(st.step);
 }
 function flowShow(k) {
-  flowSel = k; document.querySelectorAll(".node").forEach(x => x.classList.toggle("sel", x.dataset.k === k));
-  const st = flowLast[k], name = FLOW.find(f => f[0] === k)[1];
+  flowSel = k; flowRender();
+  const st = flowLast[k], name = NODES[k][2];
   $("flowtitle").textContent = `${name}: details`;
-  if (!st) { $("flowdetail").innerHTML = "This agent has not run yet for this incident."; return; }
-  const d = st.detail || {};
-  const head = k === "planner" ? `<p><b>Model:</b> ${esc(d.model || "-")} · <b>latency:</b> ${(st.ms / 1000).toFixed(1)} s · <b>attempt:</b> ${d.attempt}</p>
-     <p><b>What was sent to Nemotron:</b></p><pre>${esc(JSON.stringify(d.prompt || {}, null, 2))}</pre><p><b>What came back:</b></p>`
-    : `<p><b>${st.ok ? "ok" : "failed"}</b> · ${st.ms.toFixed(1)} ms · ${esc(narrate(st)[1])}</p>`;
-  const rest = Object.fromEntries(Object.entries(d).filter(([key]) => key !== "prompt"));
+  if (!st) { $("flowdetail").innerHTML = "This agent did not run for this incident: the orchestrator chose another route."; return; }
+  const d = st.detail || {}, call = d.model_call;
+  const head = (call ? `<p><b>Model:</b> asked ${esc(call.requested || "-")}, answered by <b>${esc(call.answering || "-")}</b> · ${call.latency_s ?? "-"} s`
+      + (call.receipt ? ` · Nightshift receipt <code>${esc(call.receipt)}</code>` : "") + `</p>` : "")
+    + (d.route ? `<p><b>Why this agent:</b> ${esc(d.route.reason)} <span class="muted">(${esc(d.route.by)}, hop ${d.hop})</span></p>` : "")
+    + (k === "planner" ? `<p><b>What was sent to Nemotron:</b></p><pre>${esc(JSON.stringify(d.prompt || {}, null, 2))}</pre><p><b>What came back:</b></p>`
+       : `<p><b>${st.ok ? "ok" : "failed"}</b> · ${st.ms.toFixed(1)} ms · ${esc(narrate(st)[1])}</p>`);
+  const rest = Object.fromEntries(Object.entries(d).filter(([key]) => !["prompt", "route", "model_call"].includes(key)));
   $("flowdetail").classList.remove("muted");
   $("flowdetail").innerHTML = head + `<pre>${esc(JSON.stringify(rest, null, 2))}</pre>`;
+}
+async function modelsPanel() {
+  try {
+    const rows = await (await fetch("/api/models")).json();
+    $("models").classList.remove("muted");
+    $("models").innerHTML = `<table><tr><th>agent role</th><th>chain (first is preferred)</th><th>last call</th></tr>` + rows.map(r => {
+      const chain = r.chain.map(m => `<span title="${esc(r.why)}">${esc(shortModel(m))}${r.breakers[m] !== "CLOSED" ? ` <span class="bad-t">${r.breakers[m]}</span>` : ""}`
+        + (r.served_by[m] && r.served_by[m] !== m ? ` <span class="muted">→ ${esc(shortModel(r.served_by[m]))}</span>` : "") + `</span>`).join("<br>");
+      const l = r.last ? `${esc(shortModel(r.last.answering))}<br><span class="muted">${r.last.latency_s} s${r.last.receipt ? " · " + esc(r.last.receipt) : ""}</span>` : '<span class="muted">not called yet</span>';
+      return `<tr><td><b>${esc(r.role)}</b><div class="note">${esc(r.why).slice(0, 90)}</div></td><td>${chain}</td><td>${l}</td></tr>`; }).join("") + "</table>"
+      + `<p class="note">Deterministic, no model: reflex, safety critic, dry run, restraint, human gate, executor, verifier.</p>`;
+  } catch { /* keep the last table */ }
 }
 
 async function load() {
@@ -403,13 +480,19 @@ function note(st) {
     case "executor": return `dispatched · ETA ${esc(Object.entries(d.eta_s||{}).map(([k,v]) => k.split(":").pop()+" "+v+"s").join(", "))}`;
     case "verifier": return st.ok ? "world changed as predicted" : `<span class="bad-t">mismatch</span> ${esc((d.mismatches||[]).map(m => m.agent.split(":").pop()+" "+m.issue).join(", "))} → re-plan`;
     case "safe_mode": return `<span class="bad-t">safe mode</span> ${esc(d.error)}`;
+    case "investigator": return esc(d.summary || d.error || "");
+    case "playbook": return `${esc(d.playbook)} → ${(d.assignees||[]).map(short).join(", ")}`;
+    case "verify_plan": return `check first: ${(d.assignees||[]).map(short).join(", ")}`;
+    case "router": return `<span class="bad-t">rejected ${esc(d.rejected || "")}</span> ${esc(d.note || "")}`;
     default: return esc(JSON.stringify(d).slice(0, 160));
   }
 }
 function addStep(st) {
   const t = $("trace"); if (t.classList.contains("muted")) { t.classList.remove("muted"); t.innerHTML = ""; }
   const div = document.createElement("div"); div.className = "step";
-  div.innerHTML = `<span class="n ${st.ok ? "ok-t" : "bad-t"}">${esc(st.step)}</span><span class="ms">${st.ms.toFixed(0)} ms</span>${note(st)}`;
+  const hop = (st.detail || {}).hop;
+  div.innerHTML = `<span class="n ${st.ok ? "ok-t" : "bad-t"}">${hop !== undefined ? hop + " " : ""}${esc(st.step)}</span><span class="ms">${st.ms.toFixed(0)} ms</span>${note(st)}`
+    + ((st.detail || {}).route && hop ? `<div class="muted" style="margin-left:92px;font-size:11.5px">↳ ${esc(st.detail.route.by)}: ${esc(st.detail.route.reason)}</div>` : "");
   t.appendChild(div); t.scrollTop = t.scrollHeight;
   flowStep(st);
   const [who, text] = narrate(st);
@@ -419,13 +502,14 @@ function addStep(st) {
 
 const es = new EventSource("/events");
 es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
-es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; flowReset(); $("node-reflex").classList.add("active"); $("trace").classList.remove("muted");
+es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; flowReset(`${i.id}: ${i.kind.replace("_", " ")} at ${i.station_id || i.zone_id}`); $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
 es.addEventListener("step", e => addStep(JSON.parse(e.data)));
 es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
 function showDecision(d) { const dec = d.decision ? d.decision.decision : "none";
   $("decision").innerHTML = `<span class="pill ${dec}">${dec}</span> · critic rejections <b>${d.critic_rejections}</b> · re-plans <b>${d.replans}</b>${d.safe_mode ? ' · <span class="bad-t">SAFE MODE</span>' : ""}`
     + (d.plan ? `<div class="muted" style="margin-top:6px">${esc(d.plan.rationale)}</div>` : "")
+    + (d.path && d.path.length ? `<div class="note" style="margin-top:4px">route (${d.mode}, ${d.path.length} hops): ${d.path.map(p => esc(p.agent)).join(" → ")}</div>` : "")
     + gateBox(d.gate, d.gate_reasons);
   gate = d.gate || "none"; setButtons(true); load(); poweredBy(); }
 function gateBox(g, reasons) {
@@ -441,7 +525,7 @@ function gateBox(g, reasons) {
 async function restoreLast() {
   const r = await (await fetch("/api/last")).json();
   if (!r.incident) return;
-  current = r.incident.id; $("trace").innerHTML = ""; flowReset();
+  current = r.incident.id; $("trace").innerHTML = ""; flowReset(`${r.incident.id}: ${r.incident.kind.replace("_", " ")} at ${r.incident.station_id || r.incident.zone_id}`);
   r.steps.forEach(addStep); showDecision(r.decision);
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
@@ -600,7 +684,7 @@ async function poweredBy() {
       + (p.sample_mode ? '<span class="muted">(sample mode: replaying recorded Nemotron replies)</span>' : "");
   } catch { /* keep the previous strip */ }
 }
-flowReset(); load(); health(); restoreLast(); poweredBy(); setInterval(health, 15000); setInterval(poweredBy, 10000);
+flowReset(); load(); health(); restoreLast(); poweredBy(); modelsPanel(); setInterval(health, 15000); setInterval(poweredBy, 10000); setInterval(modelsPanel, 10000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
 if (["#lab", "#know", "#flow", "#ask"].includes(location.hash)) show(location.hash.slice(1));
 </script>

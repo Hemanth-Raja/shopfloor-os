@@ -75,7 +75,7 @@ def test_knowledge_and_offline_lab(monkeypatch, tmp_path):
     from app.engines.playbooks import PlaybookStore
     app = server.App(offline=True, replay=True)
     k = app.knowledge()
-    assert k["engine"] == "Meterless World Model" and k["counts"]["agv"] == 8 and k["memory"] is None
+    assert k["engine"] == "Meterless World Model" and k["counts"]["agv"] == 8 and k["memory"]["lessons"] == []
     assert any(a["id"] == "AGV-3" and a["service_overdue"] for a in k["agvs"])
     assert any(r["id"] == "R-LOTO" for r in k["rules"])
     app.memory = PlaybookStore(tmp_path / "pb.json")

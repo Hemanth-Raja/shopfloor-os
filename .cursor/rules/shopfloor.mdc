@@ -32,10 +32,12 @@ Folders marked (planned) do not exist yet; create them when the first module nee
 | `app/sim/` | Deterministic floor simulation: AGV movement, incidents, time stepping |
 | `app/agents/` | The reasoning agents and their Pydantic message models |
 | `app/investigate/` | Ask the floor: coordinator, SQL agent behind `sqlguard.py` (read-only, whitelisted `sf_*`), log agent, analyst, evidence critic |
+| `app/dynamic.py` | Dynamic orchestrator: legal moves and guardrails in code, router model picks the next agent; `app/orchestrator.py` is the linear pipeline (`--linear`) |
+| `app/models.py`, `config/models.json` | Role -> model chain registry: per-model breakers, fallback, requested vs answering model, Nightshift receipt. Add models in the config, not in code |
 | `app/lab/` | Offline experiments and replays of incident history |
 | `app/engines/` | Meterless engines and other non-LLM engines. `world_model.py` is the Meterless World Model; `shopfloor_world.py` builds it from one Zetaris query |
 | `app/zetaris.py` | The only data access layer |
-| `app/llm.py` | The only model-call layer |
+| `app/llm.py` | The Nightshift client (built in Cursor); `app/models.py` routes every role through it |
 | `web/` | Demo UI served by `python -m app.server` (stdlib http.server, SSE) |
 | `tests/` | pytest tests (`.venv/bin/python -m pytest`) |
 | `logs/` | JSONL run logs (`*.jsonl` is git-ignored) |
@@ -46,9 +48,10 @@ Folders marked (planned) do not exist yet; create them when the first module nee
 ## Rules
 1. **Secrets** come only from `.env` via python-dotenv (`load_dotenv()`). Never hard-code, print, log or commit
    a key, token or password, and never put one in a prompt or URL. To check a setting, test whether it is set.
-2. **Model calls** all go through `app/llm.py` to Meterless Nightshift, using `NEMOTRON_DEEP` or
-   `NEMOTRON_FAST` from `.env`. Never call NVIDIA or any other provider directly, and do not use the local lane
-   without asking, because it can trigger a large model download.
+2. **Model calls** all go to Meterless Nightshift through `app/models.py` (role -> model chain in
+   `config/models.json`), which uses `app/llm.py`'s client and headers. Pass a `role=` on every call. Never call
+   NVIDIA or any other provider directly, and do not use local-runtime models without asking, because they can
+   trigger a large model download.
 3. **Data reads** all go through `app/zetaris.py` (`run_sql`). Use one federated query per incident. Run
    read-only SQL first (`SHOW`, `DESCRIBE`, `SELECT`). Send one statement per call, with no trailing semicolon
    and with qualified names (`sf_ops.incidents`). Ask before anything that creates, drops or writes. Syntax

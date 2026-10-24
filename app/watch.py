@@ -64,6 +64,15 @@ def describe_step(r: dict) -> str:
         return f"{d.get('gate')} ({d.get('autonomy')}): {'; '.join(d.get('reasons', []))}"
     if step == "executor":
         return f"dispatched, ETA {d.get('eta_s')}"
+    if step == "investigator":
+        return f"history from Zetaris: {d.get('summary') or d.get('error')}"
+    if step == "playbook":
+        return f"proven playbook {d.get('playbook')} -> {[short(a) for a in d.get('assignees', [])]} (no model call)"
+    if step == "verify_plan":
+        return f"check first: {[short(a) for a in d.get('assignees', [])]} (no model call)"
+    if step == "router":
+        return (f"router chose '{d.get('rejected')}': not legal now, rejected; {d.get('fallback')} instead"
+                if d.get("rejected") else d.get("note", ""))
     if step == "coordinator":
         return f"{model_name(d.get('model'))} split the question into {[t['kind'] for t in d.get('tasks', [])]}"
     if step == "sql":
@@ -105,16 +114,26 @@ def follow(poll_s: float = 0.5) -> None:
                 stamp = time.strftime("%H:%M:%S")
                 if f.name == "llm.jsonl":
                     t = r.get("tokens") or {}
-                    print(paint(f"{stamp} NEMOTRON     {model_name(r.get('answering_model'))} {r.get('latency_s')}s "
-                                f"({r.get('lane')} lane, {t.get('completion')} tokens)", "model"), flush=True)
+                    asked = r.get("requested_model")
+                    served = r.get("answering_model")
+                    swap = f", asked {model_name(asked)}" if asked and served and asked != served else ""
+                    print(paint(f"{stamp} NEMOTRON     {model_name(served)} {r.get('latency_s')}s "
+                                f"({r.get('lane')}{swap}, {t.get('completion')} tokens)", "model"), flush=True)
                 elif f.name == "approvals.jsonl":
                     print(paint(f"{stamp} HUMAN        {'approved' if r.get('approved') else 'rejected'}: {r.get('action')}",
                                 "human"), flush=True)
                 else:
                     step = r.get("step", "?")
+                    d = r.get("detail") or {}
                     secs = f"{r.get('ms', 0) / 1000:.1f}s" if (r.get("ms") or 0) >= 100 else f"{r.get('ms')}ms"
-                    line = f"{stamp} {step.upper():<12} {secs:>7}  {describe_step(r)}"
+                    hop = f"#{d['hop']:<2}" if "hop" in d else "   "
+                    line = f"{stamp} {hop} {step.upper():<12} {secs:>7}  {describe_step(r)}"
                     print(paint(line, "ok" if r.get("ok") else "bad") + paint(f"  [{r.get('incident')}]", "dim"), flush=True)
+                    route = d.get("route") or {}
+                    if route and d.get("hop"):
+                        call = route.get("model_call") or {}
+                        who = model_name(call.get("answering")) if call else route.get("by")
+                        print(paint(f"             why: {route.get('reason')} ({who})", "dim"), flush=True)
         time.sleep(poll_s)
 
 
