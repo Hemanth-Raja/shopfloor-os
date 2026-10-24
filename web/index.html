@@ -90,6 +90,10 @@
   #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
   #powered { margin:10px 18px 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
   #powered b { color:var(--ink); font-weight:600; } #powered .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
+  .shiftbar { height:6px; background:var(--panel2); border-radius:3px; overflow:hidden; margin:4px 0 8px; } .shiftbar i { display:block; height:100%; background:var(--accent); }
+  .sfeed { max-height:110px; overflow:auto; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); }
+  .inc { display:flex; gap:6px; align-items:center; padding:3px 0; border-bottom:1px solid #1f262e; font-size:12.5px; cursor:pointer; }
+  .inc .k { min-width:118px; } .inc .r { color:var(--muted); min-width:44px; } .inc button { padding:2px 7px; font-size:11.5px; }
   .ask { display:flex; gap:8px; } .ask input { flex:1; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; }
   .form { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
   .form select, .form input { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 7px; font-size:13px; }
@@ -171,6 +175,16 @@
           <button class="act primary" type="submit">Run</button>
         </form>
         <div class="note">Any kind the agents have no playbook for is fenced and escalated to a supervisor, with the reason.</div>
+        <form class="form" id="autopilot" aria-label="Run a shift autonomously" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+          <b class="note" style="color:var(--ink)">Autopilot:</b>
+          <label class="note">minutes <input name="minutes" type="number" min="1" max="60" value="8" style="width:58px"></label>
+          <label class="note">incidents/min <input name="rate" type="number" min="0.2" max="8" step="0.5" value="2.5" style="width:58px"></label>
+          <label class="note">at once <input name="workers" type="number" min="1" max="6" value="3" style="width:46px"></label>
+          <label class="note">seed <input name="seed" type="number" value="7" style="width:58px"></label>
+          <button class="act primary" type="submit">Run shift</button><button class="act" type="button" id="shiftstop">Stop</button>
+        </form>
+        <div class="note">A Sentinel watches the floor's signals and raises incidents; several run at once, most urgent first.
+          People and robots are leased so two incidents never claim the same one. Your autonomy setting still decides what waits for you.</div>
       </div>
     </div>
     <div>
@@ -184,6 +198,7 @@
         <div id="decision" class="muted">Pick an incident to start.</div>
         <div class="row"><button class="act ok" id="approve" disabled>Approve</button><button class="act bad" id="reject" disabled>Reject</button></div>
       </div>
+      <div class="panel" id="shiftpanel" style="display:none"><h2>Shift on autopilot</h2><div id="shift"></div></div>
       <div class="panel"><h2>Agent trace</h2><div id="narration" class="muted">Pick an incident under the map. Each agent's step is explained here.</div><div id="trace" class="muted">—</div></div>
       <div class="panel"><h2>Health</h2><div id="health" class="muted">checking…</div></div>
     </div>
@@ -346,6 +361,8 @@ function narrate(st) {
       SAFE_HOLD: "SAFE HOLD: keep the area safe and wait for a person.", ESCALATE: "ESCALATE: a human must decide.", DO_NOTHING: "DO NOTHING: almost certainly a false alarm."}[d.decision] || d.decision];
     case "executor": return ["Executor", "dispatched the people and robots on the map. Watch them move."];
     case "verifier": return ["Verifier", st.ok ? "everything moved as predicted. Done." : `${(d.mismatches||[]).map(m => short(m.agent)).join(", ")} did not move as expected (stalled). Re-planning without it.`];
+    case "arbiter": return ["Arbiter", d.lost ? `a more urgent incident took ${(d.lost||[]).map(short).join(", ")}: re-planning without them.`
+      : d.refused ? `${(d.refused||[]).map(short).join(", ")} already committed elsewhere: re-planning.` : `took ${Object.keys(d.preempted||{}).map(short).join(", ")} from less urgent incidents.`];
     case "investigator": return ["Investigator", `looked up the history in Zetaris: ${d.summary || d.error || ""}.`];
     case "playbook": return ["Playbook (H-MEM)", `re-used what worked before (${d.playbook}, success ${Math.round(100 * (d.success_rate || 0))}%): send ${(d.assignees||[]).map(short).join(" + ")}. No model call.`];
     case "verify_plan": return ["Check first", `send ${(d.assignees||[]).map(short).join(", ")} to check before anything else moves. No model call.`];
@@ -361,7 +378,7 @@ function narrate(st) {
 const NODES = {reflex:[70,90,"Reflex"], monitor:[210,90,"Monitor"], investigator:[350,90,"Investigator"], memory:[490,90,"Memory (H-MEM)"],
   candidates:[630,90,"Candidates"], safe_mode:[770,90,"Safe mode"], verify_plan:[350,250,"Check first"], playbook:[490,250,"Playbook"],
   planner:[630,250,"Planner"], critic:[770,250,"Safety critic"], verifier:[210,410,"Verifier"], executor:[350,410,"Executor"],
-  gate:[490,410,"Human gate"], restraint:[630,410,"Restraint"], dryrun:[770,410,"Dry run"]};
+  gate:[490,410,"Human gate"], restraint:[630,410,"Restraint"], dryrun:[770,410,"Dry run"], arbiter:[70,410,"Arbiter (leases)"]};
 const MODELLED = {monitor:1, planner:1};
 const flowLast = {}; let flowSel = null, flowPath = [], flowPrev = null, flowRejects = [], flowMeta = "";
 const shortModel = m => String(m || "").replace("nvidia/", "").replace("-120b-a12b", "").replace(" (replay)", " ↺");
@@ -481,6 +498,7 @@ function note(st) {
     case "verifier": return st.ok ? "world changed as predicted" : `<span class="bad-t">mismatch</span> ${esc((d.mismatches||[]).map(m => m.agent.split(":").pop()+" "+m.issue).join(", "))} → re-plan`;
     case "safe_mode": return `<span class="bad-t">safe mode</span> ${esc(d.error)}`;
     case "investigator": return esc(d.summary || d.error || "");
+    case "arbiter": return `<span class="${st.ok ? "ok-t" : "bad-t"}">${esc(d.note || "")}</span> ${esc(JSON.stringify(d.lost || d.refused || d.preempted || ""))}`;
     case "playbook": return `${esc(d.playbook)} → ${(d.assignees||[]).map(short).join(", ")}`;
     case "verify_plan": return `check first: ${(d.assignees||[]).map(short).join(", ")}`;
     case "router": return `<span class="bad-t">rejected ${esc(d.rejected || "")}</span> ${esc(d.note || "")}`;
@@ -613,6 +631,52 @@ for (const b of document.querySelectorAll("[data-ask]")) b.onclick = () => ask(b
 es.addEventListener("ask_step", e => askStep(JSON.parse(e.data)));
 es.addEventListener("ask_result", e => showAsk(JSON.parse(e.data)));
 fetch("/api/ask_last").then(r => r.json()).then(showAsk);
+
+// ---------------------------------------------------------------- autopilot shift
+let shiftFeed = [];
+$("autopilot").onsubmit = async e => { e.preventDefault(); const f = e.target;
+  const body = {minutes: +f.minutes.value, rate: +f.rate.value, workers: +f.workers.value, seed: +f.seed.value};
+  const r = await fetch("/shift/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if (!r.ok) return alert((await r.json()).error);
+  shiftFeed = []; $("shiftpanel").style.display = ""; };
+$("shiftstop").onclick = async () => { const r = await fetch("/shift/stop", {method:"POST"}); if (!r.ok) alert((await r.json()).error); };
+const GATEWORD = {auto_executed:"done", awaiting_approval:"waiting for you", advisory:"advice only", approved:"approved", rejected:"rejected", rolled_back:"rolled back"};
+function showShift(st) {
+  if (!st || st.running === undefined || (!st.running && !st.summary)) return;
+  $("shiftpanel").style.display = "";
+  const pct = Math.min(100, Math.round(100 * st.elapsed_min / st.minutes));
+  const row = (x, extra) => `<div class="inc" data-inc="${esc(x.incident)}"><span class="r">${Math.round(x.risk)}</span><span class="k">${esc(x.kind.replace("_", " "))}</span><span>${esc(x.station || "")}</span>${extra}</div>`;
+  const wait = x => x.gate === "awaiting_approval" || x.gate === "advisory";
+  $("shift").innerHTML = `<div class="note">${st.running ? "running" : "finished"} · ${st.elapsed_min} of ${st.minutes} min · ${st.signals_seen}/${st.signals} signals ·
+      Sentinel raised ${st.sentinel.raised}, merged ${st.sentinel.deduped + st.sentinel.correlated}, triaged ${st.sentinel.triaged}</div>
+    <div class="shiftbar"><i style="width:${pct}%"></i></div>
+    <div class="sfeed" id="sfeed">${shiftFeed.slice(-8).map(esc).join("<br>") || "Sentinel is watching…"}</div>
+    <h2 style="margin-top:10px">Active (${st.active.length})</h2>${st.active.map(x => row(x, `<span class="muted">→ ${esc(x.at)} · hop ${x.hops}</span>`)).join("") || '<div class="note">none</div>'}
+    <h2 style="margin-top:10px">Queue (${st.queue.length})</h2>${st.queue.map(x => row(x, "")).join("") || '<div class="note">empty</div>'}
+    <h2 style="margin-top:10px">Leases</h2><div class="note">${st.leases.map(l => `${esc(short(l.resource))} → ${esc(l.incident)}`).join(" · ") || "none"}</div>
+    <h2 style="margin-top:10px">Handled (${st.done.length})</h2>${st.done.slice().reverse().map(x => row(x, `<span class="pill ${x.decision}" style="font-size:11px">${esc(x.decision || "-")}</span>
+      <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? `<button class="act ok" data-ok="${esc(x.incident)}">Approve</button><button class="act bad" data-no="${esc(x.incident)}">Reject</button>` : ""}`)).join("")}
+    ${st.summary ? `<div class="gate done" style="margin-top:8px"><b>Shift summary:</b> ${st.summary.incidents} incidents from ${st.summary.signals} signals ·
+      ${st.summary.auto_resolved} resolved on their own · ${st.summary.waiting_for_a_person.length} waited for a person · ${st.summary.escalations.length} escalated ·
+      mean ${st.summary.mean_minutes_to_resolve ?? "-"} min to resolve · ~${st.summary.cars_saved_estimate} cars saved (estimate) · ${st.summary.preemptions} pre-emptions · up to ${st.summary.max_concurrent} at once</div>` : ""}`;
+  for (const b of $("shift").querySelectorAll("[data-ok],[data-no]")) b.onclick = async ev => { ev.stopPropagation();
+    await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: b.dataset.ok || b.dataset.no, approve: !!b.dataset.ok})}); };
+  for (const r of $("shift").querySelectorAll(".inc")) r.onclick = () => openIncident(r.dataset.inc);
+}
+async function openIncident(id) {
+  const r = await fetch("/api/trace/" + encodeURIComponent(id)); if (!r.ok) return;
+  const t = await r.json(); current = id; $("trace").innerHTML = "";
+  flowReset(`${id}: ${t.incident.kind.replace("_", " ")} at ${t.incident.station_id || t.incident.zone_id}`);
+  t.steps.forEach(addStep);
+  $("decision").innerHTML = `<b>${esc(id)}</b> · <span class="pill ${t.decision ? t.decision.decision : ""}">${t.decision ? t.decision.decision : "-"}</span> · ${esc(GATEWORD[t.gate] || t.gate)}`;
+}
+es.addEventListener("shift", e => showShift(JSON.parse(e.data)));
+es.addEventListener("shift_done", () => fetch("/api/shift").then(r => r.json()).then(showShift));
+es.addEventListener("shift_event", e => { const d = JSON.parse(e.data);
+  if (d.kind === "sentinel" && d.action !== "normal") shiftFeed.push(`t${d.tick} ${d.action}: ${d.signal.type} ${d.signal.station || d.signal.agv || ""}${d.incident ? " → " + d.incident : ""}${d.note ? " (" + d.note + ")" : ""}`);
+  if (d.kind === "error") shiftFeed.push("error: " + d.error);
+  const f = $("sfeed"); if (f) { f.innerHTML = shiftFeed.slice(-8).map(esc).join("<br>"); } });
+fetch("/api/shift").then(r => r.json()).then(showShift);
 
 $("labrun").onclick = async () => { $("labwrite").disabled = true; await fetch("/lab/run", {method:"POST"}); };
 $("labwrite").onclick = async () => { const r = await fetch("/lab/write", {method:"POST"}); if (!r.ok) alert((await r.json()).error); $("labwrite").disabled = true; };

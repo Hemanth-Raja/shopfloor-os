@@ -70,6 +70,10 @@ def describe_step(r: dict) -> str:
         return f"proven playbook {d.get('playbook')} -> {[short(a) for a in d.get('assignees', [])]} (no model call)"
     if step == "verify_plan":
         return f"check first: {[short(a) for a in d.get('assignees', [])]} (no model call)"
+    if step == "arbiter":
+        return (f"lost {d['lost']} to a more urgent incident: re-planning" if d.get("lost")
+                else f"{d['refused']} taken elsewhere: re-planning" if d.get("refused")
+                else f"took {list((d.get('preempted') or {}).keys())} from less urgent incidents")
     if step == "router":
         return (f"router chose '{d.get('rejected')}': not legal now, rejected; {d.get('fallback')} instead"
                 if d.get("rejected") else d.get("note", ""))
@@ -93,7 +97,7 @@ def follow(poll_s: float = 0.5) -> None:
     start = time.time()
     print(f"Watching {LOGS}/ (Ctrl+C to stop). Start an incident in the UI or with run.py.\n", flush=True)
     while True:
-        files = sorted(LOGS.glob("trace-*.jsonl")) + [LOGS / "llm.jsonl", LOGS / "approvals.jsonl"]
+        files = sorted(LOGS.glob("trace-*.jsonl")) + [LOGS / "llm.jsonl", LOGS / "approvals.jsonl", LOGS / "sentinel.jsonl"]
         for f in files:
             if not f.exists():
                 continue
@@ -119,6 +123,11 @@ def follow(poll_s: float = 0.5) -> None:
                     swap = f", asked {model_name(asked)}" if asked and served and asked != served else ""
                     print(paint(f"{stamp} NEMOTRON     {model_name(served)} {r.get('latency_s')}s "
                                 f"({r.get('lane')}{swap}, {t.get('completion')} tokens)", "model"), flush=True)
+                elif f.name == "sentinel.jsonl":
+                    if r.get("action") != "normal":
+                        sig = r.get("signal", {})
+                        print(paint(f"{stamp} SENTINEL     {r.get('action')}: {sig.get('type')} {sig.get('station') or ''} "
+                                    f"{r.get('incident') or ''} {r.get('reason') or ''}", "human"), flush=True)
                 elif f.name == "approvals.jsonl":
                     print(paint(f"{stamp} HUMAN        {'approved' if r.get('approved') else 'rejected'}: {r.get('action')}",
                                 "human"), flush=True)

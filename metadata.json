@@ -121,7 +121,7 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (offline: Meterless conformance tests/test_world_model.py and tests/test_hmem.py, guardrails tests/test_dynamic.py, model registry tests/test_models.py, SQL guard tests/test_investigate.py)",
+  "tests": "python -m pytest  (offline: Meterless conformance tests/test_world_model.py and tests/test_hmem.py, guardrails tests/test_dynamic.py, model registry tests/test_models.py, SQL guard tests/test_investigate.py, autopilot tests/test_shift.py, caches tests/test_cache.py)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",
@@ -195,5 +195,16 @@
   },
   "retrieval": "H-MEM-ranked OSHA/SOP clauses for planner and critic, H-MEM lessons and playbooks, World Model grounding from one Zetaris query, guarded SQL and trace search for investigations; no vector DB",
   "context_limits": "largest prompt ~7.5k tokens vs 262k (Lightning) / 1M (Super VL); app/models.py skips a model if prompt + max_tokens exceeds half its window; per-role max_tokens and budget_s; 15-row previews, 200-row SQL cap; hop budget 24, 6 router calls",
-  "failure_handling": "model chain fallback on timeout/5xx/429/empty/invalid JSON, per-model circuit breakers, Nightshift-wide breaker -> rule-based router + safe mode (ESCALATE), all recorded in the trace"
+  "failure_handling": "model chain fallback on timeout/5xx/429/empty/invalid JSON, per-model circuit breakers, Nightshift-wide breaker -> rule-based router + safe mode (ESCALATE), all recorded in the trace",
+  "autopilot": {
+    "entry_points": [
+      "python run.py shift --minutes 8 --seed 7 --rate 2.5",
+      "UI: Run shift (POST /shift/start, GET /api/shift)"
+    ],
+    "sentinel": "rules, dedupe, AGV-fault/shortage correlation, Lightning triage of ambiguous signals; people-risk never dismissed; logs/sentinel.jsonl",
+    "dispatcher": "priority queue (people, severity, expected cost), N concurrent incidents, urgent jump-in; cooperative (deterministic) or threaded",
+    "leases": "per worker/AGV with expiry; pre-emption by risk; critic rule R-LEASE; arbiter steps in the trace",
+    "caching": "app/cache.py: Zetaris read cache (write invalidates), incident history, clause retrieval, replay hits; /health",
+    "tests": "tests/test_shift.py, tests/test_cache.py"
+  }
 }

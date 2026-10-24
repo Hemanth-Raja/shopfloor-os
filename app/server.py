@@ -7,6 +7,9 @@
     GET  /events       Server-Sent Events: trace steps, sim ticks, decisions, approvals
     GET  /health       health agent report (circuit breakers, floor vitals)
     GET  /api/knowledge what the agents know: World Model entities and checks, H-MEM lessons and ledger
+    POST /shift/start  {"minutes", "seed", "rate", "workers"}: autonomous shift (Sentinel + concurrent incidents);
+                       'shift', 'shift_event', 'shift_step', 'shift_done' events; GET /api/shift; GET /api/trace/<id>
+    POST /shift/stop
     GET  /api/models   role -> model chain, breaker states and the last call per role (config/models.json)
     POST /ask          investigator team in the background -> 'ask_step' and 'ask_result' events; GET /api/ask_last
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
@@ -40,7 +43,8 @@ from app.sim.sim import Sim
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
-APPROVALS = ROOT / "logs" / "approvals.jsonl"
+LOGS = ROOT / "logs"
+APPROVALS = LOGS / "approvals.jsonl"
 TICK_INTERVAL_S = 0.5
 
 
@@ -94,6 +98,8 @@ class App:
         self.asking = False
         self.autonomy = "auto"
         self.busy = False
+        self.shift = None  # an autonomous shift in progress (app/autonomy/shift.py)
+        self.shift_summary: dict | None = None
         threading.Thread(target=self._ticker, daemon=True).start()
 
     def llm(self):
@@ -109,12 +115,16 @@ class App:
                     continue
                 self.sim.step()
                 self.bus.publish("tick", self.snapshot(full=False))
+            if self.shift is not None:
+                self._shift_tick()
 
     def snapshot(self, full: bool = True) -> dict:
         agents = [{"id": a.id, "kind": a.kind, "x": a.pos[0], "y": a.pos[1], "status": a.status}
                   for a in self.sim.agents.values()]
         last = list(self.traces.values())[-1] if self.traces else None
         involved = sorted(last.dispatch) if last else []
+        if self.shift is not None:  # every resource an open incident holds
+            involved = sorted({l["resource"] for l in self.shift.leases.snapshot()})
         out = {"tick": self.sim.tick, "agents": agents, "geofence": sorted(self.sim.geofence),
                "collisions": len(self.sim.collisions), "incident_agents": involved, "autonomy": self.autonomy}
         if full:
@@ -129,6 +139,8 @@ class App:
         with self.lock:
             if self.busy:
                 raise RuntimeError("an incident is already running")
+            if self.shift is not None and self.shift_summary is None:
+                raise RuntimeError("a shift is running: stop it first, or watch the shift panel")
             from app.api import KINDS, SEVERITIES
             if req.get("kind") not in KINDS:
                 raise ValueError(f"kind must be one of {list(KINDS)}")
@@ -183,6 +195,97 @@ class App:
         finally:
             self.busy = False
 
+    # ---------------------------------------------------------------- autonomous shift
+
+    def start_shift(self, req: dict) -> dict:
+        from app.autonomy.shift import Shift
+        from app.dynamic import DynamicOrchestrator
+        from app.investigate.sources import sql_runner
+        if self.busy or (self.shift is not None and not self.shift.finished()):
+            raise RuntimeError("an incident or a shift is already running")
+        minutes = min(max(float(req.get("minutes") or 8), 1), 60)
+        seed, rate = int(req.get("seed") or 7), min(max(float(req.get("rate") or 2.5), 0.2), 8)
+        workers = min(max(int(req.get("workers") or 3), 1), 6)
+        llm_json, llm_text = self.llm()
+        run_sql = sql_runner("true") if self.offline else self.run_sql
+        stamp = int(time.time())
+
+        def make(inc, risk, leases, lock):
+            return DynamicOrchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
+                                       autonomy=self.autonomy, router_llm=None if self.replay else llm_json,
+                                       run_sql=run_sql, leases=leases, risk=risk, sim_lock=lock,
+                                       trace_path=LOGS / f"trace-shift-{seed}-{stamp}-{inc.id}.jsonl",
+                                       on_step=lambda iid, st: self.bus.publish("shift_step", {"incident": iid, **st.model_dump()}))
+
+        def event(kind, data):
+            self.bus.publish("shift_event", {"kind": kind, **data})
+
+        with self.lock:
+            self.sim.fences.clear()
+            self.shift = Shift(self.plant, self.sim, make, minutes=minutes, seed=seed, workers=workers,
+                               threads=not self.replay, sentinel_llm=None if self.replay else llm_json,
+                               on_event=event, sim_lock=self.lock, memory=self.memory, rate_per_min=rate)
+        self.shift_summary = None
+        original = self.shift._done
+
+        def done(trace, result):
+            original(trace, result)
+            if trace is not None:
+                self.traces[trace.incident.id] = trace
+
+        self.shift.dispatcher.on_done = done
+        self.bus.publish("shift_event", {"kind": "shift_started", "minutes": minutes, "seed": seed,
+                                         "signals": len(self.shift.signals)})
+        return {"status": "running", "minutes": minutes, "seed": seed, "signals": len(self.shift.signals)}
+
+    def _shift_tick(self) -> None:
+        sh = self.shift
+        if sh is None or self.shift_summary is not None:
+            return
+        try:
+            sh.poll()
+        except Exception as err:  # noqa: BLE001 - keep the floor running
+            self.bus.publish("error", {"incident": "shift", "error": f"{type(err).__name__}: {err}"[:300]})
+        if sh.finished():
+            self.shift_summary = sh.summary()
+            self.bus.publish("shift_done", self.shift_summary)
+        self.bus.publish("shift", self.shift_state())
+
+    def stop_shift(self) -> dict:
+        if self.shift is None:
+            raise RuntimeError("no shift is running")
+        self.shift.stopped = True
+        return {"status": "stopping"}
+
+    def shift_state(self) -> dict:
+        sh = self.shift
+        if sh is None:
+            return {"running": False}
+        from app.autonomy.sentinel import TICKS_PER_MIN
+        active = []
+        for e in list(sh.dispatcher.active.values()):
+            t = getattr(e["orch"], "trace", None)
+            last = t.steps[-1].step if t and t.steps else "queued"
+            active.append({"incident": e["incident"].id, "kind": e["incident"].kind, "station": e["incident"].station_id,
+                           "risk": e["risk"], "hops": e["hops"], "at": last})
+        done = sh.dispatcher.done[-40:]
+        return {"running": self.shift_summary is None, "minutes": sh.minutes, "seed": sh.seed,
+                "elapsed_min": round((self.sim.tick - sh.start_tick) / TICKS_PER_MIN, 1),
+                "signals": len(sh.signals), "signals_seen": sh.next_signal, "sentinel": dict(sh.sentinel.stats),
+                "queue": sh.dispatcher.queued(), "active": active, "leases": sh.leases.snapshot(),
+                "done": [{k: r[k] for k in ("incident", "kind", "station", "risk", "decision", "gate", "route")}
+                         | {"gate": self.traces[r["incident"]].gate if r["incident"] in self.traces else r["gate"]}
+                         for r in done],
+                "summary": {k: v for k, v in (self.shift_summary or {}).items() if k != "results"} or None}
+
+    def trace_of(self, incident_id: str) -> dict:
+        trace = self.traces.get(incident_id)
+        if trace is None:
+            raise KeyError("unknown incident")
+        return {"incident": trace.incident.model_dump(exclude={"truth_false_alarm"}),
+                "steps": [st.model_dump() for st in trace.steps], "path": trace.path, "gate": trace.gate,
+                "decision": trace.decision.model_dump() if trace.decision else None}
+
     def approve(self, req: dict) -> dict:
         """The human gate. Waiting/advisory plans run only on Approve; an auto-executed plan can be rejected,
         which stops its agents and sends them back where they started (roll-back)."""
@@ -212,6 +315,8 @@ class App:
                 trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
             elif approved:
                 action = "auto-executed plan confirmed by the human"
+            if self.shift is not None and trace.gate in ("rejected", "rolled_back"):
+                self.shift.leases.release_all(trace.incident.id)  # the people and robots are free again
         self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": approved,
                   "by": req.get("by", "supervisor"), "decision": trace.decision.decision if trace.decision else None,
@@ -368,6 +473,13 @@ def make_handler(app: App):
             if self.path == "/api/powered":
                 from app.powered import powered
                 return self._send(200, powered(sample_mode=app.replay))
+            if self.path == "/api/shift":
+                return self._send(200, app.shift_state())
+            if self.path.startswith("/api/trace/"):
+                try:
+                    return self._send(200, app.trace_of(self.path.rsplit("/", 1)[-1]))
+                except KeyError as err:
+                    return self._send(404, {"error": str(err)})
             if self.path == "/api/models":
                 from app.models import mapping
                 return self._send(200, mapping())
@@ -421,6 +533,10 @@ def make_handler(app: App):
                     app.autonomy = mode
                     app.bus.publish("autonomy", {"mode": mode})
                     return self._send(200, {"autonomy": mode})
+                if self.path == "/shift/start":
+                    return self._send(202, app.start_shift(self._json()))
+                if self.path == "/shift/stop":
+                    return self._send(200, app.stop_shift())
                 if self.path == "/ask":
                     return self._send(202, {"ask_id": app.ask(self._json())})
                 if self.path == "/lab/run":

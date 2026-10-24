@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 141 offline tests
+.venv/bin/python -m pytest -q                          # 153 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -83,6 +83,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | Zone briefing | `run.py context --zone FINAL` (World Model built from one federated Zetaris query, plus a Nemotron summary) |
 | **Ask the floor** (investigation) | `run.py ask "Why does F10 keep stopping?"` or the *Ask the floor* tab; `--json` prints the full result |
 | Custom incident | the *Report your own* form under the map (kind, station, severity, note), or `input.severity` / `input.note` in the JSON contract |
+| **Autopilot shift** | `run.py shift --minutes 8 --seed 7 --rate 2.5` or *Run shift* under the map: Sentinel, concurrent incidents, leases, summary |
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 
 Request:
@@ -171,6 +172,50 @@ references, plus the claims the critic dropped and why. Each step streams to the
 written to `logs/trace-ask-<id>.jsonl`. Without Nightshift, a rule-based coordinator and analyst use fixed queries.
 In sample mode the three example questions replay recorded Nemotron replies and Zetaris rows; any other question
 runs on an offline SQLite copy of the four sources, built from `data/seed` on first use.
+
+## Autopilot: a whole shift, many incidents at once
+`run.py shift --minutes 8 --seed 7 --rate 2.5` runs headless; the **Run shift** form under the map runs it in the UI.
+
+```
+floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambiguous signals only)
+             --> priority queue (people at risk, then severity, then expected cost)
+             --> dispatcher: N incidents at once, each on its own dynamic route
+             --> leases on people and AGVs (pre-emption by risk; expiry) --> human gate per autonomy level
+```
+- **Sentinel** (`app/autonomy/sentinel.py`) watches a stream of floor signals. The stream is generated from the
+  historical incident mix in `sf_ops.incidents`, deterministic for a seed. The signals are line-side stock, AGV
+  status, machine temperature with Bosch vibration, spill cameras, robot controllers, nutrunner torque, proximity
+  and quality checks.
+  - Rules raise the clear cases.
+  - A repeat alarm is merged while its incident is open, and an AGV fault absorbs the shortage it causes at the
+    station it was feeding.
+  - Only ambiguous readings are triaged by the `sentinel` role (Lightning). A person-safety signal can never be
+    dismissed.
+  - A station failing repeatedly in one shift gets a higher severity.
+  - Every decision is logged in `logs/sentinel.jsonl`.
+- **Dispatcher** (`app/autonomy/dispatcher.py`) keeps a priority queue and runs several incidents at once, each
+  with its own orchestrator.
+  - An incident that puts people at risk jumps in even when every slot is busy.
+  - The orchestrator is a step generator, so incidents interleave hop by hop. This is deterministic in sample
+    mode; live, each incident gets a thread, so model calls overlap.
+  - Hops that move things on the floor take the floor lock.
+- **Leases** (`app/autonomy/leases.py`) stop two incidents from sending the same person or robot.
+  - Candidates skip resources held by an equally or more urgent incident, and the critic rejects a plan that uses
+    one (`R-LEASE`).
+  - A more urgent incident pre-empts a less urgent one, which re-plans. The trace shows this as an `arbiter` step.
+  - Leases expire (5 minutes of floor time), so nothing deadlocks.
+  - Responders walk back once their job is done, and each incident has its own geofence.
+- **Human gate:** the autonomy setting still applies. The Shift panel lists what is waiting for you, with
+  Approve and Reject per incident, and clicking an incident opens its route in the Flow tab.
+- **Summary:** incidents, decisions, how many were resolved without a person, how many waited, escalations, mean
+  time to resolve, pre-emptions, peak concurrency, and an estimate of cars saved. The estimate compares our time
+  to resolve with the historical downtime per kind.
+
+**Caching** (`app/cache.py`, hit rates in `/health`):
+- read-only Zetaris results, 120 s, cleared by any write;
+- incident history per kind, station and 10 minutes;
+- H-MEM clause retrieval;
+- counted replay hits in sample mode.
 
 ## How an incident is handled: a dynamic orchestrator
 There is no fixed pipeline. After the reflex, an **orchestrator agent** (`app/dynamic.py`) chooses which agent runs
