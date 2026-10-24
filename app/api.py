@@ -127,7 +127,8 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
         a["runs"] += 1
         a["ok"] = a["ok"] and st.ok
     models = sorted({str(st.detail.get("model")) for st in steps if st.detail.get("model")})
-    planner = [st for st in steps if st.step in ("planner", "playbook", "verify_plan")]
+    planner = [st for st in steps if st.step in ("planner", "playbook", "verify_plan")
+               or (st.step == "refine" and st.detail.get("chosen") == "v2")]
     decision = trace.decision
     plan = trace.plan
     summary = (f"{incident.kind.replace('_', ' ')} at {incident.station_id or incident.zone_id}: "

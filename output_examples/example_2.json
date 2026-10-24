@@ -101,7 +101,7 @@
         "hop": 3,
         "agent": "planner",
         "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
       },
       {
         "hop": 4,
@@ -117,72 +117,84 @@
       },
       {
         "hop": 6,
-        "agent": "restraint",
+        "agent": "refine",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
         "hop": 7,
-        "agent": "gate",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 8,
-        "agent": "executor",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 9,
-        "agent": "verifier",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 10,
-        "agent": "candidates",
-        "by": "rules",
-        "reason": "re-pick people and robots without the ones that failed"
-      },
-      {
-        "hop": 11,
-        "agent": "planner",
-        "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
-      },
-      {
-        "hop": 12,
-        "agent": "critic",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 13,
-        "agent": "dryrun",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 14,
         "agent": "restraint",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 15,
+        "hop": 8,
         "agent": "gate",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 16,
+        "hop": 9,
         "agent": "executor",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
+        "hop": 10,
+        "agent": "verifier",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 11,
+        "agent": "candidates",
+        "by": "rules",
+        "reason": "re-pick people and robots without the ones that failed"
+      },
+      {
+        "hop": 12,
+        "agent": "planner",
+        "by": "rules",
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
+      },
+      {
+        "hop": 13,
+        "agent": "critic",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 14,
+        "agent": "dryrun",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 15,
+        "agent": "refine",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 16,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
         "hop": 17,
+        "agent": "gate",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 18,
+        "agent": "executor",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 19,
         "agent": "verifier",
         "by": "forced",
         "reason": "the only legal next step"
@@ -217,12 +229,18 @@
     {
       "name": "critic",
       "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
-      "runs": 2,
+      "runs": 4,
       "ok": true
     },
     {
       "name": "dryrun",
       "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 4,
+      "ok": true
+    },
+    {
+      "name": "refine",
+      "role": "",
       "runs": 2,
       "ok": true
     },
@@ -253,9 +271,10 @@
   ],
   "models": [
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based"
+    "rule-based",
+    "rules (Hungarian)"
   ],
   "trace_id": "trace-example-2",
   "log_file": "logs/trace-example-2.jsonl",
-  "execution_time_seconds": 0.03
+  "execution_time_seconds": 0.04
 }

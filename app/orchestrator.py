@@ -57,6 +57,8 @@ def gate_reasons(trace: Trace, plant, autonomy: str) -> list[str]:
         reasons.append(f"{d}: the agents are not confident enough to act alone")
     if trace.incident.kind in PERSON_HAZARD_KINDS and d in ("ACT", "VERIFY"):
         reasons.append(f"a person would enter the {trace.incident.kind.replace('_', ' ')} hazard area")
+    if trace.safe_mode and d in ("ACT", "VERIFY"):
+        reasons.append("safe mode: Nightshift is unavailable, so this is the rules plan; a person approves it")
     if trace.incident.kind in SIGN_OFF_KINDS and d in ("ACT", "VERIFY"):
         reasons.append("a near miss is a safety event: a supervisor signs off before the AGV is released")
     for wid in (trace.plan.assignee_ids if trace.plan else []):

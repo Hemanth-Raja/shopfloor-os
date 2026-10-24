@@ -27,6 +27,12 @@ SYSTEM = (
 
 def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None,
               clauses: list[dict] | None = None, deadline: float | None = None) -> Plan:
+    return make_plan_info(incident, cands, llm_json, feedback, clauses, deadline)[0]
+
+
+def make_plan_info(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None,
+                   clauses: list[dict] | None = None, deadline: float | None = None) -> tuple[Plan, str | None, dict]:
+    """-> (plan, answering model, call info); thread-safe (the module-level LAST_* are only a convenience)."""
     payload = {
         "incident": incident.model_dump(exclude={"truth_false_alarm"} | ({"note"} if incident.note is None else set())),
         "worker_candidates": [c.model_dump() for c in cands["workers"]],
@@ -46,8 +52,8 @@ def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: lis
     plan = reply.data if hasattr(reply, "data") else reply
     LAST_MODEL["planner"] = getattr(reply, "model", None)
     from app.models import call_info
-    LAST_CALL["planner"] = call_info(reply)
-    return plan.model_copy(update={"incident_id": incident.id})
+    LAST_CALL["planner"] = info = call_info(reply)
+    return plan.model_copy(update={"incident_id": incident.id}), getattr(reply, "model", None), info
 
 
 def grounding_violations(plan: Plan, cands: dict, world) -> list[Violation]:

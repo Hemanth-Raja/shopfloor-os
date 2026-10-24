@@ -59,9 +59,12 @@ def test_executor_only_after_critic_dryrun_and_gate(plant, sim):
     trace = orch(plant, sim, Router()).handle(sim.inject("part_shortage", plant, station_id="F30"))
     order = steps(trace)
     ex = order.index("executor")
-    last_plan = max(i for i, s in enumerate(order[:ex]) if s in ("planner", "playbook", "verify_plan"))
-    assert order[last_plan:ex] == [order[last_plan], "critic", "dryrun", "restraint", "gate"]
-    assert trace.steps[order.index("critic", last_plan)].ok and trace.gate == "auto_executed"
+    assert order[ex - 2:ex] == ["restraint", "gate"] and trace.gate == "auto_executed"
+    refine = [x for x in trace.steps[:ex] if x.step == "refine"]
+    version = 2 if refine and refine[-1].detail.get("chosen") == "v2" else 1
+    checked = [x for x in trace.steps[:ex] if x.step in ("critic", "dryrun") and x.detail.get("version", 1) == version
+               and (version == 2 or x.detail.get("version") is None)]
+    assert {x.step for x in checked if x.ok} == {"critic", "dryrun"}  # the executed plan passed both checks
 
 
 def test_human_gate_holds_everything_in_supervised_mode(plant, sim):
@@ -69,11 +72,13 @@ def test_human_gate_holds_everything_in_supervised_mode(plant, sim):
     assert trace.gate == "awaiting_approval" and "executor" not in steps(trace)
 
 
-def test_nightshift_down_forces_safe_mode(plant, sim):
-    trace = orch(plant, sim, Router(unavailable=True), llm=FakePlanner()).handle(
-        sim.inject("part_shortage", plant, station_id="F30"))
-    assert trace.safe_mode and trace.decision.decision == "ESCALATE" and "planner" not in steps(trace)
+def test_nightshift_down_keeps_a_safe_rules_plan_but_a_person_approves(plant, sim):
+    llm = FakePlanner()
+    trace = orch(plant, sim, Router(unavailable=True), llm=llm).handle(sim.inject("part_shortage", plant, station_id="F30"))
+    assert trace.safe_mode and llm.calls == 0 and trace.plan is not None
+    assert trace.gate == "awaiting_approval" and any("safe mode" in r for r in trace.gate_reasons)
     assert any(s.step == "router" and "unavailable" in s.detail["note"] for s in trace.steps)
+    assert next(s for s in trace.steps if s.step == "planner").detail["model"] == "rules (Hungarian)"
 
 
 def test_hop_budget_ends_in_escalate(plant, sim, monkeypatch):

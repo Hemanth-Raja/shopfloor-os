@@ -2,7 +2,7 @@
   "run_id": "example-6",
   "status": "success",
   "output": {
-    "summary": "torque fault at F10: ACT, Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.",
+    "summary": "torque fault at F10: ACT, Optimal assignment (Hungarian) over 3 candidates for 2 role(s); total cost 28.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
     "incident": {
       "id": "SIM-42-001",
       "kind": "torque_fault",
@@ -40,7 +40,7 @@
       ],
       "agv_routes": [],
       "priority": "medium",
-      "rationale": "Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.",
+      "rationale": "Optimal assignment (Hungarian) over 3 candidates for 2 role(s); total cost 28.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
         "SOP-TORQUE-01 \u00a72"
       ]
@@ -86,7 +86,7 @@
         "hop": 3,
         "agent": "planner",
         "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
       },
       {
         "hop": 4,
@@ -96,42 +96,36 @@
       },
       {
         "hop": 5,
-        "agent": "planner",
-        "by": "rules",
-        "reason": "fix the critic's violations"
-      },
-      {
-        "hop": 6,
-        "agent": "critic",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 7,
         "agent": "dryrun",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 8,
+        "hop": 6,
+        "agent": "refine",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 7,
         "agent": "restraint",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 9,
+        "hop": 8,
         "agent": "gate",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 10,
+        "hop": 9,
         "agent": "executor",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 11,
+        "hop": 10,
         "agent": "verifier",
         "by": "forced",
         "reason": "the only legal next step"
@@ -160,7 +154,7 @@
     {
       "name": "planner",
       "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
-      "runs": 2,
+      "runs": 1,
       "ok": true
     },
     {
@@ -172,6 +166,12 @@
     {
       "name": "dryrun",
       "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "refine",
+      "role": "",
       "runs": 1,
       "ok": true
     },
@@ -202,9 +202,10 @@
   ],
   "models": [
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based"
+    "rule-based",
+    "rules (Hungarian)"
   ],
   "trace_id": "trace-example-6",
   "log_file": "logs/trace-example-6.jsonl",
-  "execution_time_seconds": 0.02
+  "execution_time_seconds": 0.03
 }

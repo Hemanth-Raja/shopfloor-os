@@ -353,7 +353,10 @@ function narrate(st) {
     case "monitor": return ["Monitor", d.verdict === "likely_noise" ? `this alarm looks like sensor noise (probability it is real: ${Math.round(100*d.p_real)}%). The sensors disagree.` : `the alarm looks real (${Math.round(100*d.p_real)}% likely).`];
     case "memory": return ["Memory (H-MEM)", d.playbook ? `recalled lessons from past incidents: ${(d.lessons||[]).join(", ") || "none"}.` : "no past lessons for this kind of incident yet."];
     case "candidates": return ["Candidates", `best qualified people: ${(d.workers||[]).map(short).join(", ") || "none"}; best robots: ${(d.agvs||[]).map(short).join(", ") || "none needed"}.`];
-    case "planner": return ["Planner (Nemotron)", `proposes: send ${(d.assignees||[]).map(short).join(" + ")}${(d.agv_routes||[]).map(r => ` and ${short(r.agv_id)} to ${r.to_station} at ${r.speed_mps} m/s${r.crossing_speed_mps ? ` (${r.crossing_speed_mps} m/s at crossings)` : ""}`).join("")}.`];
+    case "refine": return ["Refine (v1 vs v2)", d.chosen === "v2" ? `Nemotron's plan v2 is safe and better: swapped in (${d.reason}).`
+      : `kept the rules plan v1: ${d.reason}.`];
+    case "planner": if (d.version === 1) return ["Planner v1 (rules)", `optimal assignment in ${st.ms.toFixed(0)} ms: send ${(d.assignees||[]).map(short).join(" + ")}${d.refining ? "; Nemotron is preparing v2 in the background" : ""}${d.safe_mode ? " (safe mode: a person approves)" : ""}.`];
+      return ["Planner (Nemotron)", `proposes: send ${(d.assignees||[]).map(short).join(" + ")}${(d.agv_routes||[]).map(r => ` and ${short(r.agv_id)} to ${r.to_station} at ${r.speed_mps} m/s${r.crossing_speed_mps ? ` (${r.crossing_speed_mps} m/s at crossings)` : ""}`).join("")}.`];
     case "critic": if (st.ok) return ["Safety critic", "plan passes every safety rule."];
       return ["Safety critic", "plan REJECTED: " + (d.violations||[]).map(v => v.rule_id === "R-CROSSING" ? `${short(v.detail.split(" ")[0])} too fast at a pedestrian crossing (${v.cfr_ref})` : `${v.detail} (${v.cfr_ref})`).join("; ") + ". The planner must fix it."];
     case "dryrun": return ["Dry-run", st.ok ? "simulated the plan for 60 s: no collisions, arrival times OK." : `simulation found a problem: ${(d.reasons||[]).join("; ")}.`];
@@ -377,6 +380,7 @@ function narrate(st) {
 
 const NODES = {reflex:[70,90,"Reflex"], monitor:[210,90,"Monitor"], investigator:[350,90,"Investigator"], memory:[490,90,"Memory (H-MEM)"],
   candidates:[630,90,"Candidates"], safe_mode:[770,90,"Safe mode"], verify_plan:[350,250,"Check first"], playbook:[490,250,"Playbook"],
+  refine:[210,250,"Refine v1→v2"],
   planner:[630,250,"Planner"], critic:[770,250,"Safety critic"], verifier:[210,410,"Verifier"], executor:[350,410,"Executor"],
   gate:[490,410,"Human gate"], restraint:[630,410,"Restraint"], dryrun:[770,410,"Dry run"], arbiter:[70,410,"Arbiter (leases)"]};
 const MODELLED = {monitor:1, planner:1};
@@ -501,6 +505,7 @@ function note(st) {
     case "arbiter": return `<span class="${st.ok ? "ok-t" : "bad-t"}">${esc(d.note || "")}</span> ${esc(JSON.stringify(d.lost || d.refused || d.preempted || ""))}`;
     case "playbook": return `${esc(d.playbook)} → ${(d.assignees||[]).map(short).join(", ")}`;
     case "verify_plan": return `check first: ${(d.assignees||[]).map(short).join(", ")}`;
+    case "refine": return `<b>${esc(d.chosen || "-")}</b> ${esc(d.reason || "")}`;
     case "router": return `<span class="bad-t">rejected ${esc(d.rejected || "")}</span> ${esc(d.note || "")}`;
     default: return esc(JSON.stringify(d).slice(0, 160));
   }

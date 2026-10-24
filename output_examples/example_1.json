@@ -2,7 +2,7 @@
   "run_id": "example-1",
   "status": "success",
   "output": {
-    "summary": "part shortage at F30: ACT, High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response). Dispatch AGV-5 (90% battery) to F30 at 1.0 m/s, slowing to 0.5 m/s at X-WEST per SOP-AGV-01 \u00a72 and 29 CFR 1910.178(n)(4).",
+    "summary": "part shortage at F30: ACT, Optimal assignment (Hungarian) over 5 candidates for 2 role(s); total cost 92.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
     "incident": {
       "id": "SIM-42-001",
       "kind": "part_shortage",
@@ -30,7 +30,8 @@
     "plan": {
       "incident_id": "SIM-42-001",
       "assignee_ids": [
-        "worker:plant:W-18"
+        "worker:plant:W-18",
+        "agv:plant:AGV-5"
       ],
       "agv_routes": [
         {
@@ -41,38 +42,24 @@
         }
       ],
       "priority": "high",
-      "rationale": "High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response). Dispatch AGV-5 (90% battery) to F30 at 1.0 m/s, slowing to 0.5 m/s at X-WEST per SOP-AGV-01 \u00a72 and 29 CFR 1910.178(n)(4).",
+      "rationale": "Optimal assignment (Hungarian) over 5 candidates for 2 role(s); total cost 92.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
-        "SOP-KIT-01 \u00a73",
-        "SOP-AGV-01 \u00a72",
-        "29 CFR 1910.178(n)(4)",
-        "29 CFR 1910.178(n)(8)"
+        "29 CFR 1910.178(n)(8)",
+        "SOP-KIT-01 \u00a73"
       ]
     },
     "citations": [
-      {
-        "ref": "SOP-KIT-01 \u00a73",
-        "title": "Line-side part shortage (synthetic plant SOP)",
-        "text": "Send the nearest healthy kitting AGV from the supermarket exit (7, 13) to the station's line-side rack. A tugger or forklift may be driven only by a person whose forklift training is in date. The team leader confirms delivery at the station.",
-        "doc": "sop"
-      },
-      {
-        "ref": "SOP-AGV-01 \u00a72",
-        "title": "AGV traffic at pedestrian crossings (synthetic plant SOP)",
-        "text": "Every AGV route that crosses X-WEST or X-EAST must slow to 0.5 m/s or less from one cell before the crossing until it has left it, and sound the horn. Body carriers are not exempt.",
-        "doc": "sop"
-      },
-      {
-        "ref": "29 CFR 1910.178(n)(4)",
-        "title": "Powered industrial trucks.",
-        "text": "(4) The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed. If the load being carried obstructs forward view, the driver shall be required to travel with the load trailing.",
-        "doc": "osha"
-      },
       {
         "ref": "29 CFR 1910.178(n)(8)",
         "title": "Powered industrial trucks.",
         "text": "(8) Under all travel conditions the truck shall be operated at a speed that will permit it to be brought to a stop in a safe manner.",
         "doc": "osha"
+      },
+      {
+        "ref": "SOP-KIT-01 \u00a73",
+        "title": "Line-side part shortage (synthetic plant SOP)",
+        "text": "Send the nearest healthy kitting AGV from the supermarket exit (7, 13) to the station's line-side rack. A tugger or forklift may be driven only by a person whose forklift training is in date. The team leader confirms delivery at the station.",
+        "doc": "sop"
       }
     ],
     "critic_rejections": 1,
@@ -108,7 +95,7 @@
         "hop": 3,
         "agent": "planner",
         "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
       },
       {
         "hop": 4,
@@ -118,42 +105,36 @@
       },
       {
         "hop": 5,
-        "agent": "planner",
-        "by": "rules",
-        "reason": "fix the critic's violations"
-      },
-      {
-        "hop": 6,
-        "agent": "critic",
-        "by": "forced",
-        "reason": "the only legal next step"
-      },
-      {
-        "hop": 7,
         "agent": "dryrun",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 8,
+        "hop": 6,
+        "agent": "refine",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 7,
         "agent": "restraint",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 9,
+        "hop": 8,
         "agent": "gate",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 10,
+        "hop": 9,
         "agent": "executor",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
-        "hop": 11,
+        "hop": 10,
         "agent": "verifier",
         "by": "forced",
         "reason": "the only legal next step"
@@ -182,7 +163,7 @@
     {
       "name": "planner",
       "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
-      "runs": 2,
+      "runs": 1,
       "ok": true
     },
     {
@@ -194,6 +175,12 @@
     {
       "name": "dryrun",
       "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "refine",
+      "role": "",
       "runs": 1,
       "ok": true
     },
@@ -224,7 +211,8 @@
   ],
   "models": [
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based"
+    "rule-based",
+    "rules (Hungarian)"
   ],
   "trace_id": "trace-example-1",
   "log_file": "logs/trace-example-1.jsonl",

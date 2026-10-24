@@ -31,7 +31,8 @@ from app.agents.candidates import find_candidates
 from app.agents.dryrun import dry_run
 from app.agents.executor import execute, verify
 from app.agents.monitor import assess
-from app.agents.planner import LAST_CALL, LAST_MODEL, fallback_plan, grounding_violations, make_plan
+from app.agents.assign import assign_plan, plan_score
+from app.agents.planner import LAST_CALL, LAST_MODEL, fallback_plan, grounding_violations, make_plan, make_plan_info
 from app.agents.restraint import STAT_KIND, decide
 from app.agents.safety_critic import review
 from app.contracts import Incident, Plan, RestraintDecision, Trace, Violation
@@ -51,7 +52,8 @@ REGISTRY = {
     "candidates": "rank qualified people and healthy AGVs from the World Model",
     "playbook": "build the plan from a proven H-MEM playbook (no model call)",
     "verify_plan": "the alarm is in doubt: send one qualified person to check first, no AGVs (no model call)",
-    "planner": "Nemotron writes a plan from the candidates and the governing clauses",
+    "planner": "anytime planner: an optimal-assignment plan at once (v1); Nemotron's plan (v2) in the background",
+    "refine": "check Nemotron's plan (v2) with the critic and the dry run; swap it in only if it is safe and better",
     "critic": "deterministic OSHA/SOP rule check of the latest plan",
     "dryrun": "60 s headless simulation of the latest plan",
     "restraint": "ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence, sensors and cost",
@@ -100,6 +102,7 @@ class State:
     excluded: set = field(default_factory=set)
     done: bool = False
     nightshift_down: bool = False
+    pending: object = None  # anytime planning: the model's plan (v2), being computed in the background
 
 
 def plan_resources(plan: Plan | None) -> list[str]:
@@ -135,11 +138,12 @@ def incident_history(run_sql: Callable, incident: Incident) -> dict:
 
 class DynamicOrchestrator(Orchestrator):
     def __init__(self, *args, router_llm: Callable | None = None, run_sql: Callable | None = None,
-                 leases=None, risk: float = 0.0, sim_lock=None, **kwargs):
+                 leases=None, risk: float = 0.0, sim_lock=None, anytime: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self.leases = leases  # shift mode: a LeaseBook shared by every concurrent incident
         self.risk = risk  # this incident's priority (app/autonomy/dispatcher.incident_risk)
         self.sim_lock = sim_lock  # shift mode: hops that touch the floor run under the floor's lock
+        self.anytime = anytime  # v1 by optimal assignment at once, the model's v2 swapped in only if safe and better
         self.router_llm = router_llm  # None: rule-based router only (SAMPLE_MODE, tests)
         self.run_sql = run_sql  # for the investigator; None: it is not offered
         self._hop: int | None = None
@@ -179,8 +183,12 @@ class DynamicOrchestrator(Orchestrator):
             if s.critic_ok is None:
                 return ["critic"]
             if s.critic_ok is False:
+                if s.pending is not None:
+                    return ["refine"]  # the model's plan may fix it
                 return (["planner", "candidates"] if s.attempts < MAX_ATTEMPTS else ["restraint"])
-            return ["dryrun"] if s.dryrun is None else ["restraint"]
+            if s.dryrun is None:
+                return ["dryrun"]
+            return ["refine"] if s.pending is not None else ["restraint"]
         opts = []
         if self.memory is not None and not s.memory_done:
             opts.append("memory")
@@ -194,7 +202,7 @@ class DynamicOrchestrator(Orchestrator):
             if s.cands["workers"] and (s.mon["p_real"] < 0.8 or not s.mon["sensor_agreement"]):
                 opts.append("verify_plan")  # a one-person check only makes sense while the alarm is in doubt
             opts.append("planner")
-        if s.nightshift_down and "planner" in opts:
+        if s.nightshift_down and "planner" in opts and not self.anytime:
             opts[opts.index("planner")] = "safe_mode"  # health failure forces safe mode
         return opts
 
@@ -218,7 +226,8 @@ class DynamicOrchestrator(Orchestrator):
         if "playbook" in legal:
             return "playbook", f"a proven playbook exists ({s.book['successes']}/{s.book['outcomes']} successes): skip the planner"
         if "planner" in legal:
-            return "planner", ("fix the critic's violations" if s.critic_ok is False else "no playbook fits: plan with Nemotron")
+            return "planner", ("fix the critic's violations" if s.critic_ok is False else
+                               "no playbook fits: optimal assignment now, Nemotron refines in the background")
         if "safe_mode" in legal:
             return "safe_mode", "Nightshift is unavailable"
         return legal[0], "default order"
@@ -392,11 +401,15 @@ class DynamicOrchestrator(Orchestrator):
             s.feedback = list(self.lessons) or None  # lessons recalled from H-MEM seed the first attempt
         t = time.perf_counter()
         clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
+        if self.anytime and (s.attempts == 0 or s.nightshift_down):
+            return self._anytime_plan(s, trace, incident, clauses, t)
         try:
             plan = make_plan(incident, s.cands, self.llm_json, s.feedback, clauses, deadline=getattr(self, "deadline_at", None))
         except LLMUnavailable as err:
             s.nightshift_down = True
             self._step(trace, "planner", t, False, attempt=s.attempts + 1, error=str(err)[:200])
+            if self.anytime:  # no model: the rules plan without the people the critic named
+                return self._anytime_plan(s, trace, incident, clauses, t)
             return self._do_safe_mode(s, trace, incident, stall, {"error": str(err)})
         cited = self.citations.resolve(plan.citations)
         prompt = {"incident": f"{incident.kind} at {incident.station_id or incident.zone_id}",
@@ -410,6 +423,107 @@ class DynamicOrchestrator(Orchestrator):
                    assignees=plan.assignee_ids, agv_routes=[r.model_dump() for r in plan.agv_routes],
                    priority=plan.priority, citations=cited,
                    uncited=[r for r in plan.citations if r not in self.citations.by_ref])
+
+    # ---------------------------------------------------------------- anytime planning
+
+    def _anytime_plan(self, s, trace, incident, clauses, t) -> None:
+        """v1 at once by optimal assignment; the model's v2 starts in the background (unless Nightshift is down)."""
+        named = {v.detail.split(" ")[0] for v in (s.feedback or []) if ":" in v.detail.split(" ")[0]}
+        v1, info = assign_plan(incident, s.cands, self.plant, self.sim, clauses, exclude=s.excluded | named)
+        if not s.nightshift_down and self.llm_json is not None and s.pending is None and s.attempts == 0:
+            import concurrent.futures as cf
+            pool = cf.ThreadPoolExecutor(max_workers=1)
+            s.pending = pool.submit(make_plan_info, incident, s.cands, self.llm_json, s.feedback, clauses,
+                                    getattr(self, "deadline_at", None))
+            pool.shutdown(wait=False)
+        if v1 is None:  # no feasible rules plan: wait for the model's plan instead
+            self._step(trace, "planner", t, False, attempt=s.attempts + 1, version=1, model="rules (Hungarian)",
+                       error=info.get("reason"), refining=s.pending is not None)
+            if s.pending is not None:
+                return self._take_v2_now(s, trace, incident)
+            return self._do_safe_mode(s, trace, incident, None, {"error": f"no rules plan: {info.get('reason')}"})
+        self._new_plan(s, v1, "rules v1")
+        trace.safe_mode = trace.safe_mode or s.nightshift_down
+        self._step(trace, "planner", t, True, attempt=s.attempts, version=1, model="rules (Hungarian)",
+                   assignees=v1.assignee_ids, agv_routes=[r.model_dump() for r in v1.agv_routes], priority=v1.priority,
+                   citations=self.citations.resolve(v1.citations), assignment=info,
+                   refining=s.pending is not None, safe_mode=s.nightshift_down)
+
+    def _check(self, plan, incident) -> list:
+        violations = grounding_violations(plan, self.state.cands, self.plant.world) + review(
+            plan, incident, self.plant, self.sim, self.citations).violations
+        if self.leases:
+            for lease in self.leases.conflicts(incident.id, self.risk, plan_resources(plan)):
+                violations.append(Violation(rule_id="R-LEASE", cfr_ref="Resource arbitration",
+                                            detail=f"{lease.resource} is committed to {lease.incident}"))
+        return violations
+
+    def _wait_v2(self, s):
+        """-> (plan, model, call info) or (None, None, reason)."""
+        from app.models import CFG
+        fut, s.pending = s.pending, None
+        wait = min(CFG["defaults"].get("anytime_wait_s", 90), max(0.0, getattr(self, "deadline_at", time.monotonic() + 90)
+                                                                  - time.monotonic()))
+        try:
+            return fut.result(timeout=wait)
+        except LLMUnavailable as err:
+            s.nightshift_down = True
+            return None, None, f"Nightshift unavailable: {str(err)[:120]}"
+        except Exception as err:  # noqa: BLE001 - timeout or an unusable reply: keep v1
+            return None, None, f"{type(err).__name__}: {str(err)[:120] or 'not ready in time'}"
+
+    def _take_v2_now(self, s, trace, incident) -> None:
+        t = time.perf_counter()
+        v2, model, info = self._wait_v2(s)
+        if v2 is None:
+            self._step(trace, "refine", t, False, chosen=None, reason=info)
+            return self._do_safe_mode(s, trace, incident, None, {"error": info})
+        self._new_plan(s, v2, "nemotron v2")
+        self._step(trace, "refine", t, True, chosen="v2", reason="no rules plan was feasible", model=model,
+                   model_call=info, v2={"assignees": v2.assignee_ids})
+
+    def _do_refine(self, s, trace, incident, stall, args):
+        t = time.perf_counter()
+        v1, v1_ok = s.plan, bool(s.critic_ok and s.dryrun and s.dryrun["ok"])
+        v2, model, info = self._wait_v2(s)
+        if v2 is None:
+            trace.safe_mode = trace.safe_mode or s.nightshift_down
+            self._step(trace, "refine", t, v1_ok, chosen="v1", reason=f"model plan unavailable ({info}): keep v1",
+                       v1={"assignees": v1.assignee_ids})
+            return
+        cited = self.citations.resolve(v2.citations)
+        violations = self._check(v2, incident)
+        self._step(trace, "critic", t, not violations, attempt=s.attempts, version=2, plan_source="nemotron v2",
+                   violations=[v.model_dump() for v in violations])
+        dr2 = None
+        if violations:
+            trace.critic_rejections += 1
+            for v in violations:  # the critic's findings still teach H-MEM
+                if v.rule_id not in {x.rule_id for x in self.lessons} and v.rule_id not in ("GROUNDING", "R-LEASE"):
+                    self.lessons.append(v)
+        else:
+            dr2 = dry_run(v2, incident, self.plant, self.sim)
+            self._step(trace, "dryrun", time.perf_counter(), dr2["ok"], version=2,
+                       **{k: v for k, v in dr2.items() if k != "ok"})
+        v2_ok = bool(dr2 and dr2["ok"])
+        s1 = plan_score(v1, s.dryrun) if v1_ok else None
+        s2 = plan_score(v2, dr2) if v2_ok else None
+        swap = v2_ok and (not v1_ok or s2 < s1)
+        if swap:
+            s.plan, s.plan_source, s.critic_ok, s.dryrun = v2, "nemotron v2", True, dr2
+            trace.plan = v2
+            reason = "v2 is safe and better" if v1_ok else "v1 failed; v2 is safe"
+        elif v1_ok:
+            reason = ("v2 broke " + ", ".join(sorted({v.rule_id for v in violations}))) if violations else \
+                ("v2 failed the dry run" if not v2_ok else
+                 f"same score ({s1}): keep v1, already checked" if s1 == s2 else f"v1 scores better ({s1} vs {s2})")
+        else:  # neither is safe: back to the planner with the critic's feedback
+            s.feedback = violations or s.feedback
+            reason = "neither plan is safe: re-plan with the critic's feedback"
+        self._step(trace, "refine", t, swap or v1_ok, chosen="v2" if swap else ("v1" if v1_ok else None), reason=reason,
+                   model=model, model_call=info, citations=cited if swap else [],
+                   v1={"assignees": v1.assignee_ids, "score": s1}, v2={"assignees": v2.assignee_ids, "score": s2,
+                                                                         "violations": [v.rule_id for v in violations]})
 
     def _do_playbook(self, s, trace, incident, stall, args):
         """Re-use what worked: the playbook's pattern applied to today's best candidates. No model call."""

@@ -2,7 +2,7 @@
   "run_id": "example-5",
   "status": "success",
   "output": {
-    "summary": "robot cell fault at B10: ACT, SRVO-050 collision fault at B10; cell stopped with gate closed. SOP-ROBOT-02 \u00a72 requires a technician with in-date lockout/tagout and robot-cell entry to lock out and enter. W-12 lacks lockout/tagout, so assign W-19 (machine_repair, lockout_tagout, robot_cell_entry certs valid).",
+    "summary": "robot cell fault at B10: ACT, Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 46.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
     "incident": {
       "id": "SIM-42-001",
       "kind": "robot_cell_fault",
@@ -35,11 +35,10 @@
       ],
       "agv_routes": [],
       "priority": "high",
-      "rationale": "SRVO-050 collision fault at B10; cell stopped with gate closed. SOP-ROBOT-02 \u00a72 requires a technician with in-date lockout/tagout and robot-cell entry to lock out and enter. W-12 lacks lockout/tagout, so assign W-19 (machine_repair, lockout_tagout, robot_cell_entry certs valid).",
+      "rationale": "Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 46.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
         "SOP-ROBOT-02 \u00a72",
-        "SOP-LOTO-01 \u00a74",
-        "29 CFR 1910.147(c)(1)"
+        "SOP-ROBOT-01 \u00a71"
       ]
     },
     "citations": [
@@ -50,16 +49,10 @@
         "doc": "sop"
       },
       {
-        "ref": "SOP-LOTO-01 \u00a74",
-        "title": "Machine repair under lockout/tagout (synthetic plant SOP)",
-        "text": "Before servicing a machine, an authorised maintenance technician with in-date lockout/tagout training isolates every energy source, applies a personal lock and tag, and tries to start the machine to verify zero energy.",
+        "ref": "SOP-ROBOT-01 \u00a71",
+        "title": "Robot cell entry (synthetic plant SOP)",
+        "text": "Enter a robot cell only after stopping the robots, locking the gate open with your own lock, and carrying an in-date robot-cell entry card. Never reach through a guard opening while the cell is in auto.",
         "doc": "sop"
-      },
-      {
-        "ref": "29 CFR 1910.147(c)(1)",
-        "title": "The control of hazardous energy (lockout/tagout).",
-        "text": "(c) General\u2014(1) Energy control program. The employer shall establish a program consisting of energy control procedures, employee training and periodic inspections to ensure that before any employee performs any servicing or maintenance on a machine or equipment where the unexpected energizing, start up or release of stored energy could occur and cause injury, the machine or equipment shall be isolated from the energy source, and rendered inoperative.",
-        "doc": "osha"
       }
     ],
     "critic_rejections": 0,
@@ -95,7 +88,7 @@
         "hop": 3,
         "agent": "planner",
         "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
       },
       {
         "hop": 4,
@@ -111,12 +104,18 @@
       },
       {
         "hop": 6,
-        "agent": "restraint",
+        "agent": "refine",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
         "hop": 7,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 8,
         "agent": "gate",
         "by": "forced",
         "reason": "the only legal next step"
@@ -151,12 +150,18 @@
     {
       "name": "critic",
       "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
-      "runs": 1,
+      "runs": 2,
       "ok": true
     },
     {
       "name": "dryrun",
       "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 2,
+      "ok": true
+    },
+    {
+      "name": "refine",
+      "role": "",
       "runs": 1,
       "ok": true
     },
@@ -175,9 +180,10 @@
   ],
   "models": [
     "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
-    "rule-based"
+    "rule-based",
+    "rules (Hungarian)"
   ],
   "trace_id": "trace-example-5",
   "log_file": "logs/trace-example-5.jsonl",
-  "execution_time_seconds": 0.02
+  "execution_time_seconds": 0.03
 }

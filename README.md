@@ -113,12 +113,12 @@ than a crash.
 ### Sample inputs and outputs
 | Input | What happens | Output |
 |---|---|---|
-| `input_examples/example_1.json`: part shortage at F30 | The planner sends AGV-5 at 1.0 m/s through the X-WEST crossing. The critic rejects it under 29 CFR 1910.178(n)(4); the re-plan slows to 0.5 m/s. Result: ACT | `output_examples/example_1.json` |
+| `input_examples/example_1.json`: part shortage at F30 | The rules plan (v1, optimal assignment) is ready at once. Nemotron's plan (v2) sends AGV-5 at 1.0 m/s through the X-WEST crossing; the critic rejects it under 29 CFR 1910.178(n)(4), so v1 (0.5 m/s at crossings) stays. Result: ACT | `output_examples/example_1.json` |
 | `example_2.json`: AGV-3 fault plus a stall | The replacement AGV-1 stalls mid-route. The verifier detects it and the loop re-plans with AGV-2. Result: ACT | `example_2.json` |
 | `example_3.json`: overheat at F10, false alarm | The temperature is over its threshold, but the Bosch vibration recording is normal, so the sensors disagree. Result: VERIFY (a technician checks; the line keeps running) | `example_3.json` |
 | `example_4.json`: coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | `example_4.json` |
 | `example_5.json`: robot-cell fault at B10 (weld robots) | The cell is fenced. Only a technician with in-date lockout/tagout and a robot-cell card may enter (29 CFR 1910.147, SOP-ROBOT-02). ACT, but it waits for a person to approve | `example_5.json` |
-| `example_6.json`: nutrunner torque fault at F10 | Nemotron sends a tool technician; the critic rejects it (SOP-TORQUE-01: joints since the last good torque must be re-audited) and the re-plan adds the torque auditor. A single NOK with `false_alarm` gives VERIFY | `example_6.json` |
+| `example_6.json`: nutrunner torque fault at F10 | v1 sends a tool technician and the torque auditor. Nemotron's v2 sends only the technician; the critic rejects it (SOP-TORQUE-01: joints since the last good torque must be re-audited), so v1 stays. A single NOK with `false_alarm` gives VERIFY | `example_6.json` |
 | `example_7.json`: pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | `example_7.json` |
 | `example_8.json`: quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | `example_8.json` |
 
@@ -231,7 +231,8 @@ state and the agents that are legal right now, and returns strict JSON `{next_ag
 | candidates | Top qualified people and healthy AGVs from the World Model (one federated Zetaris query) | none |
 | playbook | Re-uses a proven H-MEM playbook on today's candidates: no model call | none |
 | check first (`verify_plan`) | One qualified person inspects before anything else moves: no model call | none |
-| planner | Strict-JSON plan grounded in the World Model, citing clauses | `planner` role |
+| planner (anytime) | v1 at once by optimal assignment (Hungarian algorithm over roles × candidates: travel, reliability, load; infeasible if a skill or certificate is missing); Nemotron's strict-JSON v2 in the background | none for v1, `planner` role for v2 |
+| refine | Checks v2 with the critic and the dry run; swaps it in only if it is safe and scores better | none (rules) |
 | safety critic | OSHA rules and SOPs with exact clause citations; violations go back as feedback | none (rules) |
 | dry run | 60 s headless simulation, A* with a reservation table | none |
 | restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence, sensors and cost | none |

@@ -70,6 +70,11 @@ def describe_step(r: dict) -> str:
         return f"proven playbook {d.get('playbook')} -> {[short(a) for a in d.get('assignees', [])]} (no model call)"
     if step == "verify_plan":
         return f"check first: {[short(a) for a in d.get('assignees', [])]} (no model call)"
+    if step == "refine":
+        return f"chose {d.get('chosen')}: {d.get('reason')}"
+    if step == "planner" and d.get("version") == 1:
+        return f"v1 by optimal assignment -> {[short(a) for a in d.get('assignees', [])]}" + \
+            ("; Nemotron v2 in the background" if d.get("refining") else "")
     if step == "arbiter":
         return (f"lost {d['lost']} to a more urgent incident: re-planning" if d.get("lost")
                 else f"{d['refused']} taken elsewhere: re-planning" if d.get("refused")

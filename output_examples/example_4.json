@@ -2,7 +2,7 @@
   "run_id": "example-4",
   "status": "success",
   "output": {
-    "summary": "spill at F20: ACT, Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.",
+    "summary": "spill at F20: ACT, Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 0.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
     "incident": {
       "id": "SIM-7-001",
       "kind": "spill",
@@ -35,7 +35,7 @@
       ],
       "agv_routes": [],
       "priority": "high",
-      "rationale": "Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.",
+      "rationale": "Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 0.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.",
       "citations": [
         "29 CFR 1910.22(a)(1)",
         "29 CFR 1910.22(d)(2)"
@@ -88,7 +88,7 @@
         "hop": 3,
         "agent": "planner",
         "by": "rules",
-        "reason": "no playbook fits: plan with Nemotron"
+        "reason": "no playbook fits: optimal assignment now, Nemotron refines in the background"
       },
       {
         "hop": 4,
@@ -104,12 +104,18 @@
       },
       {
         "hop": 6,
-        "agent": "restraint",
+        "agent": "refine",
         "by": "forced",
         "reason": "the only legal next step"
       },
       {
         "hop": 7,
+        "agent": "restraint",
+        "by": "forced",
+        "reason": "the only legal next step"
+      },
+      {
+        "hop": 8,
         "agent": "gate",
         "by": "forced",
         "reason": "the only legal next step"
@@ -144,12 +150,18 @@
     {
       "name": "critic",
       "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
-      "runs": 1,
+      "runs": 2,
       "ok": true
     },
     {
       "name": "dryrun",
       "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 2,
+      "ok": true
+    },
+    {
+      "name": "refine",
+      "role": "",
       "runs": 1,
       "ok": true
     },
@@ -168,9 +180,10 @@
   ],
   "models": [
     "rule-based",
-    "rule-based (sample mode)"
+    "rule-based (sample mode)",
+    "rules (Hungarian)"
   ],
   "trace_id": "trace-example-4",
   "log_file": "logs/trace-example-4.jsonl",
-  "execution_time_seconds": 0.02
+  "execution_time_seconds": 0.03
 }
