@@ -32,43 +32,35 @@
     "roles": {
       "router": [
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "monitor": [
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "planner": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "coordinator": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "sql_agent": [
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "analyst": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "evidence_critic": [
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b"
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "lab": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ]
     },
     "deterministic_no_model": [
@@ -81,7 +73,7 @@
       "verifier"
     ],
     "probe": "scripts/probe_models.py -> data/model_probe.json (which model Nightshift really serves per requested id)",
-    "nightshift_routing_note": "Nightshift's app policy for shopfloor-os decides the final route; every call records requested vs answering model and the receipt id, so logs never claim a model that did not answer"
+    "nightshift_routing_note": "Nightshift routes by per-app rule: shopfloor-os-fast is pinned to the Lightning lane and shopfloor-os to the Super VL lane (lane allowlists in Nightshift's app-policy.json); every call records requested vs answering model and the receipt id"
   },
   "data_platform": "Zetaris (four Postgres sources federated as sf_fleet, sf_hr, sf_plant, sf_ops); one federated query per incident",
   "agent_loop": {

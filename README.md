@@ -262,13 +262,15 @@ breakers in `app/runtime.py`.
 `config/models.json` maps each agent role to a chain of models, chosen by capability. `app/models.py` tries the
 chain in order through Nightshift.
 
-| Role | Preferred model, then fallbacks | Why |
+| Role | Preferred model, then fallback | Why |
 |---|---|---|
-| router (orchestrator), monitor | Nemotron 3.5 Lightning 30B A3B → 3.5 Super VL → Llama-3.3-Nemotron-Super 49B | small, frequent decisions: lowest latency (3B active parameters) |
-| planner | Nemotron 3.5 Super VL 120B → Llama-3.3-Nemotron-Super 49B → Lightning | grounded multi-constraint planning with citations |
-| coordinator, analyst, lab | Nemotron 3.5 Super VL 120B → Lightning → Llama-3.3-Nemotron-Super 49B | deep reasoning |
-| sql_agent | Llama-3.3-Nemotron-Super 49B v1.5 → 3.5 Super VL → Lightning | NVIDIA's code- and tool-tuned model. The coder models in the list (Qwen2.5-Coder, Codestral) are non-NVIDIA local models that would load on the PC |
-| evidence_critic | Llama-3.3-Nemotron-Super 49B v1.5 → 3.5 Super VL → Lightning | a different model family from the analyst, for an independent check; it can only drop claims |
+| router (orchestrator), monitor | Nemotron 3.5 Lightning 30B A3B → 3.5 Super VL | small, frequent decisions: lowest latency (3B active parameters) |
+| evidence_critic | Nemotron 3.5 Lightning 30B A3B → 3.5 Super VL | a different model from the analyst, for an independent check; it can only drop claims |
+| planner, coordinator, analyst, lab, sql_agent | Nemotron 3.5 Super VL 120B → Lightning | deep reasoning, grounded planning and SQL |
+
+Models we tried and could not use: Llama-3.3-Nemotron-Super 49B only works as a Nightshift verify lane (it never
+answers a request directly), and NVIDIA's endpoint for Nemotron 3 Super 120B is not enabled for our key (404).
+The non-NVIDIA coder models in Nightshift's list are local models that would load on the PC.
 
 The safety critic, dry run, restraint gate and executor are deterministic code and use no model.
 
@@ -281,14 +283,12 @@ The safety critic, dry run, restraint gate and executor are deterministic code a
   shows live latency and breaker states.
 
 `scripts/probe_models.py` asks every NVIDIA model Nightshift lists for a one-word reply. It records who really
-answered in `data/model_probe.json`. The three models in the chains have Nightshift lanes. Nightshift's own app
-policy decides the final route, though. While the `shopfloor-os` app rule is in auto mode, Nightshift's receipts
-show `requested_mode: meterless/auto` and its learned router serves Nemotron 3.5 Super VL for every id. The
-registry never hides this: the trace, `logs/llm.jsonl` and the Models panel show "asked Lightning, answered by
-Super VL". Once Nightshift honours the requested model, the chains take effect with no code change. The receipts
-also show `raced: 1`, so one request is never fanned out to every lane.
-Local-runtime models and `meterless/*` aliases are listed but never called by the probe, because calling them
-can load or download a model.
+answered in `data/model_probe.json`. **Nightshift, not the model id, decides the route.** For a named app, Nightshift
+records the requested model but routes by that app's rule. So each role group calls under its own app name
+(`shopfloor-os-fast` for Lightning, `shopfloor-os` for Super VL; `model_apps` in the config). In Nightshift's
+`state/app-policy.json`, each app name has a one-lane allowlist (`"lanes": [...]`), which Nightshift's engine
+supports but its cockpit does not show. A fallback model is sent under its own app name. When NVIDIA's endpoint
+returns an error or an empty reply, the chain moves on and the trace says so.
 
 ## Meterless engine: World Model
 Shop-Floor OS implements the **Meterless World Model** engine in Python, in `app/engines/world_model.py`. It is a

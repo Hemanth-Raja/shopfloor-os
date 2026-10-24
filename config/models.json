@@ -1,5 +1,5 @@
 {
-  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves. Chains use the three models with Nightshift lanes: Nemotron 3.5 Super VL 120B, Nemotron 3.5 Lightning 30B and Llama-3.3-Nemotron-Super 49B v1.5. `app` is the meterless-app name sent with the role's calls: Nightshift routes by its per-app rule, so give each app name a lane allowlist in Nightshift's Apps panel (shopfloor-os-fast -> Lightning, shopfloor-os-code -> Llama-3.3-Nemotron-Super 49B, shopfloor-os -> Super VL). model_apps: the app name pinned to each model in Nightshift (one lane per app), so a fallback to another model is sent under that model's app.",
+  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. `app` is the meterless-app name sent with a role's calls and model_apps the app pinned to each model: Nightshift routes by the app's rule, so each app name has a one-lane allowlist in Nightshift (state/app-policy.json): shopfloor-os -> Nemotron 3.5 Super VL, shopfloor-os-fast -> Nemotron 3.5 Lightning. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves.",
   "defaults": {
     "lane_roles": {
       "deep": "planner",
@@ -12,8 +12,7 @@
     "router": {
       "chain": [
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "budget_s": 30,
       "max_tokens": 1500,
@@ -23,18 +22,16 @@
     "monitor": {
       "chain": [
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
-      "budget_s": 20,
-      "max_tokens": 1000,
+      "budget_s": 30,
+      "max_tokens": 1500,
       "why": "A one-line summary for the supervisor; the classification itself is rules.",
       "app": "shopfloor-os-fast"
     },
     "planner": {
       "chain": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 120,
@@ -45,8 +42,7 @@
     "coordinator": {
       "chain": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 90,
       "max_tokens": 2000,
@@ -55,20 +51,18 @@
     },
     "sql_agent": {
       "chain": [
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 90,
       "max_tokens": 2000,
-      "why": "Writes Spark SQL: Llama-3.3-Nemotron-Super 49B v1.5, NVIDIA's code- and tool-tuned model with a Nightshift lane. The coder models in the list (Qwen2.5-Coder, Codestral) are non-NVIDIA local-runtime models that would load on the PC, so they are not used.",
-      "app": "shopfloor-os-code"
+      "why": "Writes Spark SQL: Nemotron 3.5 Super VL, the strongest model this Nightshift serves. Llama-3.3-Nemotron-Super 49B can only be a Nightshift verify lane, NVIDIA's endpoint for Nemotron 3 Super 120B is not enabled for this key (404), and the coder models in the list are non-NVIDIA local models that would load on the PC.",
+      "app": "shopfloor-os"
     },
     "analyst": {
       "chain": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 180,
       "max_tokens": 2000,
@@ -77,20 +71,18 @@
     },
     "evidence_critic": {
       "chain": [
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b"
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "budget_s": 120,
       "max_tokens": 1500,
-      "why": "Checks the analyst's claims against the rows: a different model family (Llama-3.3-Nemotron) from the analyst (Nemotron 3.5 Super VL) for an independent check. It can only drop claims, after the rule-based number check.",
-      "app": "shopfloor-os-code"
+      "why": "Checks the analyst's claims against the rows: Nemotron 3.5 Lightning, a different model from the analyst (Super VL), for an independent check. It can only drop claims, after the rule-based number check.",
+      "app": "shopfloor-os-fast"
     },
     "lab": {
       "chain": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 120,
       "max_tokens": 2000,
@@ -100,7 +92,6 @@
   },
   "model_apps": {
     "nvidia/nemotron-3.5-super-vl-120b-a12b": "shopfloor-os",
-    "nvidia/nemotron-3.5-lightning-30b-a3b": "shopfloor-os-fast",
-    "nvidia/llama-3.3-nemotron-super-49b-v1.5": "shopfloor-os-code"
+    "nvidia/nemotron-3.5-lightning-30b-a3b": "shopfloor-os-fast"
   }
 }
