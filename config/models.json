@@ -7,7 +7,13 @@
     },
     "breaker_threshold": 2,
     "breaker_cooldown_s": 60,
-    "context_fraction": 0.5
+    "context_fraction": 0.5,
+    "retries": 2,
+    "hedge_factor": 1.5,
+    "concurrency_start": 2,
+    "concurrency_max": 6,
+    "slow_reply_s": 60,
+    "incident_budget_s": 240
   },
   "roles": {
     "router": {
@@ -18,7 +24,8 @@
       "budget_s": 30,
       "max_tokens": 1500,
       "why": "Orchestrator hops: a small decision over a short state, many times per incident: Nemotron 3.5 Lightning 30B A3B (3B active) for the lowest latency.",
-      "app": "shopfloor-os-fast"
+      "app": "shopfloor-os-fast",
+      "hedge": true
     },
     "monitor": {
       "chain": [
@@ -28,7 +35,8 @@
       "budget_s": 30,
       "max_tokens": 1500,
       "why": "A one-line summary for the supervisor; the classification itself is rules.",
-      "app": "shopfloor-os-fast"
+      "app": "shopfloor-os-fast",
+      "hedge": true
     },
     "planner": {
       "chain": [
@@ -98,7 +106,8 @@
       "budget_s": 30,
       "max_tokens": 1500,
       "app": "shopfloor-os-fast",
-      "why": "Triage of ambiguous floor signals only (the rules decide the clear ones): a quick yes/no with a reason, so the fast model."
+      "why": "Triage of ambiguous floor signals only (the rules decide the clear ones): a quick yes/no with a reason, so the fast model.",
+      "hedge": true
     }
   },
   "model_apps": {

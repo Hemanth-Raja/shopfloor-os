@@ -22,6 +22,8 @@ def fresh(monkeypatch):
     monkeypatch.setattr(models, "BREAKERS", {})
     monkeypatch.setattr(models, "LAST", {})
     monkeypatch.setattr(models, "receipt_for", lambda rid, wait_s=1.0: f"rcpt_{rid}" if rid else None)
+    monkeypatch.setattr(models, "SLEEP", lambda s: None)  # backoff without real waiting
+    monkeypatch.setattr(models, "LIMITERS", {})
 
 
 def fake_complete(down=(), answer_as=None, calls=None):
@@ -60,7 +62,8 @@ def test_fallback_to_the_next_model_and_breaker_skips_it(monkeypatch):
         r = models.chat_json("deep", [{"role": "user", "content": "x"}], Out)  # deep lane -> planner role
         assert r.model == chain[1] and r.fell_back
     assert models.BREAKERS[chain[0]].state == "OPEN"
-    assert [c[0] for c in calls].count(chain[0]) == 2  # threshold 2: then skipped without waiting
+    retries = models.CFG["defaults"].get("retries", 2)
+    assert [c[0] for c in calls].count(chain[0]) == 2 * (retries + 1)  # 2 attempts (with retries), then skipped
     assert r.tried[0] == {"model": chain[0], "skipped": "breaker open"}
 
 

@@ -26,7 +26,7 @@ SYSTEM = (
 
 
 def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None,
-              clauses: list[dict] | None = None) -> Plan:
+              clauses: list[dict] | None = None, deadline: float | None = None) -> Plan:
     payload = {
         "incident": incident.model_dump(exclude={"truth_false_alarm"} | ({"note"} if incident.note is None else set())),
         "worker_candidates": [c.model_dump() for c in cands["workers"]],
@@ -41,7 +41,8 @@ def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: lis
                          "violation and return a corrected plan: "
                          + json.dumps([v.model_dump(exclude={"citations"}) | {"clauses": [c.ref for c in v.citations]}
                                        for v in feedback])})
-    reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S, role="planner")
+    extra = {"deadline": deadline} if deadline is not None else {}
+    reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S, role="planner", **extra)
     plan = reply.data if hasattr(reply, "data") else reply
     LAST_MODEL["planner"] = getattr(reply, "model", None)
     from app.models import call_info

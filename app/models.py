@@ -28,6 +28,7 @@ from pydantic import BaseModel, ValidationError
 from app import llm
 from app.agents.health import CircuitBreaker, CircuitOpen
 from app.llm import LLMUnavailable
+from app.resilience import AIMDLimiter, Deadline, DeadlineExceeded, LatencyStats, LimiterTimeout, backoff_delay, repair_json
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "models.json"
 _lock = threading.Lock()
@@ -95,7 +96,7 @@ def _complete(model: str, role: str, messages: list[dict], max_tokens: int, time
         kwargs["response_format"] = {"type": "json_object"}
     started = time.perf_counter()
     try:
-        # no hidden SDK retries: a failing model hands over to the next one in the chain at once
+        # no hidden SDK retries: our own retry loop below decides (backoff, jitter, deadline)
         reply = llm.get_client(timeout_s).with_options(max_retries=0).chat.completions.create(**kwargs)
     except (APITimeoutError, APIConnectionError) as err:
         raise LLMUnavailable(str(err)) from err
@@ -109,6 +110,8 @@ def _complete(model: str, role: str, messages: list[dict], max_tokens: int, time
     truncated = getattr(choice, "finish_reason", None) == "length"
     answering = reply.model or model
     llm._log_call(role, model, answering, latency, getattr(reply, "usage", None), truncated)
+    if not text.strip() and not truncated:
+        raise LLMUnavailable("empty reply")  # transient: worth a retry
     return SimpleNamespace(text=text, model=answering, requested=model, latency_s=latency, truncated=truncated,
                            request_id=getattr(reply, "id", None), tokens=llm._tokens(getattr(reply, "usage", None)))
 
@@ -132,10 +135,90 @@ def check_context(model: str, messages: list[dict], max_tokens: int) -> int:
     return need
 
 
-def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None = None) -> SimpleNamespace:
+# ---------------------------------------------------------------- resilience: retries, limiter, hedging, deadline
+
+LIMITERS: dict[str, AIMDLimiter] = {}
+LATENCY = LatencyStats()
+RETRIES = {"n": 0}  # counters for Health
+SLEEP = time.sleep  # tests replace it
+
+
+def limiter(model: str) -> AIMDLimiter:
+    with _lock:
+        if model not in LIMITERS:
+            d = CFG["defaults"]
+            LIMITERS[model] = AIMDLimiter(start=d.get("concurrency_start", 3), high=d.get("concurrency_max", 8),
+                                          slow_s=d.get("slow_reply_s", 60))
+        return LIMITERS[model]
+
+
+def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespace:
+    """One model: limiter slot, then up to `retries` retries with full-jitter backoff on transient errors.
+    The breaker counts the whole attempt once, so retries do not trip it on their own."""
+    retries = CFG["defaults"].get("retries", 2)
+
+    def run():
+        last = None
+        for n in range(retries + 1):
+            timeout = deadline.cap(spec["budget_s"])
+            lim = limiter(model)
+            try:
+                with lim.slot(min(timeout, 5.0)):
+                    started = time.perf_counter()
+                    out = call(model, spec, timeout)
+                lim.success(time.perf_counter() - started)
+                LATENCY.add(spec["_role"], out.latency_s)
+                out.retries = n
+                return out
+            except (LLMUnavailable, LimiterTimeout) as err:
+                if isinstance(err, CircuitOpen):
+                    raise
+                lim.failure()
+                last = err
+                if n < retries:
+                    RETRIES["n"] += 1
+                    pause = backoff_delay(n)
+                    if deadline.left() - pause > 1.0:
+                        SLEEP(pause)
+                        continue
+                raise
+        raise last  # pragma: no cover
+    return breaker(model).call(run)
+
+
+def _race(first: str, second: str, spec: dict, call, deadline: Deadline, tried: list) -> SimpleNamespace | None:
+    """Hedged request: if `first` is slower than the role's median, also ask `second`; the first valid reply wins."""
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+    hedge_after = LATENCY.p50(spec["_role"], default=spec["budget_s"] / 4) * CFG["defaults"].get("hedge_factor", 1.5)
+    pool = ThreadPoolExecutor(max_workers=2)
+    futures = {pool.submit(_attempt, first, spec, call, deadline): first}
+    done, _ = wait(futures, timeout=min(hedge_after, max(0.0, deadline.left())))
+    if not done and breaker(second).state != "OPEN":
+        futures[pool.submit(_attempt, second, spec, call, deadline)] = second
+        tried.append({"model": second, "hedged_after_s": round(hedge_after, 1)})
+    pending = set(futures)
+    try:
+        while pending:
+            done, pending = wait(pending, timeout=max(0.0, deadline.left()), return_when=FIRST_COMPLETED)
+            if not done:
+                break
+            for f in done:
+                try:
+                    return f.result()
+                except Exception as err:  # noqa: BLE001
+                    tried.append({"model": futures[f], "error": f"{type(err).__name__}: {str(err)[:120]}"})
+        return None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None = None,
+                deadline: Deadline | None = None) -> SimpleNamespace:
     role = role_for(lane, role)
-    spec = CFG["roles"][role]
-    tried = []
+    spec = {**CFG["roles"][role], "_role": role}
+    deadline = deadline or Deadline(seconds=spec["budget_s"] * len(spec["chain"]) + 5)
+    tried: list = []
+    models = []
     for model in spec["chain"]:
         if messages is not None:
             try:
@@ -143,66 +226,99 @@ def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None =
             except ContextTooLarge as err:
                 tried.append({"model": model, "skipped": f"context: {err}"})
                 continue
-        b = breaker(model)
-        try:
-            out = b.call(call, model, spec)
-        except CircuitOpen:
-            tried.append({"model": model, "skipped": "breaker open"})
-            continue
-        except Exception as err:  # noqa: BLE001 - timeout, HTTP error or an unusable reply: next model in the chain
-            tried.append({"model": model, "error": f"{type(err).__name__}: {str(err)[:120]}"})
+        models.append(model)
+    i = 0
+    while i < len(models):
+        if deadline.left() <= 0.5:
+            tried.append({"skipped": "deadline: the incident's time budget is spent"})
+            break
+        model = models[i]
+        out = None
+        if spec.get("hedge") and i + 1 < len(models) and breaker(model).state != "OPEN":
+            out = _race(model, models[i + 1], spec, call, deadline, tried)
+            i += 2
+        else:
+            i += 1
+            try:
+                out = _attempt(model, spec, call, deadline)
+            except CircuitOpen:
+                tried.append({"model": model, "skipped": "breaker open"})
+            except DeadlineExceeded:
+                tried.append({"model": model, "skipped": "deadline"})
+                break
+            except Exception as err:  # noqa: BLE001 - timeout, HTTP error or an unusable reply: next model in the chain
+                tried.append({"model": model, "error": f"{type(err).__name__}: {str(err)[:120]}"})
+        if out is None:
             continue
         out.role, out.tried = role, tried
-        out.fell_back = bool(tried) or out.model != out.requested
+        out.fell_back = any("error" in t or "skipped" in t for t in tried) or out.model != out.requested
         out.receipt = receipt_for(out.request_id)
         LAST[role] = {"role": role, "requested": out.requested, "answering": out.model,
                       "latency_s": round(out.latency_s, 2), "receipt": out.receipt, "at": time.time(),
-                      "fell_back": out.fell_back}
+                      "fell_back": out.fell_back, "retries": getattr(out, "retries", 0)}
         return out
     raise LLMUnavailable(f"every model for role {role} failed or is open: {tried}")
 
 
+def _deadline(timeout_s, deadline) -> Deadline | None:
+    if isinstance(deadline, Deadline):
+        return deadline
+    if isinstance(deadline, (int, float)):
+        return Deadline(at=float(deadline))
+    return None
+
+
 def chat(lane: str, messages: list[dict], max_tokens: int | None = None, timeout_s: float | None = None,
-         role: str | None = None) -> SimpleNamespace:
+         role: str | None = None, deadline=None) -> SimpleNamespace:
     spec_role = role_for(lane, role)
 
-    def call(model, spec):
+    def call(model, spec, timeout):
         return _complete(model, spec_role, messages, max_tokens or spec["max_tokens"],
-                         min(timeout_s or spec["budget_s"], spec["budget_s"]), json_mode=False)
-    return _over_chain(lane, role, call, messages)
+                         min(timeout_s or timeout, timeout), json_mode=False)
+    return _over_chain(lane, role, call, messages, _deadline(timeout_s, deadline))
 
 
 def call_info(reply) -> dict:
     """Requested and answering model, latency and receipt of one reply (replayed replies have fewer fields)."""
     return {"requested": getattr(reply, "requested", None), "answering": getattr(reply, "model", None),
             "latency_s": round(getattr(reply, "latency_s", 0.0) or 0.0, 2), "receipt": getattr(reply, "receipt", None),
-            "role": getattr(reply, "role", None), "fell_back": getattr(reply, "fell_back", None)}
+            "role": getattr(reply, "role", None), "fell_back": getattr(reply, "fell_back", None),
+            "retries": getattr(reply, "retries", None), "repaired": getattr(reply, "repaired", None)}
+
+
+def _parse_or_repair(schema: type[BaseModel], text: str):
+    """Validate; on failure try a mechanical JSON repair before spending a re-ask. -> (data, repaired)"""
+    try:
+        return llm._parse(schema, text), False
+    except (ValidationError, json.JSONDecodeError, ValueError):
+        return schema.model_validate_json(repair_json(text)), True
 
 
 def chat_json(lane: str, messages: list[dict], schema: type[BaseModel], max_tokens: int | None = None,
-              timeout_s: float | None = None, role: str | None = None) -> SimpleNamespace:
-    """Strict JSON: the schema is in the prompt, the reply is validated; one retry on the same model on a miss."""
+              timeout_s: float | None = None, role: str | None = None, deadline=None) -> SimpleNamespace:
+    """Strict JSON: the schema is in the prompt, the reply is validated (repaired if needed); one re-ask on the same
+    model on a miss; then the next model."""
     spec_role = role_for(lane, role)
     prompted = list(messages) + [{"role": "system", "content": "Reply with a JSON object only, no markdown, matching "
                                   "this schema: " + json.dumps(schema.model_json_schema())}]
 
-    def call(model, spec):
-        budget = min(timeout_s or spec["budget_s"], spec["budget_s"])
+    def call(model, spec, timeout):
+        budget = min(timeout_s or timeout, timeout)
         tokens = max_tokens or spec["max_tokens"]
         reply = _complete(model, spec_role, prompted, tokens, budget, json_mode=True)
         try:
             if reply.truncated:
                 raise ValueError("reply truncated (finish_reason=length)")
-            reply.data = llm._parse(schema, reply.text)
+            reply.data, reply.repaired = _parse_or_repair(schema, reply.text)
             return reply
         except (ValidationError, json.JSONDecodeError, ValueError) as err:
             retry = prompted + [{"role": "assistant", "content": reply.text},
                                 {"role": "user", "content": f"Your previous reply failed validation: {err}. "
                                                             "Return JSON only that matches the schema."}]
             again = _complete(model, spec_role, retry, tokens * (2 if reply.truncated else 1), budget, json_mode=True)
-            again.data = llm._parse(schema, again.text)
+            again.data, again.repaired = _parse_or_repair(schema, again.text)
             return again
-    return _over_chain(lane, role, call, prompted)
+    return _over_chain(lane, role, call, prompted, _deadline(timeout_s, deadline))
 
 
 def mapping() -> list[dict]:
@@ -218,5 +334,7 @@ def mapping() -> list[dict]:
                     "max_tokens": spec["max_tokens"],
                     "breakers": {m: BREAKERS[m].state if m in BREAKERS else "CLOSED" for m in spec["chain"]},
                     "served_by": {m: (probe.get(m) or {}).get("answering") for m in spec["chain"]},
-                    "last": LAST.get(role)})
+                    "last": LAST.get(role), "hedge": bool(spec.get("hedge")),
+                    "limiters": {m: LIMITERS[m].state() for m in spec["chain"] if m in LIMITERS},
+                    "p50_s": round(LATENCY.p50(role, default=0.0), 1) or None})
     return out

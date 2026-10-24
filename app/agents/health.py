@@ -26,6 +26,7 @@ class CircuitBreaker:
         self.failures = 0
         self.opened_at: float | None = None
         self.last_error = ""
+        self._probing = False  # half-open: exactly one trial call at a time
 
     @property
     def state(self) -> str:
@@ -34,11 +35,17 @@ class CircuitBreaker:
         return "HALF_OPEN" if self.clock() - self.opened_at >= self.cooldown_s else "OPEN"
 
     def call(self, fn: Callable, *args, **kwargs) -> Any:
-        if self.state == "OPEN":
+        state = self.state
+        if state == "OPEN" or (state == "HALF_OPEN" and self._probing):
             raise CircuitOpen(f"{self.name} circuit open after {self.failures} failures: {self.last_error[:120]}")
+        probe = state == "HALF_OPEN"
+        if probe:
+            self._probing = True
         try:
             out = fn(*args, **kwargs)
         except Exception as err:  # noqa: BLE001 - any failure counts against the dependency
+            if probe:
+                self._probing = False
             self.failures += 1
             self.last_error = f"{type(err).__name__}: {err}"
             if self.failures >= self.threshold or self.state == "HALF_OPEN":
@@ -46,7 +53,7 @@ class CircuitBreaker:
             if isinstance(err, LLMUnavailable) or self.name != "nightshift":
                 raise
             raise LLMUnavailable(self.last_error) from err  # model failures always mean safe mode
-        self.failures, self.opened_at = 0, None
+        self.failures, self.opened_at, self._probing = 0, None, False
         return out
 
     def wrap(self, fn: Callable) -> Callable:

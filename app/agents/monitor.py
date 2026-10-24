@@ -11,7 +11,7 @@ from typing import Callable
 from app.contracts import Incident
 
 
-def assess(incident: Incident, llm_text: Callable | None = None) -> dict:
+def assess(incident: Incident, llm_text: Callable | None = None, deadline: float | None = None) -> dict:
     s = incident.sensors
     evidence: list[str] = []
     if incident.kind == "overheat":
@@ -56,7 +56,8 @@ def assess(incident: Incident, llm_text: Callable | None = None) -> dict:
     if llm_text is not None:
         try:
             reply = llm_text("fast", [{"role": "user", "content": "In one line (max 20 words), summarise for a shift "
-                                       f"supervisor: {summary}"}], role="monitor")
+                                       f"supervisor: {summary}"}], role="monitor",
+                             **({"deadline": deadline} if deadline is not None else {}))
             if reply.text.strip():
                 summary = reply.text.strip().splitlines()[0]
                 model = getattr(reply, "model", None)

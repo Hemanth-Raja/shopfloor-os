@@ -257,7 +257,8 @@ class DynamicOrchestrator(Orchestrator):
                 reply = self.router_llm("fast", [{"role": "system", "content": ROUTER_SYSTEM},
                                                  {"role": "user", "content": json.dumps(self.compact(s, trace, legal),
                                                                                         default=str)}],
-                                        RouteChoice, timeout_s=ROUTER_TIMEOUT_S, role="router")
+                                        RouteChoice, timeout_s=ROUTER_TIMEOUT_S, role="router",
+                                        deadline=self.deadline_at)
                 choice = reply.data if hasattr(reply, "data") else reply
                 from app.models import call_info
                 self.last_router_call = call_info(reply)
@@ -297,6 +298,8 @@ class DynamicOrchestrator(Orchestrator):
         Returns the Trace (StopIteration.value)."""
         trace = Trace(incident=incident, mode="dynamic")
         self.trace = trace
+        from app.models import CFG
+        self.deadline_at = time.monotonic() + CFG["defaults"].get("incident_budget_s", 240)  # passed to every model call
         s = State()
         self.state = s
         t = time.perf_counter()
@@ -346,7 +349,7 @@ class DynamicOrchestrator(Orchestrator):
 
     def _do_monitor(self, s, trace, incident, stall, args):
         t = time.perf_counter()
-        s.mon = assess(incident, self.llm_text)
+        s.mon = assess(incident, self.llm_text, deadline=getattr(self, "deadline_at", None))
         self._step(trace, "monitor", t, True, **s.mon)
 
     def _do_memory(self, s, trace, incident, stall, args):
@@ -390,7 +393,7 @@ class DynamicOrchestrator(Orchestrator):
         t = time.perf_counter()
         clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
         try:
-            plan = make_plan(incident, s.cands, self.llm_json, s.feedback, clauses)
+            plan = make_plan(incident, s.cands, self.llm_json, s.feedback, clauses, deadline=getattr(self, "deadline_at", None))
         except LLMUnavailable as err:
             s.nightshift_down = True
             self._step(trace, "planner", t, False, attempt=s.attempts + 1, error=str(err)[:200])
