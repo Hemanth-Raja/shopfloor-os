@@ -60,7 +60,7 @@ flowchart LR
 | | |
 |---|---|
 | **Two-minute path, no accounts** | `SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json`, or `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os` and open http://localhost:8000 |
-| **Without installing anything** | open `docs/site/index.html`: recorded runs, step by step, with the critic's clauses |
+| **Without installing anything** | the replay site, https://hemanth-raja.github.io/shopfloor-os/ (or open `docs/site/index.html`): recorded runs, step by step, with the critic's clauses |
 | **Live path** | Zetaris and Nightshift running: `bash scripts/start_live.sh` (see *Setup*) |
 | **Evidence for the claims** | [docs/eval.md](docs/eval.md), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
 
@@ -137,7 +137,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 | **Shift handover** | `run.py handover [--shifts 3]`: the shift journal read in bounded chunks on the Meterless Markovian engine, then a handover note |
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
-| Static replay page | `python scripts/build_site.py`, then open `docs/site/index.html` (no server, nothing published) |
+| Static replay page | `python scripts/build_site.py`, then open `docs/site/index.html`; `.github/workflows/pages.yml` publishes it to GitHub Pages on push |
 
 Request:
 ```json
