@@ -47,6 +47,7 @@ class FakePlanner:
         agvs = payload["agv_candidates"][:1]
         routes = [{"agv_id": a["id"], "to_station": inc["station_id"], "speed_mps": 1.0,
                    "crossing_speed_mps": 0.5 if fixed else None} for a in agvs if inc.get("station_id")]
+        cites = [c["ref"] for c in payload.get("relevant_clauses", [])[:1]]
         plan = Plan(incident_id="x", assignee_ids=workers or [a["id"] for a in agvs], agv_routes=routes,
-                    priority="high", rationale="fake planner")
+                    priority="high", rationale="fake planner", citations=cites)
         return SimpleNamespace(data=plan, text="", model="fake", latency_s=0.0)

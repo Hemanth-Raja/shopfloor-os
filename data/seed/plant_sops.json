@@ -1,0 +1,16 @@
+[
+ {"ref": "SOP-AGV-01 §2", "title": "AGV traffic at pedestrian crossings (synthetic plant SOP)", "rules": ["R-CROSSING"], "kinds": ["part_shortage", "agv_fault"],
+  "text": "Every AGV route that crosses X-WEST or X-EAST must slow to 0.5 m/s or less from one cell before the crossing until it has left it, and sound the horn. Body carriers are not exempt."},
+ {"ref": "SOP-AGV-02 §1", "title": "Stalled or faulted AGV (synthetic plant SOP)", "rules": ["R-PED-CLEAR"], "kinds": ["agv_fault"],
+  "text": "Fence the stalled AGV with a one-cell geofence. Only a person with the agv_reset skill may approach it. Other AGVs must keep two cells away and re-route; a replacement AGV takes over the kit run."},
+ {"ref": "SOP-KIT-01 §3", "title": "Line-side part shortage (synthetic plant SOP)", "rules": ["R-TRAIN", "R-CROSSING"], "kinds": ["part_shortage"],
+  "text": "Send the nearest healthy kitting AGV from the supermarket exit (7, 13) to the station's line-side rack. A tugger or forklift may be driven only by a person whose forklift training is in date. The team leader confirms delivery at the station."},
+ {"ref": "SOP-SPILL-01 §2", "title": "Fluid spill response (synthetic plant SOP)", "rules": ["R-SURFACE"], "kinds": ["spill"],
+  "text": "Fence the spill area with a two-cell geofence and keep AGVs out until it is dry. A person with spill_response brings the nearest spill kit, absorbs, cleans and dries the floor, then releases the area."},
+ {"ref": "SOP-LOTO-01 §4", "title": "Machine repair under lockout/tagout (synthetic plant SOP)", "rules": ["R-LOTO", "R-PRESS"], "kinds": ["overheat"],
+  "text": "Before servicing a machine, an authorised maintenance technician with in-date lockout/tagout training isolates every energy source, applies a personal lock and tag, and tries to start the machine to verify zero energy."},
+ {"ref": "SOP-OVERHEAT-01 §1", "title": "Machine temperature alarm (synthetic plant SOP)", "rules": ["R-LOTO"], "kinds": ["overheat"],
+  "text": "A single temperature alarm that is not confirmed by a second sensor (vibration or air temperature) is verified first: a technician checks the machine before the line is stopped. A confirmed alarm stops the machine and starts SOP-LOTO-01."},
+ {"ref": "SOP-ROBOT-01 §1", "title": "Robot cell entry (synthetic plant SOP)", "rules": ["R-ROBOT-CELL", "R-GUARD"], "kinds": ["overheat"],
+  "text": "Enter a robot cell only after stopping the robots, locking the gate open with your own lock, and carrying an in-date robot-cell entry card. Never reach through a guard opening while the cell is in auto."}
+]

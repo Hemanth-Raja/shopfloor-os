@@ -3,7 +3,7 @@ summaries in data/seed/ that the generator reads. Judges and normal runs never n
 
     pip install -r requirements-data.txt      # h5py, only for the Bosch HDF5 files
     python -m app.data.fetch_sources           # all sources
-    python -m app.data.fetch_sources bosch     # just one: ai4i, osha, bls, weather, bosch, mapf
+    python -m app.data.fetch_sources bosch     # just one: ai4i, osha, bls, weather, bosch, mapf, osha_text
 
 Writes (committed):
   data/seed/ai4i2020.csv                     UCI AI4I 2020 Predictive Maintenance (CC BY 4.0), unchanged.
@@ -16,6 +16,8 @@ Writes (committed):
   data/seed/bosch_cnc_vibration_summary.csv  Bosch CNC Machining dataset (CC BY 4.0): one row of vibration
                                              statistics per recording; the raw HDF5 files are not kept.
   data/seed/mapf/*.map                       MovingAI MAPF warehouse maps (Open Data Commons Attribution).
+  data/seed/osha_1910_excerpts.json          Verbatim excerpts of the 29 CFR 1910 clauses the safety critic cites,
+                                             from the eCFR (public domain).
 Writes (git-ignored, optional):
   data/raw/mapf/*.scen                       MovingAI MAPF scenarios for path-planner benchmarks.
 """
@@ -46,6 +48,16 @@ BOSCH_NORMAL_SAMPLE = 280  # all abnormal recordings plus a stratified sample of
 BOSCH_HZ = 2000
 MAPF_URL = "https://movingai.com/benchmarks/mapf/{}"
 MAPF_MAPS = ["warehouse-10-20-10-2-1", "warehouse-10-20-10-2-2", "warehouse-20-40-10-2-1", "warehouse-20-40-10-2-2"]
+ECFR_URL = "https://www.ecfr.gov/api/versioner/v1/full/{date}/title-29.xml?part=1910&section={section}"
+ECFR_TITLES = "https://www.ecfr.gov/api/versioner/v1/titles.json"
+# The clauses we cite: eCFR paragraph as parsed -> the exact reference to show (paragraph text is verbatim)
+OSHA_CLAUSES = {
+    "1910.22": {"(a)(1)": "(a)(1)", "(a)(2)": "(a)(2)", "(a)(3)": "(a)(3)", "(d)(2)": "(d)(2)"},
+    "1910.147": {"(c)(1)": "(c)(1)", "(c)(4)": "(c)(4)(i)"},
+    "1910.178": {"(l)": "(l)(1)(i)", "(m)": "(m)(1)", "(m)(2)": "(m)(2)", "(n)(4)": "(n)(4)", "(n)(8)": "(n)(8)"},
+    "1910.212": {"(a)(1)": "(a)(1)", "(a)(3)(ii)": "(a)(3)(ii)"},
+    "1910.217": {"(c)(1)": "(c)(1)(i)"},
+}
 HEADERS = {"User-Agent": "Mozilla/5.0 (shopfloor-os hackathon data fetch)", "Accept": "*/*"}
 
 # OSHA event titles grouped into the hazard groups the generator uses.
@@ -194,8 +206,51 @@ def fetch_mapf():
           f"{len(list(scens.glob('*.scen')))} scenarios -> data/raw/mapf/")
 
 
+def _ecfr_paragraphs(xml: str, section: str) -> tuple[str, list[tuple[str, str]]]:
+    """(section title, [(label path, verbatim text)]) from an eCFR section XML. Designator nesting:
+    letter -> number -> roman -> capital; good enough for the clauses we pick by label."""
+    import html
+    import re
+    roman = re.compile(r"^(i|ii|iii|iv|v|vi|vii|viii|ix|x)$")
+    head = re.search(r"<HEAD>(.*?)</HEAD>", xml, re.S).group(1)
+    title = html.unescape(re.sub(r"<[^>]+>", "", head)).replace(f"\u00a7 {section}", "").strip()
+    stack: list[str] = []
+    out = []
+    for raw in re.findall(r"<P>(.*?)</P>", xml, re.S):
+        text = " ".join(html.unescape(re.sub(r"<[^>]+>", "", raw)).split())
+        lead = re.match(r"^((?:\([a-zA-Z0-9]+\)\s*(?:[^()]{0,120}?\u2014)?\s*)+)", text)
+        labels = re.findall(r"\(([a-zA-Z0-9]+)\)", text[:lead.end()]) if lead else []
+        for lab in labels[:4]:
+            lvl = 2 if lab.isdigit() else 3 if roman.match(lab) and len(stack) >= 2 else 1 if lab.islower() else 4
+            stack = stack[:lvl - 1] + [lab]
+        if labels:
+            out.append(("".join(f"({x})" for x in stack), text))
+    return title, out
+
+
+def fetch_osha_text():
+    date = next(t["up_to_date_as_of"] for t in json.loads(get(ECFR_TITLES))["titles"] if t["number"] == 29)
+    excerpts = []
+    for section, wanted in OSHA_CLAUSES.items():
+        req = urllib.request.Request(ECFR_URL.format(date=date, section=section),
+                                     headers={**HEADERS, "Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            raw = r.read()
+            if r.headers.get("Content-Encoding") == "gzip":
+                import gzip
+                raw = gzip.decompress(raw)
+        title, paras = _ecfr_paragraphs(raw.decode("utf-8"), section)
+        for label, text in paras:
+            if label in wanted and not any(e["ref"] == f"29 CFR {section}{wanted[label]}" for e in excerpts):
+                excerpts.append({"ref": f"29 CFR {section}{wanted[label]}", "section": section, "title": title,
+                                 "text": text[:700], "source": f"eCFR, current as of {date}"})
+    path = SEED / "osha_1910_excerpts.json"
+    path.write_text(json.dumps(excerpts, indent=1, ensure_ascii=False) + "\n")
+    print(f"eCFR: {len(excerpts)} clauses from {len(OSHA_CLAUSES)} sections (as of {date}) -> {path.name}")
+
+
 SOURCES = {"ai4i": fetch_ai4i, "osha": fetch_osha, "bls": fetch_bls, "weather": fetch_weather,
-           "bosch": fetch_bosch, "mapf": fetch_mapf}
+           "bosch": fetch_bosch, "mapf": fetch_mapf, "osha_text": fetch_osha_text}
 
 
 def main(names):

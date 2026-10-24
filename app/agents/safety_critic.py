@@ -7,7 +7,7 @@ blocked spill zone. Violations carry the rule id and CFR reference from the rule
 
 from __future__ import annotations
 
-from app.contracts import CriticVerdict, Incident, Plan, Violation
+from app.contracts import Citation, CriticVerdict, Incident, Plan, Violation
 from app.agents.executor import agv_legs
 from app.sim.pathing import plan_path
 
@@ -16,7 +16,16 @@ CROSSING_SPEED_MPS = 0.5
 MIN_SEPARATION_CELLS = 2
 
 
-def review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
+def review(plan: Plan, incident: Incident, plant, sim, citations=None) -> CriticVerdict:
+    """Rule checks; with a citation index, every violation carries the exact OSHA clause and plant SOP."""
+    verdict = _review(plan, incident, plant, sim)
+    if citations is not None:
+        for v in verdict.violations:
+            v.citations = [Citation(**c) for c in citations.for_rule(v.rule_id, v.detail)]
+    return verdict
+
+
+def _review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
     rules = plant.rules
     ref = lambda rid: rules.get(rid, {}).get("cfr_ref", "plant rule")  # noqa: E731
     out: list[Violation] = []

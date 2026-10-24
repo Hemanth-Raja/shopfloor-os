@@ -18,21 +18,27 @@ SYSTEM = (
     "You are the dispatch planner for a car final-assembly hall. Choose assignees ONLY from the candidate ids "
     "given (exact ids). For part shortages and AGV faults, send one kitting AGV from the AGV candidates to the "
     "station with an agv_route (to_station is a station id such as F30). AGVs normally drive at 1.0 m/s. "
-    "Priority is one of low, medium, high, critical. Keep the rationale under 60 words."
+    "Priority is one of low, medium, high, critical. Keep the rationale under 60 words. "
+    "Put the refs of the relevant_clauses your plan follows in `citations` (exact ref strings)."
 )
 
 
-def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None) -> Plan:
+def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None,
+              clauses: list[dict] | None = None) -> Plan:
     payload = {
         "incident": incident.model_dump(exclude={"truth_false_alarm"}),
         "worker_candidates": [c.model_dump() for c in cands["workers"]],
         "agv_candidates": [c.model_dump() for c in cands["agvs"]],
     }
+    if clauses:
+        payload["relevant_clauses"] = [{"ref": c["ref"], "text": c["text"]} for c in clauses]
     messages = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": json.dumps(payload)}]
     if feedback:
         messages.append({"role": "user", "content": "The safety critic rejected your previous plan. Fix every "
-                         "violation and return a corrected plan: " + json.dumps([v.model_dump() for v in feedback])})
+                         "violation and return a corrected plan: "
+                         + json.dumps([v.model_dump(exclude={"citations"}) | {"clauses": [c.ref for c in v.citations]}
+                                       for v in feedback])})
     reply = llm_json("deep", messages, Plan, timeout_s=PLANNER_TIMEOUT_S)
     plan = reply.data if hasattr(reply, "data") else reply
     return plan.model_copy(update={"incident_id": incident.id})

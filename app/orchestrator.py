@@ -24,6 +24,7 @@ from app.agents.reflex import reflex
 from app.agents.restraint import decide
 from app.agents.safety_critic import review
 from app.contracts import Incident, RestraintDecision, StepResult, Trace
+from app.engines.citations import KIND_RULES
 from app.llm import LLMUnavailable
 
 TRACE_PATH = Path(__file__).resolve().parents[1] / "logs" / "trace.jsonl"
@@ -33,13 +34,18 @@ VERIFY_TICKS = 6
 
 class Orchestrator:
     def __init__(self, plant, sim, llm_json: Callable, llm_text: Callable | None = None,
-                 trace_path: Path | None = TRACE_PATH, memory=None, on_step: Callable | None = None):
+                 trace_path: Path | None = TRACE_PATH, memory=None, on_step: Callable | None = None,
+                 citations=None):
         self.plant, self.sim = plant, sim
         self.llm_json, self.llm_text = llm_json, llm_text
         self.trace_path = trace_path
         self.lessons: list = []
         self.memory = memory  # optional PlaybookStore: lessons from past incidents seed the planner
         self.on_step = on_step  # optional callback(incident_id, StepResult), e.g. the web server's event bus
+        if citations is None:
+            from app.engines.citations import default_index
+            citations = default_index()
+        self.citations = citations  # OSHA clauses + plant SOPs indexed in H-MEM
 
     def _step(self, trace: Trace, name: str, started: float, ok: bool, **detail) -> None:
         result = StepResult(step=name, ok=ok, ms=round((time.perf_counter() - started) * 1000, 2), detail=detail)
@@ -56,13 +62,19 @@ class Orchestrator:
         feedback = list(self.lessons) or None  # critic findings carry over to a re-plan
         for attempt in range(1, MAX_ATTEMPTS + 1):
             t = time.perf_counter()
-            plan = make_plan(incident, cands, self.llm_json, feedback)
+            clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
+            plan = make_plan(incident, cands, self.llm_json, feedback, clauses)
+            cited = self.citations.resolve(plan.citations)
             self._step(trace, "planner", t, True, attempt=attempt, assignees=plan.assignee_ids,
-                       agv_routes=[r.model_dump() for r in plan.agv_routes], priority=plan.priority)
+                       agv_routes=[r.model_dump() for r in plan.agv_routes], priority=plan.priority,
+                       citations=cited, uncited=[r for r in plan.citations if r not in self.citations.by_ref])
             t = time.perf_counter()
-            violations = grounding_violations(plan, cands, self.plant.world) + review(plan, incident, self.plant, self.sim).violations
+            violations = grounding_violations(plan, cands, self.plant.world) + review(
+                plan, incident, self.plant, self.sim, self.citations).violations
+            governing = [] if violations else [c for rid in KIND_RULES.get(incident.kind, [])
+                                               for c in self.citations.for_rule(rid, top_n=1)]
             self._step(trace, "critic", t, not violations, attempt=attempt,
-                       violations=[v.model_dump() for v in violations])
+                       violations=[v.model_dump() for v in violations], citations=governing)
             if not violations:
                 return plan
             trace.critic_rejections += 1

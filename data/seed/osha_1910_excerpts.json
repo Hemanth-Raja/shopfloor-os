@@ -1,0 +1,100 @@
+[
+ {
+  "ref": "29 CFR 1910.22(a)(1)",
+  "section": "1910.22",
+  "title": "General requirements.",
+  "text": "(1) All places of employment, passageways, storerooms, service rooms, and walking-working surfaces are kept in a clean, orderly, and sanitary condition.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.22(a)(2)",
+  "section": "1910.22",
+  "title": "General requirements.",
+  "text": "(2) The floor of each workroom is maintained in a clean and, to the extent feasible, in a dry condition. When wet processes are used, drainage must be maintained and, to the extent feasible, dry standing places, such as false floors, platforms, and mats must be provided.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.22(a)(3)",
+  "section": "1910.22",
+  "title": "General requirements.",
+  "text": "(3) Walking-working surfaces are maintained free of hazards such as sharp or protruding objects, loose boards, corrosion, leaks, spills, snow, and ice.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.22(d)(2)",
+  "section": "1910.22",
+  "title": "General requirements.",
+  "text": "(2) Hazardous conditions on walking-working surfaces are corrected or repaired before an employee uses the walking-working surface again. If the correction or repair cannot be made immediately, the hazard must be guarded to prevent employees from using the walking-working surface until the hazard is corrected or repaired; and",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.147(c)(1)",
+  "section": "1910.147",
+  "title": "The control of hazardous energy (lockout/tagout).",
+  "text": "(c) General—(1) Energy control program. The employer shall establish a program consisting of energy control procedures, employee training and periodic inspections to ensure that before any employee performs any servicing or maintenance on a machine or equipment where the unexpected energizing, start up or release of stored energy could occur and cause injury, the machine or equipment shall be isolated from the energy source, and rendered inoperative.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.147(c)(4)(i)",
+  "section": "1910.147",
+  "title": "The control of hazardous energy (lockout/tagout).",
+  "text": "(4) Energy control procedure. (i) Procedures shall be developed, documented and utilized for the control of potentially hazardous energy when employees are engaged in the activities covered by this section.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.178(l)(1)(i)",
+  "section": "1910.178",
+  "title": "Powered industrial trucks.",
+  "text": "(l) Operator training. (1) Safe operation. (i) The employer shall ensure that each powered industrial truck operator is competent to operate a powered industrial truck safely, as demonstrated by the successful completion of the training and evaluation specified in this paragraph (l).",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.178(m)(1)",
+  "section": "1910.178",
+  "title": "Powered industrial trucks.",
+  "text": "(m) Truck operations. (1) Trucks shall not be driven up to anyone standing in front of a bench or other fixed object.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.178(m)(2)",
+  "section": "1910.178",
+  "title": "Powered industrial trucks.",
+  "text": "(2) No person shall be allowed to stand or pass under the elevated portion of any truck, whether loaded or empty.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.178(n)(4)",
+  "section": "1910.178",
+  "title": "Powered industrial trucks.",
+  "text": "(4) The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed. If the load being carried obstructs forward view, the driver shall be required to travel with the load trailing.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.178(n)(8)",
+  "section": "1910.178",
+  "title": "Powered industrial trucks.",
+  "text": "(8) Under all travel conditions the truck shall be operated at a speed that will permit it to be brought to a stop in a safe manner.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.212(a)(1)",
+  "section": "1910.212",
+  "title": "General requirements for all machines.",
+  "text": "(a) Machine guarding—(1) Types of guarding. One or more methods of machine guarding shall be provided to protect the operator and other employees in the machine area from hazards such as those created by point of operation, ingoing nip points, rotating parts, flying chips and sparks. Examples of guarding methods are—barrier guards, two-hand tripping devices, electronic safety devices, etc.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.212(a)(3)(ii)",
+  "section": "1910.212",
+  "title": "General requirements for all machines.",
+  "text": "(ii) The point of operation of machines whose operation exposes an employee to injury, shall be guarded. The guarding device shall be in conformity with any appropriate standards therefor, or, in the absence of applicable specific standards, shall be so designed and constructed as to prevent the operator from having any part of his body in the danger zone during the operating cycle.",
+  "source": "eCFR, current as of 2026-10-22"
+ },
+ {
+  "ref": "29 CFR 1910.217(c)(1)(i)",
+  "section": "1910.217",
+  "title": "Mechanical power presses.",
+  "text": "(c) Safeguarding the point of operation—(1) General requirements. (i) It shall be the responsibility of the employer to provide and insure the usage of “point of operation guards” or properly applied and adjusted point of operation devices on every operation performed on a mechanical power press. See Table O-10.",
+  "source": "eCFR, current as of 2026-10-22"
+ }
+]

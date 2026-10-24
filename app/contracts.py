@@ -54,12 +54,21 @@ class Plan(Strict):
     agv_routes: list[AgvRoute] = Field(default_factory=list)
     priority: Literal["low", "medium", "high", "critical"]
     rationale: str = Field(min_length=1, max_length=600)
+    citations: list[str] = Field(default_factory=list)  # refs of the clauses the plan follows
+
+
+class Citation(Strict):
+    ref: str  # e.g. "29 CFR 1910.178(n)(4)" or "SOP-AGV-01 §2"
+    title: str
+    text: str  # verbatim clause text
+    doc: Literal["osha", "sop"]
 
 
 class Violation(Strict):
     rule_id: str
     cfr_ref: str
     detail: str
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class CriticVerdict(Strict):

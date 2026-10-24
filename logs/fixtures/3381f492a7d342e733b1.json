@@ -1,0 +1,20 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-19\"], \"agv_routes\": [], \"priority\": \"high\", \"rationale\": \"High-severity overheat at F10/M-06. Assign W-19 (17 cells away, machine_repair skill, valid lockout_tagout, score 83.0). No AGV candidates available; none dispatched. Per SOP-OVERHEAT-01 \u00a71, the single temperature alarm is not confirmed by a second sensor (vibration label normal; air temperature below threshold), so a technician verifies the machine before the line is stopped and before lockout/service.\", \"citations\": [\"SOP-OVERHEAT-01 \u00a71\", \"29 CFR 1910.147(c)(1)\", \"29 CFR 1910.147(c)(4)(i)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-19"
+  ],
+  "agv_routes": [],
+  "priority": "high",
+  "rationale": "High-severity overheat at F10/M-06. Assign W-19 (17 cells away, machine_repair skill, valid lockout_tagout, score 83.0). No AGV candidates available; none dispatched. Per SOP-OVERHEAT-01 \u00a71, the single temperature alarm is not confirmed by a second sensor (vibration label normal; air temperature below threshold), so a technician verifies the machine before the line is stopped and before lockout/service.",
+  "citations": [
+   "SOP-OVERHEAT-01 \u00a71",
+   "29 CFR 1910.147(c)(1)",
+   "29 CFR 1910.147(c)(4)(i)"
+  ]
+ }
+}

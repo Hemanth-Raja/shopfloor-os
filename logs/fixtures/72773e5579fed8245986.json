@@ -1,0 +1,28 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [{\"agv_id\": \"agv:plant:AGV-5\", \"to_station\": \"F30\", \"speed_mps\": 1.0, \"crossing_speed_mps\": 0.5}], \"priority\": \"high\", \"rationale\": \"High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response). Dispatch AGV-5 (90% battery) to F30 at 1.0 m/s, slowing to 0.5 m/s at X-WEST per SOP-AGV-01 \u00a72 and 29 CFR 1910.178(n)(4).\", \"citations\": [\"SOP-KIT-01 \u00a73\", \"SOP-AGV-01 \u00a72\", \"29 CFR 1910.178(n)(4)\", \"29 CFR 1910.178(n)(8)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [
+   {
+    "agv_id": "agv:plant:AGV-5",
+    "to_station": "F30",
+    "speed_mps": 1.0,
+    "crossing_speed_mps": 0.5
+   }
+  ],
+  "priority": "high",
+  "rationale": "High-severity part shortage at F30. Assign W-18 (3 cells away, andon_response). Dispatch AGV-5 (90% battery) to F30 at 1.0 m/s, slowing to 0.5 m/s at X-WEST per SOP-AGV-01 \u00a72 and 29 CFR 1910.178(n)(4).",
+  "citations": [
+   "SOP-KIT-01 \u00a73",
+   "SOP-AGV-01 \u00a72",
+   "29 CFR 1910.178(n)(4)",
+   "29 CFR 1910.178(n)(8)"
+  ]
+ }
+}

@@ -170,6 +170,19 @@ class App:
         self.bus.publish("approval", record)
         return record
 
+    def last(self) -> dict:
+        """The most recent incident's trace, so a freshly opened page shows it too."""
+        if not self.traces:
+            return {}
+        trace = list(self.traces.values())[-1]
+        return {"incident": trace.incident.model_dump(exclude={"truth_false_alarm"}),
+                "steps": [st.model_dump() for st in trace.steps],
+                "decision": {"incident": trace.incident.id, "decision": trace.decision.model_dump() if trace.decision else None,
+                             "plan": trace.plan.model_dump() if trace.plan else None,
+                             "critic_rejections": trace.critic_rejections, "replans": trace.replans,
+                             "safe_mode": trace.safe_mode,
+                             "needs_approval": bool(trace.decision and trace.decision.decision != "ACT")}}
+
     def knowledge(self) -> dict:
         """What the agents know: the plant World Model (with live sim state) and the H-MEM lessons."""
         facts = lambda eid: {f["predicate"]: f["value"] for f in self.plant.world.view("facts").about(eid)  # noqa: E731
@@ -265,6 +278,8 @@ def make_handler(app: App):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
             if self.path == "/api/state":
                 return self._send(200, app.snapshot())  # lock-free read: the loop may hold the lock during LLM calls
+            if self.path == "/api/last":
+                return self._send(200, app.last())
             if self.path == "/api/knowledge":
                 return self._send(200, app.knowledge())
             if self.path == "/health":

@@ -1,0 +1,27 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [{\"agv_id\": \"agv:plant:AGV-2\", \"to_station\": \"F30\", \"speed_mps\": 1.0, \"crossing_speed_mps\": 0.5}], \"priority\": \"medium\", \"rationale\": \"Medium AGV fault E52_NAV_LOST at F30. Assign worker:plant:W-18 Rosa Novak, 9 cells away with agv_reset skill, score 91.0. Dispatch agv:plant:AGV-2 to F30 at 1.0 m/s, crossing 0.5 m/s; 6 cells away, score 106.0.\", \"citations\": [\"SOP-AGV-01 \u00a72\", \"29 CFR 1910.178(n)(4)\", \"SOP-AGV-02 \u00a71\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [
+   {
+    "agv_id": "agv:plant:AGV-2",
+    "to_station": "F30",
+    "speed_mps": 1.0,
+    "crossing_speed_mps": 0.5
+   }
+  ],
+  "priority": "medium",
+  "rationale": "Medium AGV fault E52_NAV_LOST at F30. Assign worker:plant:W-18 Rosa Novak, 9 cells away with agv_reset skill, score 91.0. Dispatch agv:plant:AGV-2 to F30 at 1.0 m/s, crossing 0.5 m/s; 6 cells away, score 106.0.",
+  "citations": [
+   "SOP-AGV-01 \u00a72",
+   "29 CFR 1910.178(n)(4)",
+   "SOP-AGV-02 \u00a71"
+  ]
+ }
+}

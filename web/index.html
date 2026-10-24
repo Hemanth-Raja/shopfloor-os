@@ -174,7 +174,8 @@ async function load() {
 }
 
 function cites(list) {
-  return (list || []).map(c => `<div class="cite">${esc(c.ref)}${c.title ? " · " + esc(c.title) : ""}: “${esc(c.text)}”</div>`).join("");
+  return (list || []).map(c => { const t = (c.title || "").replace(/[.\s]+$/, ""), body = c.text.length > 170 ? c.text.slice(0, 170) + "…" : c.text;
+    return `<div class="cite" title="${esc(c.text).replace(/"/g, "&quot;")}"><b>${esc(c.ref)}</b>${t ? " · " + esc(t) : ""}: “${esc(body)}”</div>`; }).join("");
 }
 function note(st) {
   const d = st.detail || {};
@@ -205,11 +206,18 @@ es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agen
 es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
 es.addEventListener("step", e => addStep(JSON.parse(e.data)));
-es.addEventListener("decision", e => { const d = JSON.parse(e.data); const dec = d.decision ? d.decision.decision : "none";
+es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
+function showDecision(d) { const dec = d.decision ? d.decision.decision : "none";
   $("decision").innerHTML = `<span class="pill ${dec}">${dec}</span> · critic rejections <b>${d.critic_rejections}</b> · re-plans <b>${d.replans}</b>${d.safe_mode ? ' · <span class="bad-t">SAFE MODE</span>' : ""}`
     + (d.plan ? `<div class="muted" style="margin-top:6px">${esc(d.plan.rationale)}</div>` : "")
     + (d.needs_approval ? '<div class="note" style="margin-top:6px">Waiting for a human to approve or reject.</div>' : "");
-  setButtons(true); load(); });
+  setButtons(true); load(); }
+async function restoreLast() {
+  const r = await (await fetch("/api/last")).json();
+  if (!r.incident) return;
+  current = r.incident.id; $("trace").innerHTML = "";
+  r.steps.forEach(addStep); showDecision(r.decision);
+}
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
   addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${a.approved ? "approved" : "rejected"} by ${esc(a.by)}: ${esc(a.action)}`; setButtons(false); });
 es.addEventListener("error", e => { if (e.data) $("decision").innerHTML = `<span class="bad-t">${esc(JSON.parse(e.data).error)}</span>`; });
@@ -280,7 +288,7 @@ async function health() {
     $("health").classList.remove("muted");
   } catch { $("health").textContent = "health unavailable"; }
 }
-load(); health(); setInterval(health, 15000);
+load(); health(); restoreLast(); setInterval(health, 15000);
 if (["#lab", "#know"].includes(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
