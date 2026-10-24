@@ -210,6 +210,7 @@
           <label class="note">incidents/min <input name="rate" type="number" min="0.2" max="8" step="0.5" value="2.5" style="width:58px"></label>
           <label class="note">at once <input name="workers" type="number" min="1" max="6" value="2" style="width:46px"></label>
           <label class="note">seed <input name="seed" type="number" value="7" style="width:58px"></label>
+          <label class="note" title="when a shift ends the next one starts by itself, until you press Stop"><input name="continuous" type="checkbox" checked> keep watching</label>
           <button class="act primary" type="submit">Run shift</button><button class="act" type="button" id="shiftstop">Stop</button>
         </form>
         <div class="note">A Sentinel watches the floor's signals and raises incidents; several run at once, most urgent first.
@@ -697,7 +698,8 @@ fetch("/api/ask_last").then(r => r.json()).then(showAsk);
 // ---------------------------------------------------------------- autopilot shift
 let shiftFeed = [];
 $("autopilot").onsubmit = async e => { e.preventDefault(); const f = e.target;
-  const body = {minutes: +f.minutes.value, rate: +f.rate.value, workers: +f.workers.value, seed: +f.seed.value};
+  const body = {minutes: +f.minutes.value, rate: +f.rate.value, workers: +f.workers.value, seed: +f.seed.value,
+                continuous: f.continuous.checked};
   const r = await fetch("/shift/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
   if (!r.ok) return alert((await r.json()).error);
   shiftFeed = []; $("shiftpanel").style.display = ""; };

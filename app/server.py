@@ -100,6 +100,7 @@ class App:
         self.autonomy = "auto"
         self.busy = False
         self.shift = None  # an autonomous shift in progress (app/autonomy/shift.py)
+        self.always_on = None  # the last shift request while "keep watching" is on: the next shift starts by itself
         # durable, hash-chained journal (app/journal.py); approvals get their own chain. On start, recover what a
         # crash left open: interrupted incidents go to a person, their leases are void, fencing tokens move on.
         from app.journal import Journal
@@ -233,6 +234,8 @@ class App:
         minutes = min(max(float(req.get("minutes") or 8), 1), 60)
         seed, rate = int(req.get("seed") or 7), min(max(float(req.get("rate") or 2.5), 0.2), 8)
         workers = min(max(int(req.get("workers") or 2), 1), 6)
+        self.always_on = {"minutes": minutes, "seed": seed, "rate": rate, "workers": workers} \
+            if req.get("continuous") else None
         llm_json, llm_text = self.llm()
         run_sql = sql_runner("true") if self.offline else self.run_sql
         stamp = int(time.time())
@@ -278,11 +281,22 @@ class App:
         if sh.finished():
             self.shift_summary = sh.end()
             self.bus.publish("shift_done", self.shift_summary)
+            if self.always_on and not sh.stopped:  # keep watching: the next shift (next seed) starts at once
+                nxt = {**self.always_on, "seed": self.always_on["seed"] + 1, "continuous": True}
+                threading.Thread(target=self._restart_shift, args=(nxt,), daemon=True).start()
         self.bus.publish("shift", self.shift_state())
+
+    def _restart_shift(self, req: dict) -> None:
+        try:
+            self.start_shift(req)
+        except Exception as err:  # noqa: BLE001 - shown to the user; watching stops until they start it again
+            self.always_on = None
+            self.bus.publish("error", {"incident": "shift", "error": f"always-on restart: {err}"[:300]})
 
     def stop_shift(self) -> dict:
         if self.shift is None:
             raise RuntimeError("no shift is running")
+        self.always_on = None  # Stop also ends "keep watching"
         self.shift.stopped = True
         return {"status": "stopping"}
 
@@ -594,7 +608,7 @@ def make_handler(app: App):
     return Handler
 
 
-def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1") -> None:
+def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1", always_on: bool = False) -> None:
     from app.fixtures import sample_mode
     replay = sample_mode() == "true"
     app = App(offline=offline or replay, replay=replay)
@@ -606,6 +620,9 @@ def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1") -> N
         raise SystemExit(f"Port {port} is already in use by another program (on WSL this can be a Windows app). "
                          f"Start on another port, e.g.  python -m app.server --port {port + 1}")
     print(f"Shop-Floor OS on http://{host}:{port} ({'replay' if replay else 'offline' if app.offline else 'live'})")
+    if always_on:  # the Sentinel starts watching with the server and keeps going until someone presses Stop
+        app.start_shift({"minutes": 8, "seed": 7, "rate": 2.5, "workers": 2, "continuous": True})
+        print("Sentinel always on: shifts follow each other until you press Stop")
     server.serve_forever()
 
 
@@ -614,5 +631,7 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     ap.add_argument("--offline", action="store_true", help="no Zetaris: offline plant (use with SAMPLE_MODE)")
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 inside a container")
+    ap.add_argument("--always-on", action="store_true", default=os.environ.get("ALWAYS_ON", "").lower() in ("1", "true"),
+                    help="start the Sentinel with the server and keep watching, shift after shift, until Stop")
     a = ap.parse_args()
-    serve(a.port, a.offline, a.host)
+    serve(a.port, a.offline, a.host, a.always_on)

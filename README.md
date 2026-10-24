@@ -45,13 +45,15 @@ flowchart LR
 
 **Key results** (measured; every number comes from a file you can regenerate with `python run.py eval --live`, see
 [docs/eval.md](docs/eval.md)):
-- **0 unsafe plans executed.** Live, Nemotron's first plan broke a safety rule in 8 of 27 calls (mostly crossing
-  speed); the critic sent each one back with the clause and Nemotron fixed all 8.
+- **0 unsafe plans executed.** Live, Nemotron's first plan broke a safety rule in 6 of 27 calls (all crossing
+  speed); the critic sent each one back with the clause and Nemotron fixed all 6. Measured with Nightshift's own
+  answer memory switched off (37 receipts in the run window, none with an added memory).
 - **The critic caught 216 of 216 planted unsafe plans** and wrongly rejected 0 of 54 safe ones. On 300 random plans
   judged only by what happened when they ran, it rejected all 69 that caused a safety event.
 - **The eval found a real bug:** the rule-based fallback plan was unsafe for robot-cell and torque faults. The critic
   had blocked it every time; the fallback is now fixed (see *What broke* below).
-- **Stable:** the same incident planned 3 times gave the same assignees in 8 of 9 scenarios.
+- **Stable:** the same incident planned 3 times gave the same assignees in 9 of 9 scenarios (no Nightshift memory or
+  cache involved: 0 cache hits in the run window).
 - **Fewer false dispatches:** the Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235
   (Brier 0.096 vs 0.392, 600 alarms with noisy sensors).
 - Sample mode answers in well under a second; a live incident takes about 30-90 s, mostly model time.
@@ -134,6 +136,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | **Ask the floor** (investigation) | `run.py ask "Why does F10 keep stopping?"` or the *Ask the floor* tab; `--json` prints the full result |
 | Custom incident | the *Report your own* form under the map (kind, station, severity, note), or `input.severity` / `input.note` in the JSON contract |
 | **Autopilot shift** | `run.py shift --minutes 8 --seed 7 --rate 2.5` or *Run shift* under the map: Sentinel, concurrent incidents, leases, summary |
+| **Always on** | `python -m app.server --always-on` (or `ALWAYS_ON=true`): the Sentinel starts with the server and shifts follow each other until you press *Stop*; in the UI, *keep watching* next to *Run shift* |
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 | **Shift handover** | `run.py handover [--shifts 3]`: the shift journal read in bounded chunks on the Meterless Markovian engine, then a handover note |
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
@@ -605,6 +608,7 @@ Things that failed during the build, found by tests, fuzzing, the runtime monito
 | Broken JSON from the model | Schema validation on every reply | Mechanical repair first, then one re-ask, then the next model |
 | The shift handover came back empty (HTTP 502 "empty_response") | Live run; a raw request showed Nightshift's error body | The model reasons before it answers: with a 1,500-2,000-token budget it spent everything thinking. The handover now runs on Super VL with 6,000 tokens and a direct per-chunk prompt; it also read only 3 of 5 slices once, because the model signalled completion early, so the engine now reads every slice |
 | Ask the floor answers recorded for the offline demo did not replay | Sample-mode check after recording | Live rows and their JSON copy differed in number formatting, so later prompts hashed differently; record mode now hands the agents the rows exactly as a replay will see them |
+| Nightshift's own answer memory was adding earlier answers to our requests (118 of the 263 receipts before 24 Oct 23:53 UTC); a bare question with no data came back naming a real incident id | Receipts (`hmem.injected`) after a suspicious answer; Sanctions Desk documented the same setting | Switched off for the whole runtime (`hmemKnowledge: false`, Nightshift admin setpoints, previous setpoints were the defaults). Every receipt since shows no added memory; the live eval was re-run afterwards and those are the numbers above. Earlier recorded runs may include such memories |
 | Port 8000 is taken by Windows on the demo PC | First live demo | The server takes `--port`; docs use 8100 |
 
 ## Autonomy levels

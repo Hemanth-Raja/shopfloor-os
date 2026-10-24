@@ -61,3 +61,23 @@ def test_server_approve_dispatches_and_reject_rolls_back(monkeypatch, plant):
     assert rec["gate"] == "rolled_back"
     app.sim.run(60)
     assert moved and all(app.sim.agents[a].pos == start for a, start in moved.items())  # back where they started
+
+
+def test_keep_watching_starts_the_next_shift_and_stop_ends_it(monkeypatch):
+    import time as _t
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    app = server.App(offline=True, replay=True)
+    app.bus.publish = lambda *a: None
+    app.start_shift({"minutes": 1, "seed": 3, "rate": 2, "workers": 2, "continuous": True})
+    first = app.shift
+    deadline = _t.time() + 60
+    while app.shift is first and _t.time() < deadline:
+        with app.lock:
+            app.sim.step()
+        app._shift_tick()
+        if app.shift_summary is not None:
+            _t.sleep(0.05)  # the next shift starts on a background thread
+    assert app.shift is not first and app.shift.seed == 4 and app.always_on["seed"] == 4
+    app.stop_shift()
+    assert app.always_on is None and app.shift.stopped
