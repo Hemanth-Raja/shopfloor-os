@@ -253,7 +253,11 @@ class App:
     def health(self) -> dict:
         if self.offline:
             from app.agents.health import check_health
-            return check_health({}, {}, self.sim) | {"mode": "offline"}
+            note = "recorded Nemotron replies + rule-based planner" if self.replay else "offline plant"
+            return check_health({}, {}, self.sim) | {
+                "mode": "offline",
+                "zetaris": {"status": "offline", "note": "not used: offline plant built from data/seed"},
+                "nightshift": {"status": "offline", "note": note}}
         from app.runtime import health
         return health(self.sim)
 

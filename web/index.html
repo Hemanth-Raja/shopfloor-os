@@ -55,6 +55,15 @@
   .spark { display:flex; gap:3px; align-items:flex-end; height:60px; }
   .spark i { flex:1; background:#2b5d8f; border-radius:2px 2px 0 0; }
   .note { color:var(--muted); font-size:12px; }
+  #howto { margin:12px 18px 0; padding:10px 14px; background:#14202d; border:1px solid #23415f; border-radius:10px; display:flex; gap:14px; align-items:flex-start; }
+  #howto ol { margin:4px 0 0 18px; padding:0; } #howto li { margin:2px 0; } #howto b { color:#cfe4ff; }
+  #howto button { margin-left:auto; background:none; border:1px solid #2d4d6e; color:var(--muted); border-radius:6px; padding:3px 8px; cursor:pointer; }
+  #narration { min-height:40px; padding:8px 10px; margin-bottom:8px; background:var(--panel2); border-radius:8px; font-size:14px; }
+  #narration .who { color:var(--accent); font-weight:600; }
+  .start { position:relative; border-color:var(--accent) !important; animation:pulse 1.6s ease-in-out infinite; }
+  .start::after { content:"← Start here"; position:absolute; top:50%; left:calc(100% + 8px); transform:translateY(-50%); white-space:nowrap; font-size:11px; color:#9ccbff; background:#14202d; padding:2px 7px; border-radius:6px; border:1px solid #23415f; z-index:1; }
+  .start { margin-right:96px; }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
 </style>
 </head>
 <body>
@@ -75,6 +84,21 @@
   <button data-view="know">What the agents know</button>
 </nav>
 
+<div id="howto" role="note">
+  <div>
+    <b>How to read this page.</b> The map is a car assembly hall seen from above: one square is about 2 m.
+    <span class="muted">Blue squares are AGVs (numbered robots), green dots are people, the yellow band is the main
+    conveyor, and olive columns are pedestrian crossings.</span>
+    <ol>
+      <li><b>Pick an incident</b> under the map (start with <i>Part shortage · F30</i>).</li>
+      <li><b>Watch the agents</b> in the trace: each line is one agent doing its job, and the sentence at the top explains it in plain English.</li>
+      <li><b>Judge the decision</b>: press <i>Approve</i> or <i>Reject</i>. You are the human in the loop.</li>
+      <li>Then try the <b>Lab</b> tab (test a policy on history) and <b>What the agents know</b>.</li>
+    </ol>
+  </div>
+  <button id="howto-close" aria-label="Hide how to read this">Got it</button>
+</div>
+
 <section class="view on" id="live">
   <div class="grid2">
     <div>
@@ -86,7 +110,7 @@
           <span><i class="sw" style="background:#5b4b2a"></i>conveyor</span><span><i class="sw" style="background:#22302a"></i>supermarket</span>
         </div>
         <div class="row">
-          <button class="act" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30</button>
+          <button class="act start" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30</button>
           <button class="act" data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault + stall</button>
           <button class="act" data-run='{"kind":"overheat","station":"F10","false_alarm":true}'>Overheat · F10 (false alarm)</button>
           <button class="act" data-run='{"kind":"spill","station":"F20"}'>Coolant spill · F20</button>
@@ -99,7 +123,7 @@
         <div id="decision" class="muted">Pick an incident to start.</div>
         <div class="row"><button class="act ok" id="approve" disabled>Approve</button><button class="act bad" id="reject" disabled>Reject</button></div>
       </div>
-      <div class="panel"><h2>Agent trace</h2><div id="trace" class="muted">—</div></div>
+      <div class="panel"><h2>Agent trace</h2><div id="narration" class="muted">Pick an incident under the map. Each agent's step is explained here.</div><div id="trace" class="muted">—</div></div>
       <div class="panel"><h2>Health</h2><div id="health" class="muted">checking…</div></div>
     </div>
   </div>
@@ -152,6 +176,7 @@ function draw() {
   const c = Math.floor(cv.width / grid.cols);
   ctx.clearRect(0, 0, cv.width, cv.height);
   for (const [x, y, l] of grid.cells) { ctx.fillStyle = COLORS[l] || "#191e25"; ctx.fillRect(x*c, y*c, c-1, c-1); }
+  drawAreas(c);
   ctx.fillStyle = "rgba(229,83,75,.38)"; for (const [x, y] of fence) ctx.fillRect(x*c, y*c, c-1, c-1);
   for (const a of agents) {
     const bad = a.status === "fault" || a.status === "stalled", moving = a.status === "moving";
@@ -164,6 +189,53 @@ function draw() {
   for (const s of stations) { const w = ctx.measureText(s.id).width + 4;
     ctx.fillStyle = "rgba(10,13,17,.85)"; ctx.fillRect(s.x*c, s.y*c-11, w, 11);
     ctx.fillStyle = "#e7eaee"; ctx.fillText(s.id, s.x*c+2, s.y*c-2); }
+}
+
+const AREAS = {BODY:"Body shop", PAINT:"Paint shop", TRIM:"Trim line", MARR:"Marriage", FINAL:"Final assembly",
+  EOL:"End-of-line test", SMKT:"Parts supermarket", CHG:"AGV chargers", RECV:"Receiving dock", REWORK:"Rework bay", TEAM:"Team area",
+  "X-WEST":"crossing", "X-EAST":"crossing"};
+let areaBoxes = null;
+function drawAreas(c) {
+  if (!areaBoxes) {
+    areaBoxes = {};
+    for (const [x, y, l] of grid.cells) { if (!AREAS[l]) continue;
+      const b = areaBoxes[l] || (areaBoxes[l] = {x0: x, y0: y, x1: x, y1: y});
+      b.x0 = Math.min(b.x0, x); b.y0 = Math.min(b.y0, y); b.x1 = Math.max(b.x1, x); b.y1 = Math.max(b.y1, y); }
+  }
+  ctx.font = "600 10px system-ui"; ctx.textBaseline = "top";
+  for (const [l, b] of Object.entries(areaBoxes)) {
+    const text = AREAS[l], crossing = text === "crossing", line = ["TRIM", "MARR", "FINAL", "EOL"].includes(l);
+    const w = ctx.measureText(text).width + 6;
+    // line areas: label at the bottom (station labels sit at the top); clamp inside the canvas
+    let tx = crossing ? b.x0*c + 1 : b.x0*c + 3;
+    const ty = crossing ? b.y1*c - 10 : line ? (b.y1 + 1)*c - 13 : b.y0*c + 2;
+    tx = Math.min(tx, cv.width - w - 2);
+    ctx.fillStyle = "rgba(8,11,14,.72)"; ctx.fillRect(tx - 2, ty - 1, w, 12);
+    ctx.fillStyle = crossing ? "#d9cf8f" : "#9fb3c8"; ctx.fillText(text, tx + 1, ty);
+  }
+  ctx.textBaseline = "alphabetic";
+}
+
+const short = id => String(id || "").split(":").pop();
+function narrate(st) {
+  const d = st.detail || {};
+  switch (st.step) {
+    case "reflex": return ["Reflex", `fenced off the incident area (${d.fence_cells} cells) and stopped ${(d.stopped||[]).length} robot(s) nearby, in ${d.ms} ms. No AI needed.`];
+    case "monitor": return ["Monitor", d.verdict === "likely_noise" ? `this alarm looks like sensor noise (probability it is real: ${Math.round(100*d.p_real)}%). The sensors disagree.` : `the alarm looks real (${Math.round(100*d.p_real)}% likely).`];
+    case "memory": return ["Memory (H-MEM)", d.playbook ? `recalled lessons from past incidents: ${(d.lessons||[]).join(", ") || "none"}.` : "no past lessons for this kind of incident yet."];
+    case "candidates": return ["Candidates", `best qualified people: ${(d.workers||[]).map(short).join(", ") || "none"}; best robots: ${(d.agvs||[]).map(short).join(", ") || "none needed"}.`];
+    case "planner": return ["Planner (Nemotron)", `proposes: send ${(d.assignees||[]).map(short).join(" + ")}${(d.agv_routes||[]).map(r => ` and ${short(r.agv_id)} to ${r.to_station} at ${r.speed_mps} m/s${r.crossing_speed_mps ? ` (${r.crossing_speed_mps} m/s at crossings)` : ""}`).join("")}.`];
+    case "critic": if (st.ok) return ["Safety critic", "plan passes every safety rule."];
+      return ["Safety critic", "plan REJECTED: " + (d.violations||[]).map(v => v.rule_id === "R-CROSSING" ? `${short(v.detail.split(" ")[0])} too fast at a pedestrian crossing (${v.cfr_ref})` : `${v.detail} (${v.cfr_ref})`).join("; ") + ". The planner must fix it."];
+    case "dryrun": return ["Dry-run", st.ok ? "simulated the plan for 60 s: no collisions, arrival times OK." : `simulation found a problem: ${(d.reasons||[]).join("; ")}.`];
+    case "restraint": return ["Decision", {ACT: "ACT: go ahead, acting is safer and cheaper than waiting.", VERIFY: "VERIFY: send someone to check first, don't stop the line yet.",
+      SAFE_HOLD: "SAFE HOLD: keep the area safe and wait for a person.", ESCALATE: "ESCALATE: a human must decide.", DO_NOTHING: "DO NOTHING: almost certainly a false alarm."}[d.decision] || d.decision];
+    case "executor": return ["Executor", "dispatched the people and robots on the map. Watch them move."];
+    case "verifier": return ["Verifier", st.ok ? "everything moved as predicted. Done." : `${(d.mismatches||[]).map(m => short(m.agent)).join(", ")} did not move as expected (stalled). Re-planning without it.`];
+    case "safe_mode": return ["Safe mode", "the AI service is unavailable, so a rule-based plan is used and a human decides."];
+    case "human": return ["You", st.ok ? "approved the decision." : "rejected the decision. The robots were stopped."];
+    default: return [st.step, ""];
+  }
 }
 
 async function load() {
@@ -199,6 +271,9 @@ function addStep(st) {
   const div = document.createElement("div"); div.className = "step";
   div.innerHTML = `<span class="n ${st.ok ? "ok-t" : "bad-t"}">${esc(st.step)}</span><span class="ms">${st.ms.toFixed(0)} ms</span>${note(st)}`;
   t.appendChild(div); t.scrollTop = t.scrollHeight;
+  const [who, text] = narrate(st);
+  $("narration").classList.remove("muted");
+  $("narration").innerHTML = `<span class="who">${esc(who)}:</span> ${esc(text)}`;
 }
 
 const es = new EventSource("/events");
@@ -230,7 +305,11 @@ async function judge(approve) {
   await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: current, approve, by: "supervisor"})});
 }
 $("approve").onclick = () => judge(true); $("reject").onclick = () => judge(false);
+function hideHowto() { $("howto").style.display = "none"; try { localStorage.setItem("howto-hidden", "1"); } catch {} }
+$("howto-close").onclick = hideHowto;
+try { if (localStorage.getItem("howto-hidden") === "1") $("howto").style.display = "none"; } catch {}
 for (const b of document.querySelectorAll("[data-run]")) b.onclick = async () => {
+  document.querySelectorAll(".start").forEach(x => x.classList.remove("start"));
   const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body:b.dataset.run});
   if (!r.ok) alert((await r.json()).error);
 };
@@ -281,12 +360,17 @@ async function knowledge() {
 }
 
 async function health() {
-  try { const h = await (await fetch("/health")).json();
-    $("health").innerHTML = ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
-      `<div class="kv"><span>${k}</span><span class="${h[k].status === "ok" ? "ok-t" : "bad-t"}">${h[k].status}${h[k].breaker ? " · breaker " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
-      + `<div class="kv"><span>safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`;
+  try {
+    const r = await fetch("/health"); if (!r.ok) throw new Error(r.status);
+    const h = await r.json();
+    const label = {zetaris: "Zetaris (data)", nightshift: "Nightshift (Nemotron)", floor: "Floor"};
+    const cls = s => s === "ok" ? "ok-t" : s === "offline" ? "muted" : "bad-t";
+    $("health").innerHTML = (h.mode === "offline" ? '<div class="note" style="margin-bottom:4px">Sample mode: no network, no keys. Real agent logic on the offline plant.</div>' : "")
+      + ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
+      `<div class="kv"><span>${label[k]}</span><span class="${cls(h[k].status)}">${esc(h[k].note || h[k].status)}${h[k].breaker ? " · breaker " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
+      + `<div class="kv"><span>Safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`;
     $("health").classList.remove("muted");
-  } catch { $("health").textContent = "health unavailable"; }
+  } catch { $("health").textContent = "checking… (retrying)"; setTimeout(health, 3000); }
 }
 if (location.search.includes("shot")) $("trace").style.maxHeight = "none";  // full trace for screenshots
 load(); health(); restoreLast(); setInterval(health, 15000);
