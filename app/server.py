@@ -6,6 +6,8 @@
     GET  /api/state    grid, agents, geofence, last decision
     GET  /events       Server-Sent Events: trace steps, sim ticks, decisions, approvals
     GET  /health       health agent report (circuit breakers, floor vitals)
+    GET  /api/knowledge what the agents know: World Model entities and checks, H-MEM lessons and ledger
+    POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
     POST /run          {"kind", "station", "agv", "false_alarm", "stall_after", "seed"} -> runs the agent loop
     POST /approve      {"incident_id", "approve": true|false, "by"} -> a human judges the decision
 
@@ -80,6 +82,7 @@ class App:
         self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift="B")
         self.memory = None if replay else PlaybookStore()  # learned lessons would change the replay keys
         self.traces: dict[str, object] = {}
+        self.last_lab: dict | None = None
         self.busy = False
         threading.Thread(target=self._ticker, daemon=True).start()
 
@@ -167,6 +170,71 @@ class App:
         self.bus.publish("approval", record)
         return record
 
+    def knowledge(self) -> dict:
+        """What the agents know: the plant World Model (with live sim state) and the H-MEM lessons."""
+        facts = lambda eid: {f["predicate"]: f["value"] for f in self.plant.world.view("facts").about(eid)  # noqa: E731
+                             if not f.get("supersededBy")}
+        agvs = []
+        for e in self.plant.entities("agv"):
+            agent = self.sim.agents.get(e["id"])
+            agvs.append({"id": e["id"].split(":")[-1], "model": e["attrs"].get("model"), "status": agent.status if agent else "-",
+                         "battery_health_pct": e["attrs"].get("battery_health_pct"), "faults_90d": e["attrs"].get("faults_90d"),
+                         "service_overdue": facts(e["id"]).get("service_overdue", False)})
+        workers = []
+        for e in self.plant.entities("worker"):
+            if e["id"] not in self.sim.agents:
+                continue
+            certs = {c: self.plant.cert_valid(e, c) for c in sorted(e["attrs"].get("cert_expiry", {}))}
+            workers.append({"id": e["id"].split(":")[-1], "name": e["name"], "role": e["attrs"]["role"],
+                            "skills": e["attrs"]["skills"], "certs": certs, "status": self.sim.agents[e["id"]].status})
+        world = self.plant.world
+        out = {"engine": "Meterless World Model", "events": len(world.events()), "audit": len(world.audit()),
+               "counts": {t: len(self.plant.entities(t)) for t in ("station", "machine", "worker", "agv")},
+               "agvs": agvs, "workers_on_shift": workers,
+               "rules": [{"id": k, "cfr_ref": v["cfr_ref"], "summary": v["summary"]} for k, v in sorted(self.plant.rules.items())],
+               "memory": None}
+        if self.memory is not None:
+            recs = sorted(self.memory.hmem.store.all(), key=lambda m: (-m["confidence"], m["id"]))
+            out["memory"] = {
+                "engine": "Meterless H-MEM",
+                "lessons": [{"id": m["id"], "content": m["content"], "confidence": round(m["confidence"], 3),
+                             "access": m["accessCount"], "layer": m["layer"], "source": m["source"],
+                             "tags": m["tags"]} for m in recs[:20]],
+                "playbooks": [{"key": b["key"], "outcomes": b["outcomes"], "success_rate": b["success_rate"],
+                               "lessons": [l["rule_id"] for l in b["lessons"]]} for b in self.memory.playbooks.values()],
+                "ledger": self.memory.hmem.ledger.all()[-8:]}
+        return out
+
+    def lab(self) -> None:
+        """Run Lab Level 2 in the background and publish the result as a 'lab' event."""
+        def work():
+            try:
+                from app.fixtures import maybe_sample
+                from app.lab.experiment import run_experiment
+                if self.run_sql is None:
+                    from app.lab.offline import offline_run_sql
+                    sql, llm_json = offline_run_sql, None  # offline: rule-based hypothesis, generator history
+                else:
+                    from app import runtime
+                    sql, llm_json = self.run_sql, maybe_sample(runtime.chat_json, "json")
+                self.bus.publish("lab_status", {"status": "running"})
+                result = run_experiment(sql, llm_json, self.grid)
+                self.last_lab = result
+                self.bus.publish("lab", result)
+            except Exception as err:  # noqa: BLE001
+                self.bus.publish("lab", {"error": f"{type(err).__name__}: {err}"[:300]})
+        threading.Thread(target=work, daemon=True).start()
+
+    def lab_write(self) -> dict:
+        from app.lab.experiment import experiment_row, write_zetaris
+        if not getattr(self, "last_lab", None):
+            raise KeyError("run the lab first")
+        if self.run_sql is None:
+            raise RuntimeError("offline mode: writing needs Zetaris")
+        exp_id = write_zetaris(experiment_row(self.last_lab), self.run_sql)
+        self.bus.publish("lab_written", {"experiment_id": exp_id})
+        return {"experiment_id": exp_id, "target": "zetaris sf_ops.experiments"}
+
     def health(self) -> dict:
         if self.offline:
             from app.agents.health import check_health
@@ -197,6 +265,8 @@ def make_handler(app: App):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
             if self.path == "/api/state":
                 return self._send(200, app.snapshot())  # lock-free read: the loop may hold the lock during LLM calls
+            if self.path == "/api/knowledge":
+                return self._send(200, app.knowledge())
             if self.path == "/health":
                 return self._send(200, app.health())
             if self.path == "/events":
@@ -228,6 +298,11 @@ def make_handler(app: App):
                     return self._send(202, {"incident_id": app.run(self._json())})
                 if self.path == "/approve":
                     return self._send(200, app.approve(self._json()))
+                if self.path == "/lab/run":
+                    app.lab()
+                    return self._send(202, {"status": "running"})
+                if self.path == "/lab/write":
+                    return self._send(200, app.lab_write())
             except (KeyError, ValueError, RuntimeError) as err:
                 return self._send(400, {"error": str(err)})
             return self._send(404, {"error": "not found"})

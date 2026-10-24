@@ -55,3 +55,26 @@ def test_server_runs_a_demo_offline(monkeypatch):
         assert json.load(urllib.request.urlopen(base + "/health"))["floor"]["collisions"] == 0
     finally:
         httpd.shutdown()
+
+
+def test_knowledge_and_offline_lab(monkeypatch, tmp_path):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    from app.engines.playbooks import PlaybookStore
+    app = server.App(offline=True, replay=True)
+    k = app.knowledge()
+    assert k["engine"] == "Meterless World Model" and k["counts"]["agv"] == 8 and k["memory"] is None
+    assert any(a["id"] == "AGV-3" and a["service_overdue"] for a in k["agvs"])
+    assert any(r["id"] == "R-LOTO" for r in k["rules"])
+    app.memory = PlaybookStore(tmp_path / "pb.json")
+    app.memory.hmem.add("part_shortage at F30: R-CROSSING slow down", source="SIM-1", tags=["kind:part_shortage"])
+    assert app.knowledge()["memory"]["lessons"][0]["source"] == "SIM-1"
+    got = []
+    app.bus.publish = lambda kind, data: got.append((kind, data))
+    app.lab()
+    for _ in range(200):
+        if any(k == "lab" for k, _ in got):
+            break
+        time.sleep(0.05)
+    result = next(d for k, d in got if k == "lab")
+    assert "error" not in result and result["replays"] and result["ci_low_pct"] <= result["effect_pct"] <= result["ci_high_pct"]
