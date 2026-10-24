@@ -6,3 +6,4 @@ data/raw/*
 data/sql/
 logs/*.jsonl
 data/cache/
+data/memory/

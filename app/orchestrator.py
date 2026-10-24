@@ -33,11 +33,12 @@ VERIFY_TICKS = 6
 
 class Orchestrator:
     def __init__(self, plant, sim, llm_json: Callable, llm_text: Callable | None = None,
-                 trace_path: Path | None = TRACE_PATH):
+                 trace_path: Path | None = TRACE_PATH, memory=None):
         self.plant, self.sim = plant, sim
         self.llm_json, self.llm_text = llm_json, llm_text
         self.trace_path = trace_path
         self.lessons: list = []
+        self.memory = memory  # optional PlaybookStore: lessons from past incidents seed the planner
 
     def _step(self, trace: Trace, name: str, started: float, ok: bool, **detail) -> None:
         result = StepResult(step=name, ok=ok, ms=round((time.perf_counter() - started) * 1000, 2), detail=detail)
@@ -69,6 +70,12 @@ class Orchestrator:
         return None
 
     def handle(self, incident: Incident, stall: tuple[int, int] | None = None) -> Trace:
+        trace = self._handle(incident, stall)
+        if self.memory is not None:
+            self.memory.record(trace)
+        return trace
+
+    def _handle(self, incident: Incident, stall: tuple[int, int] | None = None) -> Trace:
         """Run the loop. `stall=(route_index, after_ticks)` stalls that planned AGV mid-execution (demo/test)."""
         trace = Trace(incident=incident)
         t = time.perf_counter()
@@ -78,6 +85,14 @@ class Orchestrator:
         t = time.perf_counter()
         mon = assess(incident, self.llm_text)
         self._step(trace, "monitor", t, True, **mon)
+
+        if self.memory is not None:
+            t = time.perf_counter()
+            book = self.memory.recall(incident.kind, incident.station_id)
+            self.lessons = self.memory.lessons_as_feedback(book)
+            self._step(trace, "memory", t, True, playbook=book["key"] if book else None,
+                       lessons=[v.rule_id for v in self.lessons],
+                       success_rate=book["success_rate"] if book else None)
 
         excluded: set[str] = set()
         for round_ in range(1, MAX_ATTEMPTS + 1):

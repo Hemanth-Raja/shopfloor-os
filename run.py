@@ -61,7 +61,7 @@ def context(zone):
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
-def incident(kind, station, agv, seed, false_alarm, stall_after):
+def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True):
     from datetime import date
 
     from app.engines.plant_world import load_plant_world
@@ -74,7 +74,9 @@ def incident(kind, station, agv, seed, false_alarm, stall_after):
     sim = Sim.from_plant(plant, Grid.load(run_sql), seed=seed, shift="B")
     agv_id = f"agv:plant:{agv}" if agv else None
     inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
-    trace = Orchestrator(plant, sim, chat_json, chat).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    from app.engines.playbooks import PlaybookStore
+    memory = PlaybookStore() if use_memory else None
+    trace = Orchestrator(plant, sim, chat_json, chat, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
     print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
     for st in trace.steps:
         d = st.detail
@@ -87,7 +89,8 @@ def incident(kind, station, agv, seed, false_alarm, stall_after):
                 "restraint": lambda: f"{d['decision']} score={d['score']} {d['reasons'][-1]}",
                 "executor": lambda: f"eta_s={d['eta_s']}",
                 "verifier": lambda: "as predicted" if st.ok else f"MISMATCH {d['mismatches']} -> re-plan",
-                "safe_mode": lambda: d.get("error", "")}.get(st.step, lambda: "")()
+                "safe_mode": lambda: d.get("error", ""),
+                "memory": lambda: f"playbook {d['playbook']} lessons {d['lessons']} success {d['success_rate']}"}.get(st.step, lambda: "")()
         print(f"  {'ok ' if st.ok else 'XX '} {st.step:<10} {st.ms:>8.1f} ms  {note}")
     print(f"DECISION {trace.decision.decision} | critic rejections {trace.critic_rejections} | replans {trace.replans}"
           f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
@@ -111,10 +114,11 @@ if __name__ == "__main__":
     inc.add_argument("--seed", type=int, default=42)
     inc.add_argument("--false-alarm", action="store_true", help="overheat: sensor noise, not a real fault")
     inc.add_argument("--stall-after", type=int, default=None, help="stall the first planned AGV after N ticks")
+    inc.add_argument("--no-memory", action="store_true", help="ignore learned playbooks (shows the critic loop)")
     args = parser.parse_args()
     if args.command == "context":
         context(args.zone)
     elif args.command == "incident":
-        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after)
+        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory)
     else:
         models()
