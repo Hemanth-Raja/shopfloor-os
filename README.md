@@ -71,6 +71,8 @@ bash scripts/load_data.sh               # generate the plant from data/seed and 
 ```
 In Docker, use `host.docker.internal` instead of `localhost` for Zetaris and Nightshift.
 
+Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it starts the UI on a free port). The live demo runbook is `docs/live-demo.md`.
+
 ## Usage
 | Entry point | Command |
 |---|---|

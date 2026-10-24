@@ -369,7 +369,13 @@ def serve(port: int = 8000, offline: bool = False, host: str = "127.0.0.1") -> N
     from app.fixtures import sample_mode
     replay = sample_mode() == "true"
     app = App(offline=offline or replay, replay=replay)
-    server = ThreadingHTTPServer((host, port), make_handler(app))
+    try:
+        server = ThreadingHTTPServer((host, port), make_handler(app))
+    except OSError as err:
+        if err.errno != 98:
+            raise
+        raise SystemExit(f"Port {port} is already in use by another program (on WSL this can be a Windows app). "
+                         f"Start on another port, e.g.  python -m app.server --port {port + 1}")
     print(f"Shop-Floor OS on http://{host}:{port} ({'replay' if replay else 'offline' if app.offline else 'live'})")
     server.serve_forever()
 

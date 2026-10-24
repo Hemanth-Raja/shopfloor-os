@@ -7,3 +7,4 @@ data/sql/
 logs/*.jsonl
 data/cache/
 data/memory/
+logs/health.json
