@@ -263,7 +263,8 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
           f"(sentinel {result['sentinel']}); decisions {result['decisions']}")
     print(f"  auto-resolved {result['auto_resolved']}, waiting for a person {len(result['waiting_for_a_person'])}, "
           f"escalated {len(result['escalations'])}; mean {result['mean_minutes_to_resolve']} min to resolve; "
-          f"~{result['cars_saved_estimate']} cars saved; {result['preemptions']} pre-emptions; "
+          f"~{result['cars_saved_estimate']} cars saved (95% CI {result['cars_saved_ci95'][0]}-{result['cars_saved_ci95'][1]}); "
+          f"{result['preemptions']} pre-emptions; {result['quality_holds']} quality holds; "
           f"max {result['max_concurrent']} at once; {result['wall_seconds']} s")
     print(f"  runtime invariants: {sim.monitor.summary()['violations']} violations {sim.monitor.summary()['by_rule']}")
 

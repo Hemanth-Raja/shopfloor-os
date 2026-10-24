@@ -167,3 +167,22 @@ def test_a_shift_is_deterministic_for_a_seed_and_handles_overlapping_incidents()
     assert strip(a) == strip(b) and a["incidents"] >= 8 and a["max_concurrent"] >= 2
     assert a["auto_resolved"] + len(a["waiting_for_a_person"]) + len(a["escalations"]) >= a["incidents"] - 1
     assert all(r["route"][0] == "reflex" for r in a["results"])
+
+
+def test_cars_saved_is_a_bootstrap_interval_over_history():
+    from app.autonomy.shift import cars_saved
+    resolved = [{"kind": "part_shortage", "detected_tick": 0, "finished_tick": 15},
+                {"kind": "overheat", "detected_tick": 0, "finished_tick": 30}]
+    history = {"part_shortage": [(2.0, 4.0), (4.0, 8.0), (1.0, 2.0)], "machine_overheat": [(6.0, 10.0), (3.0, 5.0)]}
+    a, b = cars_saved(resolved, history, seed=1), cars_saved(resolved, history, seed=1)
+    assert a == b and a["low"] <= a["mean"] <= a["high"] and a["high"] > a["low"] > 0
+    assert cars_saved(resolved, {}, seed=1)["mean"] == 0.0
+
+
+def test_a_contained_quality_defect_places_a_hold_in_the_mes(plant, sim):
+    from app.connectors import SimMES
+    inc = sim.inject("quality_defect", plant, station_id="E10")
+    o = DynamicOrchestrator(plant, sim, FakePlanner(), trace_path=None)
+    o.mes = SimMES()
+    trace = o.handle(inc)
+    assert trace.gate == "auto_executed" and o.mes.holds and o.mes.holds[0]["station"] == "E10"

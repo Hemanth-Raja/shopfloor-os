@@ -22,6 +22,32 @@ LIVE_TICK_S = 0.5  # live (threaded) runs pace the floor clock like the UI: one 
 DRAIN_WALL_S = 600  # live: wait at most 10 minutes for open incidents after the shift ends
 
 
+def cars_saved(resolved: list[dict], history: dict, seed: int = 0, n: int = 2000) -> dict:
+    """Bootstrap: for each resolved incident draw a real historical incident of the same kind (cars lost, downtime)
+    and credit cars_lost x the share of its downtime we avoided; 2,000 draws give the mean and a 95% interval."""
+    import random
+    rng = random.Random(seed)
+    stat_kind = {"overheat": "machine_overheat", "spill": "fluid_spill"}
+    totals = []
+    for _ in range(n):
+        total = 0.0
+        for r in resolved:
+            rows = history.get(stat_kind.get(r["kind"], r["kind"])) or []
+            if not rows:
+                continue
+            cars, downtime = rows[rng.randrange(len(rows))]
+            ours = (r["finished_tick"] - r["detected_tick"]) * TICK_S / 60
+            if downtime > 0:
+                total += cars * max(0.0, 1 - ours / downtime)
+        totals.append(total)
+    totals.sort()
+    if not totals:
+        return {"mean": 0.0, "low": 0.0, "high": 0.0, "method": "no history"}
+    return {"mean": round(sum(totals) / len(totals), 1), "low": round(totals[int(0.025 * n)], 1),
+            "high": round(totals[int(0.975 * n) - 1], 1),
+            "method": f"bootstrap ({n} draws) over sf_ops.incidents per kind: cars lost x avoided share of downtime"}
+
+
 class Shift:
     def __init__(self, plant, sim, make_orchestrator: Callable, minutes: float = 10, seed: int = 7, workers: int = 3,
                  threads: bool = False, sentinel_llm: Callable | None = None, on_event: Callable | None = None,
@@ -43,11 +69,12 @@ class Shift:
         if journal is not None:
             self.leases.on_event = journal.append
             self.leases.next_token = journal.recover()["last_token"] + 1  # fencing tokens never go backwards
-        from app.connectors import SimFleet
-        self.fleet = SimFleet(sim)
+        from app.connectors import SimFleet, SimMES
+        self.fleet, self.mes = SimFleet(sim), SimMES()
         from app.autonomy.detectors import Detectors, load_baselines
         from app.investigate.sources import sql_runner
-        baselines = load_baselines(history_sql or sql_runner("true"))  # per machine and shift, from history
+        self._history_sql = history_sql or sql_runner("true")
+        baselines = load_baselines(self._history_sql)  # per machine and shift, from history
         self.signals = generate_signals(plant, minutes, seed, rate_per_min, baselines, telemetry=telemetry)
         self.start_tick = sim.tick
         self.sentinel = Sentinel(sentinel_llm, on_event=self.on_event, detectors=Detectors(baselines))
@@ -62,8 +89,32 @@ class Shift:
         self.stopped = False
         self.wall_started = time.perf_counter()
 
+    def history_rows(self) -> dict:
+        """kind -> [(cars_lost, downtime_min)] from sf_ops.incidents (cached for the shift)."""
+        if getattr(self, "_history", None) is None:
+            from app.investigate.sqlguard import check
+            try:
+                rows = self._history_sql(check("SELECT kind, cars_lost, downtime_min FROM sf_ops.incidents "
+                                               "WHERE downtime_min > 0 LIMIT 200"))
+            except Exception:  # noqa: BLE001
+                rows = []
+            if len(rows) >= 200:  # the guard caps rows: fetch per kind instead
+                rows = []
+                for kind in ("part_shortage", "agv_fault", "machine_overheat", "fluid_spill", "robot_cell_fault",
+                             "torque_fault", "near_miss", "quality_defect"):
+                    try:
+                        rows += self._history_sql(check(f"SELECT kind, cars_lost, downtime_min FROM sf_ops.incidents "
+                                                        f"WHERE kind = '{kind}' AND downtime_min > 0 LIMIT 200"))
+                    except Exception:  # noqa: BLE001
+                        pass
+            out: dict[str, list] = {}
+            for kind, cars, downtime in rows:
+                out.setdefault(str(kind), []).append((float(cars or 0), float(downtime or 0)))
+            self._history = out
+        return self._history
+
     def _with_fleet(self, orch):
-        orch.fleet = self.fleet
+        orch.fleet, orch.mes = self.fleet, self.mes
         return orch
 
     def begin(self) -> None:
@@ -176,13 +227,7 @@ class Shift:
             by_decision[r["decision"] or "none"] = by_decision.get(r["decision"] or "none", 0) + 1
         resolved = [r for r in done if r["gate"] == "auto_executed" and r["finished_tick"] is not None]
         mins = [(r["finished_tick"] - r["detected_tick"]) * TICK_S / 60 for r in resolved]
-        saved = 0.0
-        for r in resolved:
-            stat = self.plant.stats.get({"overheat": "machine_overheat", "spill": "fluid_spill"}.get(r["kind"], r["kind"])) or {}
-            hist_min, cars = stat.get("avg_downtime_min") or 0, stat.get("avg_cars_lost") or 0
-            ours = (r["finished_tick"] - r["detected_tick"]) * TICK_S / 60
-            if hist_min:
-                saved += cars * max(0.0, 1 - ours / hist_min)
+        saved = cars_saved(resolved, self.history_rows(), seed=self.seed)
         return {
             "minutes": self.minutes, "seed": self.seed, "signals": len(self.signals),
             "sentinel": dict(self.sentinel.stats), "incidents": len(done), "decisions": by_decision,
@@ -190,8 +235,10 @@ class Shift:
             "waiting_for_a_person": [r["incident"] for r in done if r["gate"] in ("awaiting_approval", "advisory")],
             "escalations": [r["incident"] for r in done if r["decision"] in ("ESCALATE", "SAFE_HOLD")],
             "mean_minutes_to_resolve": round(sum(mins) / len(mins), 1) if mins else None,
-            "cars_saved_estimate": round(saved, 1),
+            "cars_saved_estimate": saved["mean"], "cars_saved_ci95": [saved["low"], saved["high"]],
+            "cars_saved_method": saved["method"],
             "preemptions": sum(1 for l in self.leases.log if l["op"] == "preempt"),
+            "quality_holds": len(self.mes.holds),
             "replans": sum(r["replans"] for r in done),
             "max_concurrent": self.dispatcher.max_active, "wall_seconds": round(time.perf_counter() - self.wall_started, 1),
             "unfinished": [e["incident"].id for e in list(self.dispatcher.active.values())]

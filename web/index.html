@@ -665,7 +665,7 @@ function showShift(st) {
       <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? `<button class="act ok" data-ok="${esc(x.incident)}">Approve</button><button class="act bad" data-no="${esc(x.incident)}">Reject</button>` : ""}`)).join("")}
     ${st.summary ? `<div class="gate done" style="margin-top:8px"><b>Shift summary:</b> ${st.summary.incidents} incidents from ${st.summary.signals} signals ·
       ${st.summary.auto_resolved} resolved on their own · ${st.summary.waiting_for_a_person.length} waited for a person · ${st.summary.escalations.length} escalated ·
-      mean ${st.summary.mean_minutes_to_resolve ?? "-"} min to resolve · ~${st.summary.cars_saved_estimate} cars saved (estimate) · ${st.summary.preemptions} pre-emptions · up to ${st.summary.max_concurrent} at once</div>` : ""}`;
+      mean ${st.summary.mean_minutes_to_resolve ?? "-"} min to resolve · ~${st.summary.cars_saved_estimate} cars saved (95% CI ${(st.summary.cars_saved_ci95 || []).join("–")}, bootstrap over history) · ${st.summary.preemptions} pre-emptions · up to ${st.summary.max_concurrent} at once</div>` : ""}`;
   for (const b of $("shift").querySelectorAll("[data-ok],[data-no]")) b.onclick = async ev => { ev.stopPropagation();
     await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: b.dataset.ok || b.dataset.no, approve: !!b.dataset.ok})}); };
   for (const r of $("shift").querySelectorAll(".inc")) r.onclick = () => openIncident(r.dataset.inc);

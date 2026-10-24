@@ -640,6 +640,9 @@ class DynamicOrchestrator(Orchestrator):
             trace.replans += 1
             return self._new_round(s, trace)
         s.executed = True
+        if incident.kind == "quality_defect" and getattr(self, "mes", None) is not None:  # contain: hold the units
+            self.mes.hold_units(incident.station_id, int((incident.sensors or {}).get("units_affected") or 1),
+                                f"{incident.id}: {(incident.sensors or {}).get('defect_code', 'defect')}")
         self._step(trace, "executor", t, all(e["path"] for e in s.expected.values()),
                    eta_s={a: e["eta_s"] for a, e in s.expected.items()})
         if stall and s.round == 1 and plan.agv_routes:
