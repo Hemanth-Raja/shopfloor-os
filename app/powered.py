@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = "shopfloor-os"
-ENGINES = ["Meterless World Model", "Meterless H-MEM"]
+ENGINES = ["Meterless World Model", "Meterless H-MEM", "Meterless Markovian"]
 
 
 def _last_line(path: Path) -> dict | None:

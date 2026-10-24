@@ -22,7 +22,7 @@ stops cars, and it can also put people at risk. Shift supervisors have to decide
   rejects in the web UI.
 - Lessons from every incident go into **Meterless H-MEM**, so the same mistake is not made twice.
 
-![Live floor: an incident is fenced, the critic rejects an unsafe plan with the OSHA clause, the fixed plan is dispatched](docs/screenshots/01-part-shortage-critic.png)
+![Live floor: an incident is fenced, the critic rejects an unsafe plan with the OSHA clause, the fixed plan is dispatched](docs/screenshots/00-live-floor.png)
 
 ```mermaid
 flowchart LR

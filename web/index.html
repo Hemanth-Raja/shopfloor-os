@@ -6,35 +6,46 @@
 <title>Shop-Floor OS</title>
 <style>
   :root {
-    --bg:#0d1014; --panel:#151a20; --panel2:#1b2129; --line:#252d37; --ink:#e7eaee; --muted:#8b95a1;
-    --ok:#3fb27f; --warn:#e0a63a; --bad:#e5534b; --accent:#5aa9ff; --violet:#a78bfa;
+    --bg:#0b0e12; --panel:#12171d; --panel2:#181f27; --line:#232c36; --line2:#2d3844; --ink:#e8ecf0; --muted:#8a95a2;
+    --ok:#3fb27f; --warn:#e0a63a; --bad:#e5534b; --accent:#5aa9ff; --accent2:#1f3a57; --violet:#a78bfa;
+    --r:12px; --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  header { display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:12px 18px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:18px; margin:0; letter-spacing:.2px; }
-  header .tag { color:var(--muted); }
-  header .chips { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
-  .chip { padding:3px 10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); font-size:12px; color:var(--muted); }
+  body { margin:0; background:radial-gradient(1200px 500px at 70% -200px, #142233 0%, var(--bg) 60%) fixed, var(--bg);
+         color:var(--ink); font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+  header { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; padding:12px 24px;
+           background:rgba(11,14,18,.82); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; letter-spacing:.2px; display:flex; align-items:center; gap:9px; }
+  header h1::before { content:""; width:22px; height:22px; border-radius:6px; background:linear-gradient(135deg,#5aa9ff,#3fb27f); box-shadow:0 0 0 3px rgba(90,169,255,.15); }
+  header .tag { color:var(--muted); font-size:13px; }
+  header .chips { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { padding:3px 10px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); font-size:12px; color:var(--muted); }
   .chip b { color:var(--ink); font-weight:600; }
-  nav { display:flex; gap:4px; padding:8px 18px 0; border-bottom:1px solid var(--line); }
-  nav button { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 12px; font-size:14px; }
+  nav { display:flex; gap:2px; padding:0 24px; border-bottom:1px solid var(--line); overflow-x:auto; }
+  nav button { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:12px 14px 10px; font:500 14px inherit; font-family:inherit; cursor:pointer; white-space:nowrap; }
+  nav button:hover { color:var(--ink); }
   nav button.on { color:var(--ink); border-bottom-color:var(--accent); }
-  .view { display:none; padding:14px 18px; } .view.on { display:block; }
-  .grid2 { display:grid; grid-template-columns:minmax(0,840px) minmax(300px,1fr); gap:14px; }
-  @media (max-width:1100px) { .grid2 { grid-template-columns:1fr; } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
-  .panel + .panel { margin-top:12px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 8px; font-weight:600; }
-  canvas { width:100%; height:auto; display:block; background:#0a0d11; border-radius:8px; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px; }
-  button.act { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 12px; cursor:pointer; }
-  button.act:hover:not(:disabled) { border-color:var(--accent); }
+  .view { display:none; padding:18px 24px 40px; max-width:1480px; margin:0 auto; } .view.on { display:block; }
+  .grid2 { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr); gap:18px; align-items:start; }
+  @media (max-width:1100px) { .grid2 { grid-template-columns:1fr; } .view, nav, header { padding-left:16px; padding-right:16px; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:16px; box-shadow:var(--shadow); }
+  .panel + .panel { margin-top:14px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  canvas { width:100%; height:auto; display:block; background:#090c10; border-radius:10px; border:1px solid var(--line); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 2px; }
+  button.act { background:var(--panel2); color:var(--ink); border:1px solid var(--line2); border-radius:9px; padding:8px 14px; cursor:pointer; font:500 13.5px inherit; font-family:inherit; transition:border-color .15s, background .15s, transform .05s; }
+  button.act:hover:not(:disabled) { border-color:var(--accent); background:#1b2633; }
+  button.act:active:not(:disabled) { transform:translateY(1px); }
   button.act:disabled { opacity:.4; cursor:default; }
-  button.ok { border-color:#2b6e50; } button.bad { border-color:#7a3430; } button.primary { border-color:var(--accent); }
-  .legend { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:8px; }
+  button.ok { border-color:#2b6e50; } button.ok:not(:disabled) { background:#143024; }
+  button.bad { border-color:#7a3430; } button.bad:not(:disabled) { background:#2c1817; }
+  button.primary { border-color:var(--accent); background:var(--accent2); }
+  .scen { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:8px; margin:0; }
+  .scen button.act { text-align:left; padding:10px 12px; }
+  .scen button.act small { display:block; color:var(--muted); font-weight:400; font-size:12px; margin-top:2px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:10px; }
   .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
-  #decision { font-size:15px; } .pill { padding:2px 9px; border-radius:10px; font-weight:600; font-size:13px; }
+  #decision { font-size:15px; } .pill { padding:2px 10px; border-radius:999px; font-weight:600; font-size:12.5px; letter-spacing:.2px; }
   .ACT { background:#1d3b2e; color:#7ee0b0; } .VERIFY { background:#3b331d; color:#f0c674; } .ESCALATE, .SAFE_HOLD { background:#3d2120; color:#f29b95; }
   .DO_NOTHING { background:#232a33; color:var(--muted); }
   #trace { max-height:420px; overflow:auto; font:12.5px/1.4 ui-monospace,Menlo,Consolas,monospace; }
@@ -55,14 +66,19 @@
   .spark { display:flex; gap:3px; align-items:flex-end; height:60px; }
   .spark i { flex:1; background:#2b5d8f; border-radius:2px 2px 0 0; }
   .note { color:var(--muted); font-size:12px; }
-  #howto { margin:12px 18px 0; padding:10px 14px; background:#14202d; border:1px solid #23415f; border-radius:10px; display:flex; gap:14px; align-items:flex-start; }
-  #howto ol { margin:4px 0 0 18px; padding:0; } #howto li { margin:2px 0; } #howto b { color:#cfe4ff; }
+  #howto { max-width:1432px; margin:16px max(24px, calc((100% - 1432px) / 2)) 0; padding:14px 16px; background:linear-gradient(180deg,#132234,#101a26); border:1px solid #23415f; border-radius:var(--r); display:flex; gap:14px; align-items:flex-start; }
+  #howto .t { font-weight:600; color:#cfe4ff; margin-bottom:8px; }
+  #howto ol { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; counter-reset:s; }
+  #howto li { counter-increment:s; padding-left:30px; position:relative; font-size:13px; color:#b9c6d4; }
+  #howto li::before { content:counter(s); position:absolute; left:0; top:0; width:21px; height:21px; border-radius:50%; background:#1f3a57; color:#cfe4ff; font-size:12px; font-weight:600; display:grid; place-items:center; }
+  #howto b { color:#e3efff; }
+  @media (max-width:1100px) { #howto, #powered { margin-left:16px; margin-right:16px; } }
   #howto button { margin-left:auto; background:none; border:1px solid #2d4d6e; color:var(--muted); border-radius:6px; padding:3px 8px; cursor:pointer; }
   #narration { min-height:40px; padding:8px 10px; margin-bottom:8px; background:var(--panel2); border-radius:8px; font-size:14px; }
   #narration .who { color:var(--accent); font-weight:600; }
   .start { position:relative; border-color:var(--accent) !important; animation:pulse 1.6s ease-in-out infinite; }
-  .start::after { content:"← Start here"; position:absolute; top:50%; left:calc(100% + 8px); transform:translateY(-50%); white-space:nowrap; font-size:11px; color:#9ccbff; background:#14202d; padding:2px 7px; border-radius:6px; border:1px solid #23415f; z-index:1; }
-  .start { margin-right:96px; }
+  .start::after { content:"Start here"; display:none; position:absolute; top:50%; left:calc(100% + 8px); transform:translateY(-50%); white-space:nowrap; font-size:11px; color:#9ccbff; background:#14202d; padding:2px 7px; border-radius:6px; border:1px solid #23415f; z-index:1; }
+  .start { margin-right:0; } .start small::after { content:" · Start here"; color:#9ccbff; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:2px 0 10px; }
   .seg button { background:var(--panel2); color:var(--muted); border:none; padding:6px 12px; cursor:pointer; font-size:13px; }
   .seg button.on { background:#1d3550; color:var(--ink); }
@@ -88,7 +104,7 @@
   .loop.flash { animation:flashloop 1.2s ease-in-out 2; }
   @keyframes flashloop { 50% { background:#5b3fa0; color:#fff; } }
   #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
-  #powered { margin:10px 18px 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
+  #powered { max-width:1432px; margin:12px max(24px, calc((100% - 1432px) / 2)) 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
   #powered b { color:var(--ink); font-weight:600; } #powered .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
   .shiftbar { height:6px; background:var(--panel2); border-radius:3px; overflow:hidden; margin:4px 0 8px; } .shiftbar i { display:block; height:100%; background:var(--accent); }
   .sfeed { max-height:110px; overflow:auto; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--muted); }
@@ -104,6 +120,15 @@
   .ev table { font-size:12px; } .find { padding:4px 0; } .find .eid { color:var(--accent); font-size:12px; }
   .dropped { color:var(--muted); text-decoration:line-through; }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
+
+  .sub { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .sub h2 { margin:0; }
+  .form label.f { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--muted); }
+  .form select, .form input { background:var(--panel2); color:var(--ink); border:1px solid var(--line2); border-radius:8px; padding:7px 9px; font:13px inherit; font-family:inherit; }
+  .form select:focus, .form input:focus, .ask input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(90,169,255,.18); }
+  .ask input { border-radius:10px; padding:10px 12px; }
+  .step { padding:7px 0; } #trace { max-height:460px; }
+  ::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:#232c36; border-radius:6px; border:2px solid var(--panel); }
 </style>
 </head>
 <body>
@@ -111,7 +136,7 @@
   <h1>Shop-Floor OS</h1>
   <span class="tag">AI agents plan · robots execute · humans judge</span>
   <div class="chips">
-    <span class="chip">engines <b>World Model</b> · <b>H-MEM</b></span>
+    <span class="chip">engines <b>World Model</b> · <b>H-MEM</b> · <b>Markovian</b></span>
     <span class="chip">models <b>Nemotron</b> via Nightshift</span>
     <span class="chip">data <b>Zetaris</b></span>
     <span class="chip" id="mode">…</span>
@@ -126,17 +151,15 @@
   <button data-view="know">What the agents know</button>
 </nav>
 
-<div id="powered" aria-live="polite"><span>Powered by…</span></div>
+<div id="powered" aria-live="polite" style="display:none"></div>
 <div id="howto" role="note">
-  <div>
-    <b>How to read this page.</b> The map is a car assembly hall seen from above: one square is about 2 m.
-    <span class="muted">Blue squares are AGVs (numbered robots), green dots are people, the yellow band is the main
-    conveyor, and olive columns are pedestrian crossings.</span>
+  <div style="flex:1">
+    <div class="t">How to read this page <span class="muted" style="font-weight:400">· the map is the assembly hall from above, one square is about 2 m: blue squares are AGVs, green dots are people, olive columns are pedestrian crossings.</span></div>
     <ol>
-      <li><b>Pick an incident</b> under the map (start with <i>Part shortage · F30</i>).</li>
-      <li><b>Watch the agents</b> in the trace: each line is one agent doing its job, and the sentence at the top explains it in plain English.</li>
-      <li><b>Judge the decision</b>. In <i>Auto</i>, routine safe actions run at once and you can roll them back; anything risky (a person entering a hazard, a lapsed certificate, an escalation) waits for you. <i>Supervised</i> makes everything wait; <i>Advisory</i> only recommends.</li>
-      <li>Then try the <b>Lab</b> tab (test a policy on history) and <b>What the agents know</b>.</li>
+      <li><b>Pick an incident</b> next to the map; start with <i>Part shortage · F30</i>.</li>
+      <li><b>Watch the agents</b> in the trace: one line per agent, explained in plain English at the top.</li>
+      <li><b>Judge the decision</b>. In <i>Auto</i> routine safe actions run and you can roll them back; anything risky waits for you.</li>
+      <li>Then try <b>Flow</b>, <b>Ask the floor</b>, the <b>Lab</b> and <b>What the agents know</b>.</li>
     </ol>
   </div>
   <button id="howto-close" aria-label="Hide how to read this">Got it</button>
@@ -154,15 +177,18 @@
           <span><i class="sw" style="background:none;border:2px solid #f0c674;border-radius:5px"></i>dispatched for this incident</span>
         </div>
         <div class="note">Robots and people without a yellow ring are normal shift activity: parked AGVs, operators at their stations.</div>
-        <div class="row">
-          <button class="act start" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30</button>
-          <button class="act" data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault + stall</button>
-          <button class="act" data-run='{"kind":"overheat","station":"F10","false_alarm":true}'>Overheat · F10 (false alarm)</button>
-          <button class="act" data-run='{"kind":"spill","station":"F20"}'>Coolant spill · F20</button>
+      </div>
+      <div class="panel">
+        <div class="sub"><h2>Run an incident</h2><span class="note">each run goes through the full agent loop</span></div>
+        <div class="row scen">
+          <button class="act start" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30<small>critic loop, AGV kit run</small></button>
+          <button class="act" data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault + stall<small>verifier re-plans</small></button>
+          <button class="act" data-run='{"kind":"overheat","station":"F10","false_alarm":true}'>Overheat · F10 (false alarm)<small>Monitor checks before acting</small></button>
+          <button class="act" data-run='{"kind":"spill","station":"F20"}'>Coolant spill · F20<small>person enters a hazard: you approve</small></button>
         </div>
+        <h2 style="margin-top:16px">Report your own</h2>
         <form class="form" id="custom" aria-label="Report a custom incident">
-          <b class="note" style="color:var(--ink)">Report your own:</b>
-          <select name="kind" aria-label="Kind">
+                    <select name="kind" aria-label="Kind">
             <option value="part_shortage">part shortage</option><option value="agv_fault">AGV fault</option>
             <option value="overheat">machine overheat</option><option value="spill">fluid spill</option>
             <option value="robot_cell_fault">robot-cell fault</option><option value="torque_fault">nutrunner torque fault</option>
@@ -175,9 +201,11 @@
           <button class="act primary" type="submit">Run</button>
         </form>
         <div class="note">Any kind the agents have no playbook for is fenced and escalated to a supervisor, with the reason.</div>
-        <form class="form" id="autopilot" aria-label="Run a shift autonomously" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
-          <b class="note" style="color:var(--ink)">Autopilot:</b>
-          <label class="note">minutes <input name="minutes" type="number" min="1" max="60" value="8" style="width:58px"></label>
+      </div>
+      <div class="panel">
+        <div class="sub"><h2>Autopilot: run a whole shift</h2></div>
+        <form class="form" id="autopilot" aria-label="Run a shift autonomously">
+                    <label class="note">minutes <input name="minutes" type="number" min="1" max="60" value="8" style="width:58px"></label>
           <label class="note">incidents/min <input name="rate" type="number" min="0.2" max="8" step="0.5" value="2.5" style="width:58px"></label>
           <label class="note">at once <input name="workers" type="number" min="1" max="6" value="2" style="width:46px"></label>
           <label class="note">seed <input name="seed" type="number" value="7" style="width:58px"></label>
@@ -509,6 +537,7 @@ function note(st) {
     case "verify_plan": return `check first: ${(d.assignees||[]).map(short).join(", ")}`;
     case "refine": return `<b>${esc(d.chosen || "-")}</b> ${esc(d.reason || "")}`;
     case "router": return `<span class="bad-t">rejected ${esc(d.rejected || "")}</span> ${esc(d.note || "")}`;
+    case "gate": return `<b>${esc(String(d.gate || "").replace(/_/g, " "))}</b> ${esc((d.reasons || []).join("; "))}`;
     default: return esc(JSON.stringify(d).slice(0, 160));
   }
 }
@@ -753,6 +782,7 @@ async function poweredBy() {
   try {
     const p = await (await fetch("/api/powered")).json(), c = p.last_call, r = p.nightshift_receipts;
     const when = c ? new Date(c.ts).toLocaleTimeString() : "";
+    $("powered").style.display = "";
     $("powered").innerHTML =
       `<span><span class="dot"></span><b>Meterless Nightshift</b> → ${c ? `<b>${esc(String(c.model).split("/").pop())}</b> · last call ${Number(c.latency_s).toFixed(1)} s at ${esc(when)} (${esc(c.lane)} lane)` : "no live call yet"}</span>`
       + (r && r.count ? `<span>Nightshift signed <b>${r.count}</b> compute receipts for app <b>shopfloor-os</b>`
