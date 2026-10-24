@@ -299,7 +299,15 @@ def health():
     print(json.dumps(check(), indent=1))
 
 
-def models():
+def models(check: bool = False):
+    if check:
+        from app import models as registry
+        for m, e in registry.self_check().items():
+            print(f"{m}: app {e['app']}, " + (f"answered by {e['answers_as']} in {e['latency_s']} s"
+                                              + ("  <- PIN DRIFT" if e.get("drift") else "") if e["ok"] else f"FAILED {e['error']}"))
+        for role in registry.CFG["roles"]:
+            print(f"  {role:<16} effective chain: {[m.split('/')[-1] for m in registry.effective_chain(role)]}")
+        return
     for model_id in list_models():
         print(model_id)
 
@@ -309,7 +317,8 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command", required=True)
     ctx = sub.add_parser("context", help="zone context from Zetaris plus a Nemotron summary")
     ctx.add_argument("--zone", default="FINAL")
-    sub.add_parser("models", help="list model ids offered by Nightshift")
+    m_p = sub.add_parser("models", help="list model ids offered by Nightshift")
+    m_p.add_argument("--check", action="store_true", help="self-check: who really answers each pinned model")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
     ask_p = sub.add_parser("ask", help="ask the investigator team a question about the plant and the agents' history")
     ask_p.add_argument("question")
@@ -364,4 +373,4 @@ if __name__ == "__main__":
     elif args.command == "lab":
         lab(args.write, args.target)
     else:
-        models()
+        models(args.check)

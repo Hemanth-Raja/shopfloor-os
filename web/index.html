@@ -469,7 +469,9 @@ async function modelsPanel() {
     $("models").classList.remove("muted");
     $("models").innerHTML = `<table><tr><th>agent role</th><th>chain (first is preferred)</th><th>last call</th></tr>` + rows.map(r => {
       const chain = r.chain.map(m => `<span title="${esc(r.why)}">${esc(shortModel(m))}${r.breakers[m] !== "CLOSED" ? ` <span class="bad-t">${r.breakers[m]}</span>` : ""}`
-        + (r.served_by[m] && r.served_by[m] !== m ? ` <span class="muted">→ ${esc(shortModel(r.served_by[m]))}</span>` : "") + `</span>`).join("<br>");
+        + ((r.checked || {})[m] ? ((r.checked[m] === m) ? ' <span class="ok-t" title="startup self-check: answers as itself">✓</span>'
+           : ` <span class="bad-t" title="startup self-check">⚠ ${esc(r.checked[m] === "failed" ? "no answer" : "served by " + shortModel(r.checked[m]))}</span>`)
+           : (r.served_by[m] && r.served_by[m] !== m ? ` <span class="muted">→ ${esc(shortModel(r.served_by[m]))}</span>` : "")) + `</span>`).join("<br>");
       const l = r.last ? `${esc(shortModel(r.last.answering))}<br><span class="muted">${r.last.latency_s} s${r.last.receipt ? " · " + esc(r.last.receipt) : ""}</span>` : '<span class="muted">not called yet</span>';
       return `<tr><td><b>${esc(r.role)}</b><div class="note">${esc(r.why).slice(0, 90)}</div></td><td>${chain}</td><td>${l}</td></tr>`; }).join("") + "</table>"
       + `<p class="note">Deterministic, no model: reflex, safety critic, dry run, restraint, human gate, executor, verifier.</p>`;

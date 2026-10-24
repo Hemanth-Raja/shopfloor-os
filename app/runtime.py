@@ -23,4 +23,5 @@ def health(sim=None) -> dict:
     out = check_health(BREAKERS, PROBES, sim)
     out["models"] = {m: b.status() for m, b in models.BREAKERS.items()}  # per-model breakers
     out["caches"] = cache_stats()
+    out["model_pins"] = models.pin_report()  # self-check at startup + live drift (answering != pinned)
     return out

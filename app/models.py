@@ -219,7 +219,7 @@ def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None =
     deadline = deadline or Deadline(seconds=spec["budget_s"] * len(spec["chain"]) + 5)
     tried: list = []
     models = []
-    for model in spec["chain"]:
+    for model in effective_chain(role):
         if messages is not None:
             try:
                 check_context(model, messages, spec["max_tokens"])
@@ -253,6 +253,7 @@ def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None =
         out.role, out.tried = role, tried
         out.fell_back = any("error" in t or "skipped" in t for t in tried) or out.model != out.requested
         out.receipt = receipt_for(out.request_id)
+        note_answer(out.requested, out.model)
         LAST[role] = {"role": role, "requested": out.requested, "answering": out.model,
                       "latency_s": round(out.latency_s, 2), "receipt": out.receipt, "at": time.time(),
                       "fell_back": out.fell_back, "retries": getattr(out, "retries", 0)}
@@ -321,6 +322,61 @@ def chat_json(lane: str, messages: list[dict], schema: type[BaseModel], max_toke
     return _over_chain(lane, role, call, prompted, _deadline(timeout_s, deadline))
 
 
+# ---------------------------------------------------------------- self-check and pin drift
+
+EFFECTIVE: dict[str, dict] = {}  # model -> {"answers_as", "ok", "latency_s", "checked_at", "error"}
+DRIFT: dict[str, dict] = {}  # model -> {"calls", "mismatched"} from live traffic
+
+
+def note_answer(requested: str, answering: str) -> None:
+    with _lock:
+        d = DRIFT.setdefault(requested, {"calls": 0, "mismatched": 0})
+        d["calls"] += 1
+        d["mismatched"] += int(answering != requested)
+
+
+def self_check(timeout_s: float = 60) -> dict:
+    """One tiny call per pinned model, under its own Nightshift app: who really answers? Builds the effective registry
+    (a model served by another one is skipped in chains that already contain that other model)."""
+    for model, app in CFG.get("model_apps", {}).items():
+        t = time.perf_counter()
+        try:
+            r = _complete(model, "router" if "lightning" in model else "planner",
+                          [{"role": "user", "content": "Reply with exactly one word: OK"}], 800, timeout_s, False)
+            EFFECTIVE[model] = {"app": app, "answers_as": r.model, "ok": True, "latency_s": round(r.latency_s, 2),
+                                "checked_at": time.time(), "drift": r.model != model}
+        except Exception as err:  # noqa: BLE001
+            EFFECTIVE[model] = {"app": app, "answers_as": None, "ok": False, "checked_at": time.time(),
+                                "latency_s": round(time.perf_counter() - t, 2), "error": f"{type(err).__name__}: {str(err)[:100]}"}
+    return dict(EFFECTIVE)
+
+
+def effective_chain(role: str) -> list[str]:
+    """The role's chain without models that failed the self-check or are silently served by another model in it."""
+    chain = CFG["roles"][role]["chain"]
+    out = []
+    for m in chain:
+        e = EFFECTIVE.get(m)
+        if e is None:
+            out.append(m)  # not checked: keep
+        elif e["ok"] and (e["answers_as"] == m or e["answers_as"] not in chain):
+            out.append(m)
+    return out or list(chain)  # never empty: the breakers and fallbacks still protect us
+
+
+def pin_report() -> dict:
+    """For Health: per pinned model, the self-check and the live drift rate; warnings when a pin drifted."""
+    out, warnings = {}, []
+    for model, app in CFG.get("model_apps", {}).items():
+        e, d = EFFECTIVE.get(model, {}), DRIFT.get(model, {"calls": 0, "mismatched": 0})
+        rate = round(d["mismatched"] / d["calls"], 2) if d["calls"] else None
+        out[model] = {"app": app, "self_check": e or None, "live_calls": d["calls"], "live_drift_rate": rate}
+        if (e and (not e.get("ok") or e.get("drift"))) or (rate is not None and d["calls"] >= 3 and rate > 0.3):
+            warnings.append(f"{app}: pinned to {model.split('/')[-1]} but answered by "
+                            f"{(e.get('answers_as') or 'nothing').split('/')[-1]} (live drift {rate})")
+    return {"pins": out, "warnings": warnings}
+
+
 def mapping() -> list[dict]:
     """Role -> chain, why, breaker states and the last call, for the UI's Models panel and the health agent."""
     probe_path = Path(__file__).resolve().parents[1] / "data" / "model_probe.json"
@@ -335,6 +391,8 @@ def mapping() -> list[dict]:
                     "breakers": {m: BREAKERS[m].state if m in BREAKERS else "CLOSED" for m in spec["chain"]},
                     "served_by": {m: (probe.get(m) or {}).get("answering") for m in spec["chain"]},
                     "last": LAST.get(role), "hedge": bool(spec.get("hedge")),
+                    "checked": {m: (EFFECTIVE.get(m) or {}).get("answers_as") or (("failed" if m in EFFECTIVE else None))
+                                for m in spec["chain"]},
                     "limiters": {m: LIMITERS[m].state() for m in spec["chain"] if m in LIMITERS},
                     "p50_s": round(LATENCY.p50(role, default=0.0), 1) or None})
     return out

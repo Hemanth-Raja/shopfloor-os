@@ -124,3 +124,23 @@ def test_empty_or_broken_reply_falls_through_to_the_next_model(monkeypatch):
     monkeypatch.setattr(models, "_complete", complete)
     r = models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="analyst")
     assert r.model == chain[1] and r.data.ok and "error" in r.tried[0]
+
+
+def test_self_check_builds_the_effective_registry_and_flags_drift(monkeypatch):
+    svl, light = "nvidia/nemotron-3.5-super-vl-120b-a12b", "nvidia/nemotron-3.5-lightning-30b-a3b"
+    monkeypatch.setattr(models, "EFFECTIVE", {})
+    monkeypatch.setattr(models, "DRIFT", {})
+    monkeypatch.setitem(models.CFG, "model_apps", {svl: "shopfloor-os", light: "shopfloor-os-fast"})
+
+    def complete(model, role, messages, max_tokens, timeout_s, json_mode):
+        return SimpleNamespace(text="OK", model=svl, requested=model, latency_s=0.2, truncated=False,
+                               request_id=None, tokens=None)  # Nightshift serves Super VL for both pins
+    monkeypatch.setattr(models, "_complete", complete)
+    eff = models.self_check()
+    assert eff[light]["drift"] and not eff[svl]["drift"]
+    assert models.effective_chain("router") == [svl]  # Lightning is really Super VL here: no point asking twice
+    report = models.pin_report()
+    assert report["warnings"] and "shopfloor-os-fast" in report["warnings"][0]
+    for _ in range(4):
+        models.note_answer(svl, svl)
+    assert models.pin_report()["pins"][svl]["live_drift_rate"] == 0.0
