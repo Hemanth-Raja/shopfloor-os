@@ -91,7 +91,7 @@
   svg.fg .nd.f rect { stroke:#7a3430; fill:#2a1a1b; } svg.fg .nd.a rect { stroke:#5aa9ff; fill:#16263a; }
   svg.fg .nd.s rect { stroke:#f0c674; stroke-width:2; } svg.fg .nd { cursor:pointer; }
   svg.fg text { fill:#e7eaee; font:600 12px system-ui; } svg.fg text.m { fill:#8b95a1; font:10px system-ui; }
-  svg.fg .pe { stroke:#2f3a46; stroke-width:1.2; stroke-dasharray:4 4; }
+  svg.fg .nd.o rect { fill:#1d1a33; stroke:#a78bfa; stroke-width:1.5; } svg.fg .pe { stroke:#2f3a46; stroke-width:1.2; stroke-dasharray:4 4; }
   svg.fg .ed { fill:none; stroke:#5aa9ff; stroke-width:1.6; opacity:.85; } svg.fg .ed.r { stroke:#a78bfa; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
   .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
@@ -454,9 +454,16 @@ function graphSVG(path, last, rejects) {
     return `<g class="nd${cls}${act}${sel}" data-k="${k}"><rect x="${x-60}" y="${y-21}" width="120" height="42" rx="9"/>
       <text x="${x}" y="${y-3}" text-anchor="middle">${esc(name)}${visits[k] > 1 ? " ×" + visits[k] : ""}</text>
       <text class="m" x="${x}" y="${y+12}" text-anchor="middle">${esc(m ? m.slice(0, 26) : visits[k] ? "rules / code" : "")}</text></g>`; }).join("");
+  const by = {nemotron:0, rules:0, forced:0, code:0};
+  path.forEach(p => { const b = String(p.by || ""); const k = b.startsWith("nemotron") ? "nemotron" : b in by ? b : "rules"; by[k]++; });
+  const orch = `<g class="nd o" data-k="orchestrator"><rect x="10" y="205" width="120" height="90" rx="10"/>
+      <text x="70" y="228" text-anchor="middle">Orchestrator</text>
+      <text class="m" x="70" y="244" text-anchor="middle">picks every hop</text>
+      <text class="m" x="70" y="262" text-anchor="middle">${path.length ? `Nemotron ${by.nemotron} · rules ${by.rules}` : "router: Nemotron"}</text>
+      <text class="m" x="70" y="276" text-anchor="middle">${path.length ? `forced ${by.forced + by.code}` : "legal moves: code"}</text></g>`;
   return `<svg class="fg" viewBox="0 0 840 480" role="img" aria-label="Agent route graph"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
     markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/></marker><marker id="ah0" viewBox="0 0 10 10" refX="9" refY="5"
-    markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4654"/></marker></defs>${base}${edges}${nodes}${nums}
+    markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4654"/></marker></defs>${base}${edges}${nodes}${orch}${nums}
     ${path.length ? "" : '<text class="m" x="420" y="470" text-anchor="middle">Dashed: every move the rules allow. Run an incident to see the route the orchestrator took.</text>'}</svg>`;
 }
 function hopsHTML(path, rejects) {
@@ -492,6 +499,11 @@ function flowStep(st) {
 }
 function flowShow(k) {
   flowSel = k; flowRender();
+  if (k === "orchestrator") { $("flowtitle").textContent = "Orchestrator: details";
+    $("flowdetail").classList.remove("muted");
+    $("flowdetail").innerHTML = "<p>The orchestrator (<code>app/dynamic.py</code>) decides the next agent at every hop. Code lists the moves that are legal right now, so the critic, the dry run and the human gate can never be skipped. When there is a real choice, the router model (Nemotron 3.5 Lightning via Nightshift) picks one and gives a reason; an illegal pick is rejected and the rule-based router decides. A forced move (one legal option) costs no model call.</p>"
+      + (flowPath.length ? `<p>Last incident: ${flowPath.length} hops, listed under the graph with who chose each one.</p>` : "<p>Run an incident to see its route.</p>");
+    return; }
   const st = flowLast[k], name = NODES[k][2];
   $("flowtitle").textContent = `${name}: details`;
   if (!st) { $("flowdetail").innerHTML = "This agent did not run for this incident: the orchestrator chose another route."; return; }
