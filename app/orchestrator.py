@@ -28,6 +28,38 @@ from app.engines.citations import KIND_RULES
 from app.llm import LLMUnavailable
 
 TRACE_PATH = Path(__file__).resolve().parents[1] / "logs" / "trace.jsonl"
+AUTONOMY = ("auto", "supervised", "advisory")
+PERSON_HAZARD_KINDS = {"spill", "overheat"}  # a person walks into the hazard (spill clean-up, machine repair)
+
+
+def executable_plan(trace: Trace):
+    """The plan as it is dispatched: VERIFY sends only the first assignee to check, with no AGV moves."""
+    if trace.plan is None or trace.decision is None:
+        return None
+    if trace.decision.decision == "VERIFY":
+        return trace.plan.model_copy(update={"agv_routes": [], "assignee_ids": trace.plan.assignee_ids[:1]})
+    return trace.plan
+
+
+def gate_reasons(trace: Trace, plant, autonomy: str) -> list[str]:
+    """Why this decision needs a human before anything moves (empty list: it may auto-execute)."""
+    d = trace.decision.decision
+    reasons = []
+    if autonomy == "advisory":
+        reasons.append("advisory mode: the agents only recommend; a person dispatches")
+    elif autonomy == "supervised":
+        reasons.append("supervised mode: every dispatch waits for approval")
+    if d in ("ESCALATE", "SAFE_HOLD", "DO_NOTHING"):
+        reasons.append(f"{d}: the agents are not confident enough to act alone")
+    if trace.incident.kind in PERSON_HAZARD_KINDS and d in ("ACT", "VERIFY"):
+        reasons.append(f"a person would enter the {trace.incident.kind} hazard area")
+    for wid in (trace.plan.assignee_ids if trace.plan else []):
+        w = plant.entity(wid)
+        if w and w["type"] == "worker":
+            lapsed = [c for c in w["attrs"].get("cert_expiry", {}) if not plant.cert_valid(w, c)]
+            if lapsed:
+                reasons.append(f"{wid.split(':')[-1]} has a lapsed certificate ({', '.join(lapsed)})")
+    return reasons
 MAX_ATTEMPTS = 3
 VERIFY_TICKS = 6
 
@@ -35,7 +67,7 @@ VERIFY_TICKS = 6
 class Orchestrator:
     def __init__(self, plant, sim, llm_json: Callable, llm_text: Callable | None = None,
                  trace_path: Path | None = TRACE_PATH, memory=None, on_step: Callable | None = None,
-                 citations=None, run_id: str | None = None, echo: bool = False):
+                 citations=None, run_id: str | None = None, echo: bool = False, autonomy: str = "auto"):
         self.plant, self.sim = plant, sim
         self.llm_json, self.llm_text = llm_json, llm_text
         self.run_id = run_id
@@ -43,6 +75,9 @@ class Orchestrator:
             trace_path = TRACE_PATH.parent / f"trace-{run_id}.jsonl"  # one JSONL file per run
         self.trace_path = trace_path
         self.echo = echo  # also print one [INFO] line per step to stdout
+        if autonomy not in AUTONOMY:
+            raise ValueError(f"autonomy must be one of {AUTONOMY}")
+        self.autonomy = autonomy  # auto: routine ACT runs itself; supervised: always ask; advisory: recommend only
         self.lessons: list = []
         self.memory = memory  # optional PlaybookStore: lessons from past incidents seed the planner
         self.on_step = on_step  # optional callback(incident_id, StepResult), e.g. the web server's event bus
@@ -145,11 +180,23 @@ class Orchestrator:
             t = time.perf_counter()
             trace.decision = decide(incident, mon, dr, plan is not None, self.plant.stats)
             self._step(trace, "restraint", t, True, **trace.decision.model_dump())
-            if trace.decision.decision not in ("ACT", "VERIFY") or plan is None:
+            if plan is None:
                 return trace
-            if trace.decision.decision == "VERIFY":
-                plan = plan.model_copy(update={"agv_routes": [], "assignee_ids": plan.assignee_ids[:1]})
             t = time.perf_counter()
+            trace.autonomy = self.autonomy
+            reasons = gate_reasons(trace, self.plant, self.autonomy)
+            if reasons:
+                trace.gate = "advisory" if self.autonomy == "advisory" else "awaiting_approval"
+                trace.gate_reasons = reasons
+                self._step(trace, "gate", t, True, gate=trace.gate, reasons=reasons, autonomy=self.autonomy)
+                return trace  # nothing moves until a person approves
+            trace.gate, trace.gate_reasons = "auto_executed", ["routine ACT: critic and dry-run passed; you can override"]
+            self._step(trace, "gate", t, True, gate=trace.gate, reasons=trace.gate_reasons, autonomy=self.autonomy)
+            plan = executable_plan(trace)
+            t = time.perf_counter()
+            for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
+                if aid in self.sim.agents and aid not in trace.dispatch:
+                    trace.dispatch[aid] = list(self.sim.agents[aid].pos)
             expected = execute(plan, incident, self.plant, self.sim)
             self._step(trace, "executor", t, all(e["path"] for e in expected.values()),
                        eta_s={a: e["eta_s"] for a, e in expected.items()})

@@ -63,6 +63,12 @@
   .start { position:relative; border-color:var(--accent) !important; animation:pulse 1.6s ease-in-out infinite; }
   .start::after { content:"← Start here"; position:absolute; top:50%; left:calc(100% + 8px); transform:translateY(-50%); white-space:nowrap; font-size:11px; color:#9ccbff; background:#14202d; padding:2px 7px; border-radius:6px; border:1px solid #23415f; z-index:1; }
   .start { margin-right:96px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:2px 0 10px; }
+  .seg button { background:var(--panel2); color:var(--muted); border:none; padding:6px 12px; cursor:pointer; font-size:13px; }
+  .seg button.on { background:#1d3550; color:var(--ink); }
+  .gate { margin-top:8px; padding:8px 10px; border-radius:8px; font-size:13px; }
+  .gate.auto { background:#16302a; border:1px solid #2b6e50; } .gate.wait { background:#3b2f14; border:1px solid #8a6a22; }
+  .gate.done { background:var(--panel2); border:1px solid var(--line); }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
 </style>
 </head>
@@ -92,7 +98,7 @@
     <ol>
       <li><b>Pick an incident</b> under the map (start with <i>Part shortage · F30</i>).</li>
       <li><b>Watch the agents</b> in the trace: each line is one agent doing its job, and the sentence at the top explains it in plain English.</li>
-      <li><b>Judge the decision</b>: press <i>Approve</i> or <i>Reject</i>. You are the human in the loop.</li>
+      <li><b>Judge the decision</b>. In <i>Auto</i>, routine safe actions run at once and you can roll them back; anything risky (a person entering a hazard, a lapsed certificate, an escalation) waits for you. <i>Supervised</i> makes everything wait; <i>Advisory</i> only recommends.</li>
       <li>Then try the <b>Lab</b> tab (test a policy on history) and <b>What the agents know</b>.</li>
     </ol>
   </div>
@@ -108,7 +114,9 @@
           <span><i class="sw" style="background:#5aa9ff"></i>AGV</span><span><i class="sw" style="background:#3fb27f;border-radius:5px"></i>worker</span>
           <span><i class="sw" style="background:#e5534b"></i>fault / geofence</span><span><i class="sw" style="background:#4a4630"></i>pedestrian crossing</span>
           <span><i class="sw" style="background:#5b4b2a"></i>conveyor</span><span><i class="sw" style="background:#22302a"></i>supermarket</span>
+          <span><i class="sw" style="background:none;border:2px solid #f0c674;border-radius:5px"></i>dispatched for this incident</span>
         </div>
+        <div class="note">Robots and people without a yellow ring are normal shift activity: parked AGVs, operators at their stations.</div>
         <div class="row">
           <button class="act start" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30</button>
           <button class="act" data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault + stall</button>
@@ -120,6 +128,11 @@
     <div>
       <div class="panel">
         <h2>Decision</h2>
+        <div class="seg" role="radiogroup" aria-label="Autonomy">
+          <button data-mode="auto" class="on" title="Routine, safe ACT decisions run by themselves; you can override">Auto</button>
+          <button data-mode="supervised" title="Nothing moves until you approve">Supervised</button>
+          <button data-mode="advisory" title="Agents only recommend; you dispatch">Advisory</button>
+        </div>
         <div id="decision" class="muted">Pick an incident to start.</div>
         <div class="row"><button class="act ok" id="approve" disabled>Approve</button><button class="act bad" id="reject" disabled>Reject</button></div>
       </div>
@@ -161,7 +174,7 @@ const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;"
 const COLORS = {rack:"#33383f", conveyor:"#5b4b2a", robot_cell:"#47304f", paint_booth:"#2c4651", "X-WEST":"#4a4630", "X-EAST":"#4a4630",
   "LANE-N":"#1b2733", "LANE-S":"#1b2733", SMKT:"#22302a", CHG:"#262a3a", REWORK:"#2a2226", RECV:"#1f2a24", TEAM:"#1d2229", WALK:"#20262c", FLOOR:"#12161b"};
 const cv = $("floor"), ctx = cv.getContext("2d");
-let grid = null, stations = [], agents = [], fence = [], current = null;
+let grid = null, stations = [], agents = [], fence = [], current = null, involved = [], gate = "none";
 
 function show(view) {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.view === view));
@@ -180,6 +193,8 @@ function draw() {
   ctx.fillStyle = "rgba(229,83,75,.38)"; for (const [x, y] of fence) ctx.fillRect(x*c, y*c, c-1, c-1);
   for (const a of agents) {
     const bad = a.status === "fault" || a.status === "stalled", moving = a.status === "moving";
+    if (involved.includes(a.id)) { ctx.strokeStyle = "#f0c674"; ctx.lineWidth = 2;
+      ctx.strokeRect(a.x*c+1, a.y*c+1, c-3, c-3); }
     ctx.fillStyle = bad ? "#e5534b" : a.kind === "agv" ? (moving ? "#5aa9ff" : "#35618c") : (moving ? "#3fb27f" : "#2a6f50");
     if (a.kind === "agv") { ctx.fillRect(a.x*c+3, a.y*c+3, c-7, c-7);
       if (a.id) { ctx.fillStyle = "#e7eaee"; ctx.font = "9px system-ui"; ctx.fillText(a.id.split(":").pop().replace("AGV-", ""), a.x*c+7, a.y*c+14); } }
@@ -233,14 +248,16 @@ function narrate(st) {
     case "executor": return ["Executor", "dispatched the people and robots on the map. Watch them move."];
     case "verifier": return ["Verifier", st.ok ? "everything moved as predicted. Done." : `${(d.mismatches||[]).map(m => short(m.agent)).join(", ")} did not move as expected (stalled). Re-planning without it.`];
     case "safe_mode": return ["Safe mode", "the AI service is unavailable, so a rule-based plan is used and a human decides."];
-    case "human": return ["You", st.ok ? "approved the decision." : "rejected the decision. The robots were stopped."];
+    case "gate": return ["Human gate", d.gate === "auto_executed" ? "routine, safe ACT: executing now. You can still override with Roll back."
+      : d.gate === "advisory" ? "advisory mode: this is only a recommendation. Press Dispatch to send it." : "waiting for you: nothing moves until you approve (" + (d.reasons||[]).join("; ") + ")."];
+    case "human": return ["You", st.ok ? "approved the decision." : "rejected the decision."];
     default: return [st.step, ""];
   }
 }
 
 async function load() {
   const s = await (await fetch("/api/state")).json();
-  grid = s.grid; stations = s.stations; agents = s.agents; fence = s.geofence;
+  grid = s.grid; stations = s.stations; agents = s.agents; fence = s.geofence; involved = s.incident_agents || []; markMode(s.autonomy || "auto");
   $("mode").innerHTML = s.offline ? "mode <b>offline / replay</b>" : "mode <b>live</b>";
   $("tick").textContent = `tick ${s.tick}`; draw();
 }
@@ -277,7 +294,7 @@ function addStep(st) {
 }
 
 const es = new EventSource("/events");
-es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; $("tick").textContent = `tick ${s.tick}`; draw(); });
+es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
 es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
 es.addEventListener("step", e => addStep(JSON.parse(e.data)));
@@ -285,8 +302,18 @@ es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
 function showDecision(d) { const dec = d.decision ? d.decision.decision : "none";
   $("decision").innerHTML = `<span class="pill ${dec}">${dec}</span> · critic rejections <b>${d.critic_rejections}</b> · re-plans <b>${d.replans}</b>${d.safe_mode ? ' · <span class="bad-t">SAFE MODE</span>' : ""}`
     + (d.plan ? `<div class="muted" style="margin-top:6px">${esc(d.plan.rationale)}</div>` : "")
-    + (d.needs_approval ? '<div class="note" style="margin-top:6px">Waiting for a human to approve or reject.</div>' : "");
-  setButtons(true); load(); }
+    + gateBox(d.gate, d.gate_reasons);
+  gate = d.gate || "none"; setButtons(true); load(); }
+function gateBox(g, reasons) {
+  const r = (reasons || []).map(esc).join("; ");
+  if (g === "auto_executed") return `<div class="gate auto"><b>Auto-executed: you can override.</b> <span class="muted">${r}</span></div>`;
+  if (g === "awaiting_approval") return `<div class="gate wait"><b>Waiting for you.</b> Nothing moves until you approve. <span class="muted">${r}</span></div>`;
+  if (g === "advisory") return `<div class="gate wait"><b>Recommendation only.</b> Dispatch it yourself with the button below. <span class="muted">${r}</span></div>`;
+  if (g === "approved") return '<div class="gate done">Approved by you: dispatched.</div>';
+  if (g === "rejected") return '<div class="gate done">Rejected by you: nothing was dispatched.</div>';
+  if (g === "rolled_back") return '<div class="gate done">Rolled back by you: agents stopped and sent back.</div>';
+  return "";
+}
 async function restoreLast() {
   const r = await (await fetch("/api/last")).json();
   if (!r.incident) return;
@@ -294,13 +321,22 @@ async function restoreLast() {
   r.steps.forEach(addStep); showDecision(r.decision);
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
-  addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${a.approved ? "approved" : "rejected"} by ${esc(a.by)}: ${esc(a.action)}`; setButtons(false); });
+  addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (${esc(a.by)})`;
+  gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(false); load(); });
+es.addEventListener("autonomy", e => markMode(JSON.parse(e.data).mode));
+function markMode(m) { document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); }
+for (const b of document.querySelectorAll(".seg button")) b.onclick = async () => {
+  await fetch("/autonomy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode: b.dataset.mode})}); markMode(b.dataset.mode); };
 es.addEventListener("error", e => { if (e.data) $("decision").innerHTML = `<span class="bad-t">${esc(JSON.parse(e.data).error)}</span>`; });
 es.addEventListener("lab_status", () => { $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
 es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
 es.addEventListener("lab_written", e => { $("labout").insertAdjacentHTML("beforeend", `<div class="ok-t" style="margin-top:8px">Saved ${esc(JSON.parse(e.data).experiment_id)} to sf_ops.experiments via Zetaris</div>`); });
 
-function setButtons(on) { for (const id of ["approve", "reject"]) $(id).disabled = !on; }
+function setButtons(on) {
+  const labels = {auto_executed: ["Confirm", "Roll back"], awaiting_approval: ["Approve & dispatch", "Reject"], advisory: ["Dispatch", "Dismiss"]}[gate] || ["Approve", "Reject"];
+  $("approve").textContent = labels[0]; $("reject").textContent = labels[1];
+  for (const id of ["approve", "reject"]) $(id).disabled = !on || !["auto_executed", "awaiting_approval", "advisory"].includes(gate);
+}
 async function judge(approve) {
   await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: current, approve, by: "supervisor"})});
 }

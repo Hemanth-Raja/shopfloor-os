@@ -77,7 +77,12 @@
     "critic_rejections": 1,
     "replans": 0,
     "safe_mode": false,
-    "collisions": 0
+    "collisions": 0,
+    "autonomy": "auto",
+    "gate": "auto_executed",
+    "gate_reasons": [
+      "routine ACT: critic and dry-run passed; you can override"
+    ]
   },
   "agents": [
     {
@@ -119,6 +124,12 @@
     {
       "name": "restraint",
       "role": "Decides ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence and cost",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "gate",
+      "role": "",
       "runs": 1,
       "ok": true
     },

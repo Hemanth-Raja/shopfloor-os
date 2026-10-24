@@ -147,6 +147,13 @@ reflex (geofence, stop/reroute AGVs, < 100 ms, rules only)
  -> dry-run (60 s headless sim, A* with a reservation table) -> restraint (ACT | VERIFY | SAFE_HOLD | ESCALATE | DO_NOTHING)
  -> executor -> verifier (re-plans when the world did not change as predicted) -> human approve/reject (web UI)
 ```
+**Autonomy and the human gate.** The UI switch, or `options.autonomy` in the API, sets how much the agents may do alone:
+- **Auto (default):** a routine ACT that passed the critic and the dry-run runs at once, and a person can *Roll back*, which stops the agents and sends them back. A person entering a hazard (spill clean-up, machine repair), a lapsed certificate, or an ESCALATE, SAFE_HOLD or DO_NOTHING decision waits for *Approve*.
+- **Supervised:** every dispatch waits for approval.
+- **Advisory:** the agents only recommend, and a person dispatches.
+
+On the map, the agents dispatched for the current incident have a yellow ring; everything else is normal shift activity. Every judgement is logged to `logs/approvals.jsonl`.
+
 Every loop is bounded:
 - critic retries: 3;
 - re-plans: 3;

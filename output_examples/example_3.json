@@ -69,7 +69,12 @@
     "critic_rejections": 0,
     "replans": 0,
     "safe_mode": false,
-    "collisions": 0
+    "collisions": 0,
+    "autonomy": "auto",
+    "gate": "awaiting_approval",
+    "gate_reasons": [
+      "a person would enter the overheat hazard area"
+    ]
   },
   "agents": [
     {
@@ -115,14 +120,8 @@
       "ok": true
     },
     {
-      "name": "executor",
-      "role": "Dispatches the agents in the simulator",
-      "runs": 1,
-      "ok": true
-    },
-    {
-      "name": "verifier",
-      "role": "Checks that the world changed as predicted and triggers a re-plan if not",
+      "name": "gate",
+      "role": "",
       "runs": 1,
       "ok": true
     }

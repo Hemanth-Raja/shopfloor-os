@@ -10,6 +10,7 @@
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
     POST /run          {"kind", "station", "agv", "false_alarm", "stall_after", "seed"} -> runs the agent loop
     POST /approve      {"incident_id", "approve": true|false, "by"} -> a human judges the decision
+    POST /autonomy     {"mode": "auto" | "supervised" | "advisory"} -> how much the agents may do on their own
     POST /api/run      JSON run contract (see app/api.py): runs one incident synchronously, returns JSON
 
 Humans judge: an ACT plan is already executing, and rejecting it stops the agents involved. ESCALATE,
@@ -85,6 +86,7 @@ class App:
         self.memory = None if replay else PlaybookStore()  # learned lessons would change the replay keys
         self.traces: dict[str, object] = {}
         self.last_lab: dict | None = None
+        self.autonomy = "auto"
         self.busy = False
         threading.Thread(target=self._ticker, daemon=True).start()
 
@@ -105,8 +107,10 @@ class App:
     def snapshot(self, full: bool = True) -> dict:
         agents = [{"id": a.id, "kind": a.kind, "x": a.pos[0], "y": a.pos[1], "status": a.status}
                   for a in self.sim.agents.values()]
+        last = list(self.traces.values())[-1] if self.traces else None
+        involved = sorted(last.dispatch) if last else []
         out = {"tick": self.sim.tick, "agents": agents, "geofence": sorted(self.sim.geofence),
-               "collisions": len(self.sim.collisions)}
+               "collisions": len(self.sim.collisions), "incident_agents": involved, "autonomy": self.autonomy}
         if full:
             out["grid"] = {"cols": self.grid.cols, "rows": self.grid.rows,
                            "cells": [[x, y, label] for (x, y), label in sorted(self.grid.cells.items())]}
@@ -133,6 +137,7 @@ class App:
         try:
             llm_json, llm_text = self.llm()
             orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
+                                autonomy=req.get("autonomy") or self.autonomy,
                                 on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
             with self.lock:
@@ -141,31 +146,46 @@ class App:
             self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
                                           "plan": trace.plan.model_dump() if trace.plan else None,
                                           "critic_rejections": trace.critic_rejections, "replans": trace.replans,
-                                          "safe_mode": trace.safe_mode,
-                                          "needs_approval": bool(trace.decision and trace.decision.decision != "ACT")})
+                                          "safe_mode": trace.safe_mode, "gate": trace.gate,
+                                          "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy})
         except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
             self.bus.publish("error", {"incident": inc.id, "error": f"{type(err).__name__}: {err}"[:300]})
         finally:
             self.busy = False
 
     def approve(self, req: dict) -> dict:
+        """The human gate. Waiting/advisory plans run only on Approve; an auto-executed plan can be rejected,
+        which stops its agents and sends them back where they started (roll-back)."""
+        from app.orchestrator import executable_plan
         trace = self.traces.get(req.get("incident_id"))
         if trace is None:
             raise KeyError("unknown incident")
         approved = bool(req.get("approve"))
         action = "none"
         with self.lock:
-            if approved and trace.plan and trace.decision and trace.decision.decision != "ACT":
-                execute(trace.plan, trace.incident, self.plant, self.sim)
-                action = "plan executed after human approval"
-            elif not approved and trace.plan:
-                for aid in list(trace.plan.assignee_ids) + [r.agv_id for r in trace.plan.agv_routes]:
-                    if aid in self.sim.agents and self.sim.agents[aid].status == "moving":
+            plan = executable_plan(trace)
+            if trace.gate in ("awaiting_approval", "advisory"):
+                if approved and plan is not None:
+                    for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
+                        if aid in self.sim.agents:
+                            trace.dispatch.setdefault(aid, list(self.sim.agents[aid].pos))
+                    execute(plan, trace.incident, self.plant, self.sim)
+                    trace.gate, action = "approved", "plan dispatched after human approval"
+                else:
+                    trace.gate, action = "rejected", "plan dropped by the human; nothing was dispatched"
+            elif trace.gate == "auto_executed" and not approved:
+                for aid, start in trace.dispatch.items():
+                    if aid in self.sim.agents:
                         self.sim.stop(aid)
-                action = "agents stopped after human rejection"
+                        if tuple(start) != self.sim.agents[aid].pos:
+                            self.sim.assign(aid, tuple(start))  # roll back: return to where it started
+                trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
+            elif approved:
+                action = "auto-executed plan confirmed by the human"
+        self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": approved,
                   "by": req.get("by", "supervisor"), "decision": trace.decision.decision if trace.decision else None,
-                  "action": action}
+                  "gate": trace.gate, "action": action}
         APPROVALS.parent.mkdir(parents=True, exist_ok=True)
         with APPROVALS.open("a") as fh:
             fh.write(json.dumps(record) + "\n")
@@ -182,8 +202,8 @@ class App:
                 "decision": {"incident": trace.incident.id, "decision": trace.decision.model_dump() if trace.decision else None,
                              "plan": trace.plan.model_dump() if trace.plan else None,
                              "critic_rejections": trace.critic_rejections, "replans": trace.replans,
-                             "safe_mode": trace.safe_mode,
-                             "needs_approval": bool(trace.decision and trace.decision.decision != "ACT")}}
+                             "safe_mode": trace.safe_mode, "gate": trace.gate,
+                             "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy}}
 
     def knowledge(self) -> dict:
         """What the agents know: the plant World Model (with live sim state) and the H-MEM lessons."""
@@ -326,6 +346,13 @@ def make_handler(app: App):
                     from app.api import run_request
                     result = run_request(self._json(), echo=True)
                     return self._send(200 if result["status"] == "success" else 422, result)
+                if self.path == "/autonomy":
+                    mode = self._json().get("mode")
+                    if mode not in ("auto", "supervised", "advisory"):
+                        raise ValueError("mode must be auto, supervised or advisory")
+                    app.autonomy = mode
+                    app.bus.publish("autonomy", {"mode": mode})
+                    return self._send(200, {"autonomy": mode})
                 if self.path == "/lab/run":
                     app.lab()
                     return self._send(202, {"status": "running"})

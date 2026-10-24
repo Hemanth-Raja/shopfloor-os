@@ -7,7 +7,7 @@ Request:
     {"run_id": "demo-001",
      "input": {"kind": "part_shortage", "station": "F30", "agv": null, "false_alarm": false,
                "stall_after": null, "seed": 42},
-     "options": {"sample_mode": false, "memory": false}}
+     "options": {"sample_mode": false, "memory": false, "autonomy": "auto"}}   # auto | supervised | advisory
 
 Response: run_id, status, output (decision, plan, citations, ...), agents, models, trace_id, log_file,
 execution_time_seconds. Failures return status "error" with a typed, structured error instead of crashing.
@@ -93,7 +93,8 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
         except KeyError as err:
             raise RunError("InvalidInput", f"unknown station {inp.get('station')}", recoverable=False) from err
         memory = PlaybookStore() if opts.get("memory") else None
-        orch = Orchestrator(plant, sim, llm_json, llm_text, memory=memory, run_id=run_id, echo=echo)
+        orch = Orchestrator(plant, sim, llm_json, llm_text, memory=memory, run_id=run_id, echo=echo,
+                            autonomy=opts.get("autonomy", "auto"))
         stall = (0, int(inp["stall_after"])) if inp.get("stall_after") not in (None, "") else None
         trace = orch.handle(incident, stall=stall)
     except RunError as err:
@@ -130,6 +131,7 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
             "citations": planner[-1].detail.get("citations", []) if planner else [],
             "critic_rejections": trace.critic_rejections, "replans": trace.replans,
             "safe_mode": trace.safe_mode, "collisions": len(sim.collisions),
+            "autonomy": trace.autonomy, "gate": trace.gate, "gate_reasons": trace.gate_reasons,
         },
         "agents": list(agents.values()),
         "models": models,
