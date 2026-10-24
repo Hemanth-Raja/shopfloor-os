@@ -276,10 +276,13 @@ def make_handler(app: App):
             return json.loads(self.rfile.read(n) or b"{}")
 
         def do_GET(self):  # noqa: N802
+            self.path = self.path.split("?", 1)[0]  # ignore query strings (e.g. /?shot)
             if self.path in ("/", "/index.html"):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
             if self.path == "/api/state":
                 return self._send(200, app.snapshot())  # lock-free read: the loop may hold the lock during LLM calls
+            if self.path == "/api/lab_last":
+                return self._send(200, app.last_lab or {})
             if self.path == "/api/last":
                 return self._send(200, app.last())
             if self.path == "/api/knowledge":

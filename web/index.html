@@ -288,7 +288,9 @@ async function health() {
     $("health").classList.remove("muted");
   } catch { $("health").textContent = "health unavailable"; }
 }
+if (location.search.includes("shot")) $("trace").style.maxHeight = "none";  // full trace for screenshots
 load(); health(); restoreLast(); setInterval(health, 15000);
+fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
 if (["#lab", "#know"].includes(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
