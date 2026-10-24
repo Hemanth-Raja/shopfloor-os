@@ -226,6 +226,16 @@ written to `logs/trace-ask-<id>.jsonl`. Without Nightshift, a rule-based coordin
 In sample mode the three example questions replay recorded Nemotron replies and Zetaris rows; any other question
 runs on an offline SQLite copy of the four sources, built from `data/seed` on first use.
 
+### The agents' own history, in Zetaris
+The JSONL files in `logs/` are the source of truth (they work offline and survive a Zetaris outage). Every 30 s the
+live server also copies new lines into Postgres (`app/logsync.py`, or `run.py logsync`), and Zetaris federates them
+next to the plant data: `sf_ops.agent_steps` (one row per agent step), `sf_ops.llm_calls` (requested vs answering
+model, latency, tokens) and `sf_ops.journal` (the hash-chained shift journal). Ask the floor sees these tables only
+for questions about the agents, for example:
+
+> *Which safety rule does the critic reject most often, and how often did the planner model answer as requested?*
+> R-TORQUE-QA (233 rejections), then R-CROSSING (201); the planner was served the requested model in 77 of 78 calls.
+
 ## Autopilot: a whole shift, many incidents at once
 `run.py shift --minutes 8 --seed 7 --rate 2.5` runs headless; the **Run shift** form under the map runs it in the UI.
 
