@@ -110,7 +110,13 @@ class Orchestrator:
             clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
             plan = make_plan(incident, cands, self.llm_json, feedback, clauses)
             cited = self.citations.resolve(plan.citations)
-            self._step(trace, "planner", t, True, attempt=attempt, model=LAST_MODEL.get("planner"), assignees=plan.assignee_ids,
+            prompt = {"incident": f"{incident.kind} at {incident.station_id or incident.zone_id}",
+                      "worker_candidates": [c.id.split(":")[-1] for c in cands["workers"]],
+                      "agv_candidates": [c.id.split(":")[-1] for c in cands["agvs"]],
+                      "clauses_shown": [c["ref"] for c in clauses],
+                      "critic_feedback": [v.rule_id for v in (feedback or [])]}
+            self._step(trace, "planner", t, True, attempt=attempt, model=LAST_MODEL.get("planner"), prompt=prompt,
+                       assignees=plan.assignee_ids,
                        agv_routes=[r.model_dump() for r in plan.agv_routes], priority=plan.priority,
                        citations=cited, uncited=[r for r in plan.citations if r not in self.citations.by_ref])
             t = time.perf_counter()

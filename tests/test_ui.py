@@ -25,3 +25,20 @@ def test_offline_health_reports_each_dependency(monkeypatch):
     h = server.App(offline=True, replay=True).health()
     assert h["mode"] == "offline" and h["zetaris"]["status"] == "offline" and h["nightshift"]["status"] == "offline"
     assert h["floor"]["status"] == "ok" and h["overall"] == "ok"
+
+
+def test_flow_tab_has_every_agent_and_both_loops():
+    assert 'data-view="flow"' in HTML and 'id="flownodes"' in HTML and 'id="flowdetail"' in HTML
+    flow = HTML.split("const FLOW = [")[1].split("];")[0]
+    for step in ("reflex", "monitor", "memory", "candidates", "planner", "critic", "dryrun", "restraint", "gate",
+                 "executor", "verifier"):
+        assert f'"{step}"' in flow
+    assert 'id="loop-critic"' in HTML and 'id="loop-replan"' in HTML
+
+
+def test_watch_describes_steps_in_plain_english():
+    from app.watch import describe_step, model_name
+    assert model_name("nvidia/nemotron-3.5-super-vl-120b-a12b") == "Nemotron-Super"
+    line = describe_step({"step": "critic", "ok": False, "detail": {"violations": [
+        {"rule_id": "R-CROSSING", "detail": "AGV-5 too fast", "cfr_ref": "x", "citations": [{"ref": "29 CFR 1910.178(n)(4)"}]}]}})
+    assert line.startswith("REJECTED") and "29 CFR 1910.178(n)(4)" in line

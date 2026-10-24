@@ -145,6 +145,15 @@ def run_file(path: str, out: str | None):
         Path(out).write_text(text + "\n")
 
 
+def watch():
+    from app.watch import follow
+
+    try:
+        follow()
+    except KeyboardInterrupt:
+        pass
+
+
 def health():
     from app.runtime import health as check
 
@@ -163,6 +172,7 @@ if __name__ == "__main__":
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
+    sub.add_parser("watch", help="live, human-readable view of the agents' logs (run in a second terminal)")
     rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
     rf.add_argument("file")
     rf.add_argument("--out", default=None, help="also write the JSON result to this file")
@@ -186,6 +196,8 @@ if __name__ == "__main__":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
     elif args.command == "health":
         health()
+    elif args.command == "watch":
+        watch()
     elif args.command == "run":
         run_file(args.file, args.out)
     elif args.command == "lab":

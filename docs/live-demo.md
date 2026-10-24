@@ -20,6 +20,11 @@
 4. Press **Ctrl+F5** in the browser. Check the header says `mode live` and the Health panel shows Zetaris and
    Nightshift as ok.
 
+### Seeing what happens, live
+- **Flow tab** (next to Live floor): the pipeline as boxes. The active agent lights up, and the critic-retry and re-plan loops count up. Click any box for its full input and output: what was sent to Nemotron, which model answered, and how long it took.
+- **Second terminal:** `cd ~/hackathon/shopfloor-os && .venv/bin/python run.py watch`. This prints one line per step, Nemotron call and approval.
+- **Raw logs:** each incident writes its own file, `logs/trace-<incident id>.jsonl`; `logs/llm.jsonl` records every Nemotron call. For example `tail -f logs/llm.jsonl`, or `ls -t logs/trace-*.jsonl | head -1 | xargs tail -f` for the newest incident. The old single `logs/trace.jsonl` is no longer written.
+
 ## 2. The demo flow (follow `docs/demo-script.md`)
 | Step | Click | What the audience sees | Live timing |
 |---|---|---|---|

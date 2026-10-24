@@ -137,7 +137,7 @@ class App:
         try:
             llm_json, llm_text = self.llm()
             orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
-                                autonomy=req.get("autonomy") or self.autonomy,
+                                autonomy=req.get("autonomy") or self.autonomy, echo=True,
                                 on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
             with self.lock:

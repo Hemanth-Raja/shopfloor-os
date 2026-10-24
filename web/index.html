@@ -69,6 +69,17 @@
   .gate { margin-top:8px; padding:8px 10px; border-radius:8px; font-size:13px; }
   .gate.auto { background:#16302a; border:1px solid #2b6e50; } .gate.wait { background:#3b2f14; border:1px solid #8a6a22; }
   .gate.done { background:var(--panel2); border:1px solid var(--line); }
+  .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
+  .node { position:relative; width:170px; min-height:96px; padding:9px 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); cursor:pointer; transition:all .25s; }
+  .node h3 { margin:0 0 4px; font-size:13px; } .node .what { font-size:11px; color:var(--muted); }
+  .node .out { font-size:12px; margin-top:6px; } .node .dur { position:absolute; top:8px; right:10px; font-size:11px; color:var(--muted); }
+  .node.active { border-color:var(--accent); box-shadow:0 0 0 3px rgba(90,169,255,.25); background:#16263a; }
+  .node.ok { border-color:#2b6e50; } .node.fail { border-color:#7a3430; background:#2a1a1b; } .node.sel { outline:2px solid #f0c674; }
+  .arrow { align-self:center; color:var(--muted); font-size:18px; }
+  .loop { font-size:12px; padding:3px 9px; border-radius:10px; background:#2a2236; color:#cbbdfd; border:1px solid #4a3a6a; display:inline-block; margin:8px 8px 0 0; }
+  .loop.flash { animation:flashloop 1.2s ease-in-out 2; }
+  @keyframes flashloop { 50% { background:#5b3fa0; color:#fff; } }
+  #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
 </style>
 </head>
@@ -86,6 +97,7 @@
 </header>
 <nav>
   <button class="on" data-view="live">Live floor</button>
+  <button data-view="flow">Flow</button>
   <button data-view="lab">Lab</button>
   <button data-view="know">What the agents know</button>
 </nav>
@@ -140,6 +152,19 @@
       <div class="panel"><h2>Health</h2><div id="health" class="muted">checking…</div></div>
     </div>
   </div>
+</section>
+
+<section class="view" id="flow">
+  <div class="panel">
+    <h2>How the agents handled the incident</h2>
+    <p class="note">Each box is one agent. The box lights up while it works, turns green or red when done, and shows its
+      last output and how long it took. Click a box to see everything it received and produced, including what was sent
+      to Nemotron, the model that answered, and its latency. Start an incident on the Live floor tab and come back here,
+      or keep both visible.</p>
+    <div class="flow" id="flownodes"></div>
+    <div><span class="loop" id="loop-critic">⟲ critic → planner retries: 0</span><span class="loop" id="loop-replan">⟲ verifier → re-plans: 0</span></div>
+  </div>
+  <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent box.</div></div>
 </section>
 
 <section class="view" id="lab">
@@ -255,6 +280,51 @@ function narrate(st) {
   }
 }
 
+const FLOW = [["reflex", "Reflex", "geofence, stop robots (rules)"], ["monitor", "Monitor", "real alarm or noise?"],
+  ["memory", "Memory (H-MEM)", "lessons from the past"], ["candidates", "Candidates", "World Model via one Zetaris query"],
+  ["planner", "Planner", "Nemotron proposes a plan"], ["critic", "Safety critic", "OSHA rules + citations"],
+  ["dryrun", "Dry run", "60 s simulation"], ["restraint", "Restraint", "ACT / VERIFY / ESCALATE"],
+  ["gate", "Human gate", "auto or wait for you"], ["executor", "Executor", "dispatch on the floor"],
+  ["verifier", "Verifier", "did the world change as predicted?"]];
+const flowLast = {}; let loops = {critic: 0, replan: 0}, flowSel = null;
+function flowReset() {
+  for (const k in flowLast) delete flowLast[k]; loops = {critic: 0, replan: 0}; flowSel = null;
+  $("flownodes").innerHTML = FLOW.map(([k, name, what], i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="node" id="node-${k}" data-k="${k}">
+    <h3>${name}</h3><div class="what">${what}</div><div class="dur"></div><div class="out muted">waiting</div></div>`).join("");
+  for (const n of document.querySelectorAll(".node")) n.onclick = () => flowShow(n.dataset.k);
+  $("loop-critic").textContent = "⟲ critic → planner retries: 0"; $("loop-replan").textContent = "⟲ verifier → re-plans: 0";
+  $("flowdetail").innerHTML = "Click an agent box."; $("flowdetail").classList.add("muted"); $("flowtitle").textContent = "Details";
+}
+function flowStep(st) {
+  const n = $("node-" + st.step); if (!n) return;
+  if (st.step === "planner" && (st.detail || {}).attempt > 1) { loops.critic++; $("loop-critic").textContent = `⟲ critic → planner retries: ${loops.critic}`;
+    $("loop-critic").classList.remove("flash"); void $("loop-critic").offsetWidth; $("loop-critic").classList.add("flash"); }
+  if (st.step === "candidates" && flowLast.verifier && !flowLast.verifier.ok) { loops.replan++; $("loop-replan").textContent = `⟲ verifier → re-plans: ${loops.replan}`;
+    $("loop-replan").classList.remove("flash"); void $("loop-replan").offsetWidth; $("loop-replan").classList.add("flash");
+    for (const k of ["candidates", "planner", "critic", "dryrun", "restraint", "gate", "executor", "verifier"]) { const m = $("node-" + k); if (m) m.className = "node"; } }
+  document.querySelectorAll(".node.active").forEach(x => x.classList.remove("active"));
+  flowLast[st.step] = st;
+  n.className = "node " + (st.ok ? "ok" : "fail") + (flowSel === st.step ? " sel" : "");
+  const idx = FLOW.findIndex(f => f[0] === st.step), next = FLOW[idx + 1];
+  if (next && st.step !== "verifier" && !(st.step === "gate" && (st.detail || {}).gate !== "auto_executed")) $("node-" + next[0])?.classList.add("active");
+  n.querySelector(".dur").textContent = st.ms >= 100 ? (st.ms / 1000).toFixed(1) + " s" : st.ms.toFixed(1) + " ms";
+  n.querySelector(".out").classList.remove("muted"); n.querySelector(".out").textContent = narrate(st)[1].slice(0, 110);
+  if (flowSel === st.step) flowShow(st.step);
+}
+function flowShow(k) {
+  flowSel = k; document.querySelectorAll(".node").forEach(x => x.classList.toggle("sel", x.dataset.k === k));
+  const st = flowLast[k], name = FLOW.find(f => f[0] === k)[1];
+  $("flowtitle").textContent = `${name}: details`;
+  if (!st) { $("flowdetail").innerHTML = "This agent has not run yet for this incident."; return; }
+  const d = st.detail || {};
+  const head = k === "planner" ? `<p><b>Model:</b> ${esc(d.model || "-")} · <b>latency:</b> ${(st.ms / 1000).toFixed(1)} s · <b>attempt:</b> ${d.attempt}</p>
+     <p><b>What was sent to Nemotron:</b></p><pre>${esc(JSON.stringify(d.prompt || {}, null, 2))}</pre><p><b>What came back:</b></p>`
+    : `<p><b>${st.ok ? "ok" : "failed"}</b> · ${st.ms.toFixed(1)} ms · ${esc(narrate(st)[1])}</p>`;
+  const rest = Object.fromEntries(Object.entries(d).filter(([key]) => key !== "prompt"));
+  $("flowdetail").classList.remove("muted");
+  $("flowdetail").innerHTML = head + `<pre>${esc(JSON.stringify(rest, null, 2))}</pre>`;
+}
+
 async function load() {
   const s = await (await fetch("/api/state")).json();
   grid = s.grid; stations = s.stations; agents = s.agents; fence = s.geofence; involved = s.incident_agents || []; markMode(s.autonomy || "auto");
@@ -288,6 +358,7 @@ function addStep(st) {
   const div = document.createElement("div"); div.className = "step";
   div.innerHTML = `<span class="n ${st.ok ? "ok-t" : "bad-t"}">${esc(st.step)}</span><span class="ms">${st.ms.toFixed(0)} ms</span>${note(st)}`;
   t.appendChild(div); t.scrollTop = t.scrollHeight;
+  flowStep(st);
   const [who, text] = narrate(st);
   $("narration").classList.remove("muted");
   $("narration").innerHTML = `<span class="who">${esc(who)}:</span> ${esc(text)}`;
@@ -295,7 +366,7 @@ function addStep(st) {
 
 const es = new EventSource("/events");
 es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
-es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; $("trace").classList.remove("muted");
+es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; flowReset(); $("node-reflex").classList.add("active"); $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
 es.addEventListener("step", e => addStep(JSON.parse(e.data)));
 es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
@@ -317,7 +388,7 @@ function gateBox(g, reasons) {
 async function restoreLast() {
   const r = await (await fetch("/api/last")).json();
   if (!r.incident) return;
-  current = r.incident.id; $("trace").innerHTML = "";
+  current = r.incident.id; $("trace").innerHTML = ""; flowReset();
   r.steps.forEach(addStep); showDecision(r.decision);
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
@@ -409,9 +480,9 @@ async function health() {
   } catch { $("health").textContent = "checking… (retrying)"; setTimeout(health, 3000); }
 }
 if (location.search.includes("shot")) $("trace").style.maxHeight = "none";  // full trace for screenshots
-load(); health(); restoreLast(); setInterval(health, 15000);
+flowReset(); load(); health(); restoreLast(); setInterval(health, 15000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
-if (["#lab", "#know"].includes(location.hash)) show(location.hash.slice(1));
+if (["#lab", "#know", "#flow"].includes(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
 </html>

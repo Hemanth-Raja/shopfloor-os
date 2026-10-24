@@ -113,6 +113,10 @@ than a crash.
 | `example_4.json`: coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | `example_4.json` |
 
 ### Logs
+**Watch it live:**
+- **Flow tab** in the web UI: a box per agent. The active box lights up, retries and re-plans count up, and clicking a box shows what it received and produced, including what was sent to Nemotron, the model that answered and the latency.
+- **`python run.py watch`** in a second terminal: one coloured, plain-English line per agent step, Nemotron call and human judgement, for example `12:03:04 PLANNER  1.2s  Nemotron-Super attempt 2 -> send W-18; AGV-5->F30 1.0/0.5 m/s`.
+
 Every run writes `logs/trace-<run_id>.jsonl`, one JSON object per agent step. Each record has the agent, ok,
 timing, inputs and outputs, critic violations with clauses, the model that answered, and retries and re-plans.
 Every step is also printed as an `[INFO] run_id=… agent=…` line on stdout.
