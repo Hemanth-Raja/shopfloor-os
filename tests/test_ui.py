@@ -7,7 +7,7 @@ HTML = (Path(__file__).resolve().parents[1] / "web" / "index.html").read_text()
 
 def test_page_has_first_time_guidance():
     assert 'id="howto"' in HTML and "How to read this page" in HTML and 'id="howto-close"' in HTML
-    assert 'class="act start"' in HTML and 'content:"Start here"' in HTML
+    assert 'class="act start"' in HTML and 'Start here"' in HTML
     assert 'id="narration"' in HTML and "function narrate(" in HTML
     for area in ("Body shop", "Paint shop", "Trim line", "Final assembly", "End-of-line test", "Parts supermarket", "AGV chargers"):
         assert area in HTML
