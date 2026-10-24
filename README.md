@@ -452,6 +452,9 @@ The shift handover (`app/handover.py`) runs on a Python port of the **Meterless 
 - Every run is a record in `logs/markovian.jsonl`: per-chunk prompt size, carryover size and which compression tier
   was used. The command prints the real prompt tokens against what re-sending the history would have cost
   (characters / 4, the spec's estimate, not a tokenizer).
+- Measured on a live run over three shifts (255 journal events, 5 chunks, Nemotron 3.5 Super VL): 8,326 prompt
+  tokens sent, against 25,042 if each step had re-sent the earlier slices and answers (67% saved, chars/4 estimate).
+  The carried state never went above about 260 tokens.
 - `tests/test_markovian.py` checks config bounds, the marker protocol, the cascade order, the spec's token
   formulas, abort and reflection failure, and the handover slicing (no network).
 
@@ -600,6 +603,8 @@ Things that failed during the build, found by tests, fuzzing, the runtime monito
 | Free endpoints throttled (429, empty replies) when several incidents ran at once | Live shifts | Retries with full-jitter backoff, a per-model AIMD limit, hedged requests, breakers; live demos and eval runs pin concurrency at 2 (`MODEL_CONCURRENCY_MAX`) |
 | Headless live shifts ticked faster than the models answered, so incidents were cut off | Live shift runs | The floor clock runs at the UI's pace and the shift waits (capped) for open incidents |
 | Broken JSON from the model | Schema validation on every reply | Mechanical repair first, then one re-ask, then the next model |
+| The shift handover came back empty (HTTP 502 "empty_response") | Live run; a raw request showed Nightshift's error body | The model reasons before it answers: with a 1,500-2,000-token budget it spent everything thinking. The handover now runs on Super VL with 6,000 tokens and a direct per-chunk prompt; it also read only 3 of 5 slices once, because the model signalled completion early, so the engine now reads every slice |
+| Ask the floor answers recorded for the offline demo did not replay | Sample-mode check after recording | Live rows and their JSON copy differed in number formatting, so later prompts hashed differently; record mode now hands the agents the rows exactly as a replay will see them |
 | Port 8000 is taken by Windows on the demo PC | First live demo | The server takes `--port`; docs use 8100 |
 
 ## Autonomy levels
