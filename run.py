@@ -105,6 +105,27 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
           f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
 
 
+def lab(write: bool):
+    from app.fixtures import maybe_sample
+    from app.lab.experiment import experiment_row, run_experiment, write_local
+    from app.runtime import chat_json as guarded_json, run_sql as guarded_sql
+
+    result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
+    h = result["hypothesis"]
+    print(f"Hypothesis ({result['source']}): {h['hypothesis']}")
+    print(f"Policy {h['policy']} | expected {h['expected_effect_pct']}%")
+    print(f"{result['incidents']} historical incidents re-scored, {len(result['replays'])} seeded replays (no LLM):")
+    for r in result["replays"][:5]:
+        print(f"  seed {r['seed']}: baseline {r['baseline_mean_s']} s -> treatment {r['treatment_mean_s']} s")
+    print(f"Effect {result['effect_pct']}% (95% CI {result['ci_low_pct']}% to {result['ci_high_pct']}%), "
+          f"{result['baseline_mean_s']} s -> {result['treatment_mean_s']} s | {result['status']}")
+    row = experiment_row(result)
+    if write:
+        print(f"Wrote {write_local(row)} to local Postgres ops.experiments (Zetaris unchanged)")
+    else:
+        print("Proposal (not written):", json.dumps(row))
+
+
 def health():
     from app.runtime import health as check
 
@@ -123,6 +144,8 @@ if __name__ == "__main__":
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
+    lab_p = sub.add_parser("lab", help="Lab Level 2: hypothesis, seeded replays, bootstrap CI, experiment proposal")
+    lab_p.add_argument("--write", action="store_true", help="insert the proposal into local Postgres ops.experiments")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
     inc.add_argument("--kind", required=True, choices=["part_shortage", "agv_fault", "overheat", "spill"])
     inc.add_argument("--station", default=None)
@@ -139,5 +162,7 @@ if __name__ == "__main__":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
     elif args.command == "health":
         health()
+    elif args.command == "lab":
+        lab(args.write)
     else:
         models()
