@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"F10 stoppages are driven primarily by missing-part andon events and part-shortage incidents, with equipment and torque faults as secondary contributors and recurring M-06 machine failures.\", \"findings\": [{\"claim\": \"Missing-part andon events stop the F10 line most frequently, with 97 line stops on shift A and 60 on shift B out of 208 and 145 events respectively.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Part shortage incidents create the largest downtime, led by supplier_short on shift A with 423.7 min downtime and 338 cars lost.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Torque faults are the next biggest incident downtime source, with controller_fault on shift A totaling 272.0 min downtime and 216 cars lost.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Equipment andon events also halt production often, causing 65 line stops on shift A and 66 on shift B.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Telemetry shows machine M-06 repeatedly fails, including overstrain failures, with tool wear peaking at 189.7 min on 2026-09-13.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Address F10 stoppages first by securing supplier parts and AGV availability, then implement preventive maintenance on M-06 to reduce overstrain failures and tool wear.\"}",
+ "data": {
+  "summary": "F10 stoppages are driven primarily by missing-part andon events and part-shortage incidents, with equipment and torque faults as secondary contributors and recurring M-06 machine failures.",
+  "findings": [
+   {
+    "claim": "Missing-part andon events stop the F10 line most frequently, with 97 line stops on shift A and 60 on shift B out of 208 and 145 events respectively.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Part shortage incidents create the largest downtime, led by supplier_short on shift A with 423.7 min downtime and 338 cars lost.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Torque faults are the next biggest incident downtime source, with controller_fault on shift A totaling 272.0 min downtime and 216 cars lost.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Equipment andon events also halt production often, causing 65 line stops on shift A and 66 on shift B.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Telemetry shows machine M-06 repeatedly fails, including overstrain failures, with tool wear peaking at 189.7 min on 2026-09-13.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Address F10 stoppages first by securing supplier parts and AGV availability, then implement preventive maintenance on M-06 to reduce overstrain failures and tool wear."
+ }
+}

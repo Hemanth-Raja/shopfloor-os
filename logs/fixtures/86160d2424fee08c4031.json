@@ -1,0 +1,23 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT kind, cause, shift_code, false_alarm, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, SUM(cost_usd) AS total_cost_usd, ROUND(AVG(response_s), 1) AS avg_response_s, MIN(ts) AS min_ts, MAX(ts) AS max_ts FROM sf_ops.incidents WHERE station_id = 'F10' GROUP BY kind, cause, shift_code, false_alarm ORDER BY total_downtime_min DESC\", \"columns\": [\"kind\", \"cause\", \"shift_code\", \"false_alarm\", \"incident_count\", \"total_downtime_min\", \"total_cars_lost\", \"total_cost_usd\", \"avg_response_s\", \"min_ts\", \"max_ts\"], \"purpose\": \"Aggregate F10 station incidents by kind, cause, shift, and false alarm flag, ranked by total downtime.\"}",
+ "data": {
+  "sql": "SELECT kind, cause, shift_code, false_alarm, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, SUM(cost_usd) AS total_cost_usd, ROUND(AVG(response_s), 1) AS avg_response_s, MIN(ts) AS min_ts, MAX(ts) AS max_ts FROM sf_ops.incidents WHERE station_id = 'F10' GROUP BY kind, cause, shift_code, false_alarm ORDER BY total_downtime_min DESC",
+  "columns": [
+   "kind",
+   "cause",
+   "shift_code",
+   "false_alarm",
+   "incident_count",
+   "total_downtime_min",
+   "total_cars_lost",
+   "total_cost_usd",
+   "avg_response_s",
+   "min_ts",
+   "max_ts"
+  ],
+  "purpose": "Aggregate F10 station incidents by kind, cause, shift, and false alarm flag, ranked by total downtime."
+ }
+}

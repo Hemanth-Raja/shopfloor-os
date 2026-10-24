@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT i.machine_id, i.station_id, COUNT(*) AS incident_count, SUM(CAST(i.false_alarm AS INT)) AS false_alarm_count, ROUND(AVG(CAST(i.false_alarm AS DOUBLE)) * 100, 1) AS false_alarm_share_pct, ROUND(AVG(i.downtime_min), 1) AS avg_downtime_min, ROUND(AVG(i.outdoor_temp_c), 1) AS avg_outdoor_temp_c FROM sf_ops.incidents i WHERE i.kind = 'machine_overheat' GROUP BY i.machine_id, i.station_id ORDER BY false_alarm_share_pct DESC, incident_count DESC\", \"columns\": [\"machine_id\", \"station_id\", \"incident_count\", \"false_alarm_count\", \"false_alarm_share_pct\", \"avg_downtime_min\", \"avg_outdoor_temp_c\"], \"purpose\": \"Aggregate machine_overheat incidents by machine and station to compute false-alarm share, average downtime, and average outdoor temperature.\"}",
+ "data": {
+  "sql": "SELECT i.machine_id, i.station_id, COUNT(*) AS incident_count, SUM(CAST(i.false_alarm AS INT)) AS false_alarm_count, ROUND(AVG(CAST(i.false_alarm AS DOUBLE)) * 100, 1) AS false_alarm_share_pct, ROUND(AVG(i.downtime_min), 1) AS avg_downtime_min, ROUND(AVG(i.outdoor_temp_c), 1) AS avg_outdoor_temp_c FROM sf_ops.incidents i WHERE i.kind = 'machine_overheat' GROUP BY i.machine_id, i.station_id ORDER BY false_alarm_share_pct DESC, incident_count DESC",
+  "columns": [
+   "machine_id",
+   "station_id",
+   "incident_count",
+   "false_alarm_count",
+   "false_alarm_share_pct",
+   "avg_downtime_min",
+   "avg_outdoor_temp_c"
+  ],
+  "purpose": "Aggregate machine_overheat incidents by machine and station to compute false-alarm share, average downtime, and average outdoor temperature."
+ }
+}

@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT CASE WHEN outdoor_temp_c < 15 THEN '<15' WHEN outdoor_temp_c BETWEEN 15 AND 25 THEN '15-25' ELSE '>25' END AS outdoor_temp_band, COUNT(*) AS total_incidents, ROUND(100.0 * COUNT(CASE WHEN false_alarm = true THEN 1 END) / COUNT(*), 1) AS false_alarm_share_percent FROM sf_ops.incidents WHERE kind = 'machine_overheat' GROUP BY CASE WHEN outdoor_temp_c < 15 THEN '<15' WHEN outdoor_temp_c BETWEEN 15 AND 25 THEN '15-25' ELSE '>25' END ORDER BY total_incidents DESC\", \"columns\": [\"outdoor_temp_band\", \"total_incidents\", \"false_alarm_share_percent\"], \"purpose\": \"Aggregate machine_overheat incidents by outdoor temperature bands and compute false alarm share to assess if alarms increase with temperature.\"}",
+ "data": {
+  "sql": "SELECT CASE WHEN outdoor_temp_c < 15 THEN '<15' WHEN outdoor_temp_c BETWEEN 15 AND 25 THEN '15-25' ELSE '>25' END AS outdoor_temp_band, COUNT(*) AS total_incidents, ROUND(100.0 * COUNT(CASE WHEN false_alarm = true THEN 1 END) / COUNT(*), 1) AS false_alarm_share_percent FROM sf_ops.incidents WHERE kind = 'machine_overheat' GROUP BY CASE WHEN outdoor_temp_c < 15 THEN '<15' WHEN outdoor_temp_c BETWEEN 15 AND 25 THEN '15-25' ELSE '>25' END ORDER BY total_incidents DESC",
+  "columns": [
+   "outdoor_temp_band",
+   "total_incidents",
+   "false_alarm_share_percent"
+  ],
+  "purpose": "Aggregate machine_overheat incidents by outdoor temperature bands and compute false alarm share to assess if alarms increase with temperature."
+ }
+}

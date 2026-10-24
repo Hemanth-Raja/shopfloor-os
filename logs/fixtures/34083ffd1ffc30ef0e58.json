@@ -1,0 +1,36 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"AGV-3 is the least reliable AGV, showing the highest 90-day fault count, the most aborted and late tasks in shift A, and the dominant incident and telemetry fault records concentrated in shift A during August to October 2026.\", \"findings\": [{\"claim\": \"AGV-3 is the least reliable AGV with 84 faults in the last 90 days, far above the next highest AGV-6 at 25 faults.\", \"evidence\": [\"E1\"]}, {\"claim\": \"AGV-3 in shift A recorded 86 aborted tasks and 313 late tasks, the highest failure counts among all AGV/shift combinations.\", \"evidence\": [\"E2\"]}, {\"claim\": \"AGV-3 shift A incidents are concentrated from July through October 2026, including 9 incidents on 2026-08-17 and 6 incidents on 2026-10-12.\", \"evidence\": [\"E3\"]}, {\"claim\": \"AGV-3 telemetry fault events spike in October 2026, with 49 E52_NAV_LOST events on 2026-10-14 and 46 E40_BATTERY_LOW events on 2026-10-12.\", \"evidence\": [\"E4\"]}], \"recommendation\": \"Take AGV-3 out of shift A service immediately and schedule a full inspection focusing on battery and navigation faults before returning it to production.\"}",
+ "data": {
+  "summary": "AGV-3 is the least reliable AGV, showing the highest 90-day fault count, the most aborted and late tasks in shift A, and the dominant incident and telemetry fault records concentrated in shift A during August to October 2026.",
+  "findings": [
+   {
+    "claim": "AGV-3 is the least reliable AGV with 84 faults in the last 90 days, far above the next highest AGV-6 at 25 faults.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "AGV-3 in shift A recorded 86 aborted tasks and 313 late tasks, the highest failure counts among all AGV/shift combinations.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "AGV-3 shift A incidents are concentrated from July through October 2026, including 9 incidents on 2026-08-17 and 6 incidents on 2026-10-12.",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "AGV-3 telemetry fault events spike in October 2026, with 49 E52_NAV_LOST events on 2026-10-14 and 46 E40_BATTERY_LOW events on 2026-10-12.",
+    "evidence": [
+     "E4"
+    ]
+   }
+  ],
+  "recommendation": "Take AGV-3 out of shift A service immediately and schedule a full inspection focusing on battery and navigation faults before returning it to production."
+ }
+}

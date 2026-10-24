@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"Station F10 stoppages are driven mainly by missing parts, with equipment/torque faults as a secondary contributor and machine telemetry showing repeated overstrain failures on M-06. The evidence shows part shortages generate the most line stops and downtime cost, while equipment events also stop the line frequently across both shifts. Machine M-06 telemetry confirms recurring failures and high tool wear, reinforcing an equipment-degradation angle.\", \"findings\": [{\"claim\": \"Missing_part is the top andon reason at F10 and causes the most line stops: 97 stops on shift A and 60 stops on shift B, totaling 157 line stops, far above quality_check which has zero line stops.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Part shortage incidents produce the largest downtime at F10, led by supplier_short on shift A with 423.7 min downtime, 338 cars lost, and 636365 cost, followed by agv_down on shift A with 247.1 min downtime.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Torque faults are the second-largest downtime source at F10, with controller_fault totaling 272.0 min on shift A and 179.7 min on shift B, plus socket_worn and out_of_range variants adding further downtime.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Equipment andon events also stop the line repeatedly at F10: 65 line stops on shift A and 66 on shift B, with counts of 76 and 74 events respectively.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Machine M-06 telemetry at F10 shows recurring failures (up to 2 per day) including overstrain failures and elevated average tool wear reaching 189.7 min, indicating equipment degradation contributes to stoppages.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Prioritize eliminating missing_part stoppages at F10 by securing supplier replenishment and AGV part delivery for supplier_short, agv_down, mispick, and agv_late causes, since this drives the most line stops and downtime cost; concurrently audit M-06 for controller/torque faults and overstrain failures given its repeated telemetry failures and high tool wear.\"}",
+ "data": {
+  "summary": "Station F10 stoppages are driven mainly by missing parts, with equipment/torque faults as a secondary contributor and machine telemetry showing repeated overstrain failures on M-06. The evidence shows part shortages generate the most line stops and downtime cost, while equipment events also stop the line frequently across both shifts. Machine M-06 telemetry confirms recurring failures and high tool wear, reinforcing an equipment-degradation angle.",
+  "findings": [
+   {
+    "claim": "Missing_part is the top andon reason at F10 and causes the most line stops: 97 stops on shift A and 60 stops on shift B, totaling 157 line stops, far above quality_check which has zero line stops.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Part shortage incidents produce the largest downtime at F10, led by supplier_short on shift A with 423.7 min downtime, 338 cars lost, and 636365 cost, followed by agv_down on shift A with 247.1 min downtime.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Torque faults are the second-largest downtime source at F10, with controller_fault totaling 272.0 min on shift A and 179.7 min on shift B, plus socket_worn and out_of_range variants adding further downtime.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Equipment andon events also stop the line repeatedly at F10: 65 line stops on shift A and 66 on shift B, with counts of 76 and 74 events respectively.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Machine M-06 telemetry at F10 shows recurring failures (up to 2 per day) including overstrain failures and elevated average tool wear reaching 189.7 min, indicating equipment degradation contributes to stoppages.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Prioritize eliminating missing_part stoppages at F10 by securing supplier replenishment and AGV part delivery for supplier_short, agv_down, mispick, and agv_late causes, since this drives the most line stops and downtime cost; concurrently audit M-06 for controller/torque faults and overstrain failures given its repeated telemetry failures and high tool wear."
+ }
+}

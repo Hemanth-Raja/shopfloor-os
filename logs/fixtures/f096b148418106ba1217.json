@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"summary\": \"Machine overheat incidents from Jul-Oct 2026 show a mix of false alarms and telemetry\u2011confirmed events, with outdoor temperature notably higher during overheat events.\",\n  \"findings\": [\n    {\n      \"claim\": \"Of 100 machine_overheat incidents, 26 were flagged as false alarms, mainly on shifts A and B (E1).\",\n      \"evidence\": [\"E1\"]\n    },\n    {\n      \"claim\": \"Only 4 of those incidents matched telemetry heat_dissipation_failure=1, while 96 had failure=0 or no match (E3).\",\n      \"evidence\": [\"E3\"]\n    },\n    {\n      \"claim\": \"Average outdoor temperature at overheat incidents was 24.4\u202f\u00b0C, higher than the ~21\u202f\u00b0C average for all incident kinds (E4).\",\n      \"evidence\": [\"E4\"]\n    },\n    {\n      \"claim\": \"Shift B accounted for 40 false\u2011alarm overheat incidents and shift A for 33, indicating shift\u2011dependent reporting (E1).\",\n      \"evidence\": [\"E1\"]\n    },\n    {\n      \"claim\": \"Telemetry data show heat_dissipation_failure is rare (0\u2011114 per machine over Jul\u2011Oct 2026) (E2), reinforcing that most overheat alarms lack sensor confirmation.\",\n      \"evidence\": [\"E2\"]\n    }\n  ],\n  \"recommendation\": \"Calibrate overheat alarms to require concurrent heat_dissipation_failure=1 in telemetry and review shift\u2011specific alarm thresholds to reduce false alerts.\"\n}",
+ "data": {
+  "summary": "Machine overheat incidents from Jul-Oct 2026 show a mix of false alarms and telemetry\u2011confirmed events, with outdoor temperature notably higher during overheat events.",
+  "findings": [
+   {
+    "claim": "Of 100 machine_overheat incidents, 26 were flagged as false alarms, mainly on shifts A and B (E1).",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Only 4 of those incidents matched telemetry heat_dissipation_failure=1, while 96 had failure=0 or no match (E3).",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "Average outdoor temperature at overheat incidents was 24.4\u202f\u00b0C, higher than the ~21\u202f\u00b0C average for all incident kinds (E4).",
+    "evidence": [
+     "E4"
+    ]
+   },
+   {
+    "claim": "Shift B accounted for 40 false\u2011alarm overheat incidents and shift A for 33, indicating shift\u2011dependent reporting (E1).",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Telemetry data show heat_dissipation_failure is rare (0\u2011114 per machine over Jul\u2011Oct 2026) (E2), reinforcing that most overheat alarms lack sensor confirmation.",
+    "evidence": [
+     "E2"
+    ]
+   }
+  ],
+  "recommendation": "Calibrate overheat alarms to require concurrent heat_dissipation_failure=1 in telemetry and review shift\u2011specific alarm thresholds to reduce false alerts."
+ }
+}

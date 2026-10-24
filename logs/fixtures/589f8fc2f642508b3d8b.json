@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"verdicts\": [\n    {\n      \"index\": 0,\n      \"supported\": true,\n      \"reason\": \"Evidence E1 contains rows for supplier",
+ "data": {
+  "verdicts": [
+   {
+    "index": 0,
+    "supported": true,
+    "reason": "Evidence E1 contains rows for supplier"
+   }
+  ]
+ }
+}

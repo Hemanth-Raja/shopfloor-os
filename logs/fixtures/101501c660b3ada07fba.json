@@ -1,0 +1,18 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, shift_code, COUNT(*) AS total_tasks, SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) AS aborted_tasks, SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_tasks, SUM(delay_s) AS total_delay_s FROM sf_fleet.agv_tasks GROUP BY agv_id, shift_code ORDER BY total_delay_s DESC, aborted_tasks DESC, late_tasks DESC LIMIT 20\", \"columns\": [\"agv_id\", \"shift_code\", \"total_tasks\", \"aborted_tasks\", \"late_tasks\", \"total_delay_s\"], \"purpose\": \"Rank AGV task reliability by agv and shift, counting aborted and late tasks and summing delay seconds\"}",
+ "data": {
+  "sql": "SELECT agv_id, shift_code, COUNT(*) AS total_tasks, SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) AS aborted_tasks, SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_tasks, SUM(delay_s) AS total_delay_s FROM sf_fleet.agv_tasks GROUP BY agv_id, shift_code ORDER BY total_delay_s DESC, aborted_tasks DESC, late_tasks DESC LIMIT 20",
+  "columns": [
+   "agv_id",
+   "shift_code",
+   "total_tasks",
+   "aborted_tasks",
+   "late_tasks",
+   "total_delay_s"
+  ],
+  "purpose": "Rank AGV task reliability by agv and shift, counting aborted and late tasks and summing delay seconds"
+ }
+}

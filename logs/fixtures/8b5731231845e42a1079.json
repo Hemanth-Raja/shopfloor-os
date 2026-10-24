@@ -1,0 +1,21 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT mts.ts, mts.machine_id, mts.failure, mts.heat_dissipation_failure, mts.overstrain_failure, mts.air_temp_k, mts.process_temp_k, mts.rpm, mts.torque_nm FROM sf_plant.machine_telemetry mts JOIN sf_plant.machines m ON mts.machine_id = m.machine_id WHERE m.station_id = 'F10' AND (mts.failure = 1 OR mts.heat_dissipation_failure = 1 OR mts.overstrain_failure = 1) ORDER BY mts.ts DESC\", \"columns\": [\"ts\", \"machine_id\", \"failure\", \"heat_dissipation_failure\", \"overstrain_failure\", \"air_temp_k\", \"process_temp_k\", \"rpm\", \"torque_nm\"], \"purpose\": \"Identify machine telemetry readings with any failure flag at F10 stations to diagnose machine-driven stops.\"}",
+ "data": {
+  "sql": "SELECT mts.ts, mts.machine_id, mts.failure, mts.heat_dissipation_failure, mts.overstrain_failure, mts.air_temp_k, mts.process_temp_k, mts.rpm, mts.torque_nm FROM sf_plant.machine_telemetry mts JOIN sf_plant.machines m ON mts.machine_id = m.machine_id WHERE m.station_id = 'F10' AND (mts.failure = 1 OR mts.heat_dissipation_failure = 1 OR mts.overstrain_failure = 1) ORDER BY mts.ts DESC",
+  "columns": [
+   "ts",
+   "machine_id",
+   "failure",
+   "heat_dissipation_failure",
+   "overstrain_failure",
+   "air_temp_k",
+   "process_temp_k",
+   "rpm",
+   "torque_nm"
+  ],
+  "purpose": "Identify machine telemetry readings with any failure flag at F10 stations to diagnose machine-driven stops."
+ }
+}

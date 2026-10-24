@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"F10 stoppages are driven mainly by part shortages and AGV delays, with secondary torque faults on M-06; andon and telemetry data confirm missing_part, equipment faults, and machine failures contribute to repeated line stops.\", \"findings\": [{\"claim\": \"Part shortages are the largest downtime driver at F10: supplier_short (high) has 22 incidents and 459.0 min downtime, and agv_down (medium) has 58 incidents and 171.9 min downtime.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Torque faults recur heavily at F10: controller_fault (medium) has 36 incidents and 451.7 min downtime, and torque_out_of_range (medium) has 37 incidents and 186.5 min downtime.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Andon events show missing_part is a top line-stop trigger at F10: 97 stopped_line events in shift A averaging 186.3 s response, plus 60 stopped_line events in shift B.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Equipment andon events also stop the F10 line in both shifts: 65 events in shift A and 66 events in shift B with stopped_line=true.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Machine telemetry at F10 logs 47 failure rows on M-06, with overstrain_failure sometimes equal to 1 and torque up to 76.6 nm, while heat_dissipation_failure remains 0.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Focus first on supplier_short part shortages and AGV delays at F10, then inspect the M-06 torque controller and socket wear, because these causes produce the most downtime and stopped-line andon events.\"}",
+ "data": {
+  "summary": "F10 stoppages are driven mainly by part shortages and AGV delays, with secondary torque faults on M-06; andon and telemetry data confirm missing_part, equipment faults, and machine failures contribute to repeated line stops.",
+  "findings": [
+   {
+    "claim": "Part shortages are the largest downtime driver at F10: supplier_short (high) has 22 incidents and 459.0 min downtime, and agv_down (medium) has 58 incidents and 171.9 min downtime.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Torque faults recur heavily at F10: controller_fault (medium) has 36 incidents and 451.7 min downtime, and torque_out_of_range (medium) has 37 incidents and 186.5 min downtime.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Andon events show missing_part is a top line-stop trigger at F10: 97 stopped_line events in shift A averaging 186.3 s response, plus 60 stopped_line events in shift B.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Equipment andon events also stop the F10 line in both shifts: 65 events in shift A and 66 events in shift B with stopped_line=true.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Machine telemetry at F10 logs 47 failure rows on M-06, with overstrain_failure sometimes equal to 1 and torque up to 76.6 nm, while heat_dissipation_failure remains 0.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Focus first on supplier_short part shortages and AGV delays at F10, then inspect the M-06 torque controller and socket wear, because these causes produce the most downtime and stopped-line andon events."
+ }
+}

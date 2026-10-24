@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT machine_id,\\n       COUNT(*) AS total_readings,\\n       SUM(CASE WHEN heat_dissipation_failure = 1 THEN 1 ELSE 0 END) AS heat_dissipation_failures\\nFROM sf_plant.machine_telemetry\\nWHERE ts >= DATE '2026-07-01' AND ts < DATE '2026-11-01'\\nGROUP BY machine_id\\nORDER BY heat_dissipation_failures DESC, total_readings DESC\\nLIMIT 20\", \"columns\": [\"machine_id\", \"total_readings\", \"heat_dissipation_failures\"], \"purpose\": \"Count hourly telemetry readings and heat dissipation failures per machine for Jul-Oct 2026\"}",
+ "data": {
+  "sql": "SELECT machine_id,\n       COUNT(*) AS total_readings,\n       SUM(CASE WHEN heat_dissipation_failure = 1 THEN 1 ELSE 0 END) AS heat_dissipation_failures\nFROM sf_plant.machine_telemetry\nWHERE ts >= DATE '2026-07-01' AND ts < DATE '2026-11-01'\nGROUP BY machine_id\nORDER BY heat_dissipation_failures DESC, total_readings DESC\nLIMIT 20",
+  "columns": [
+   "machine_id",
+   "total_readings",
+   "heat_dissipation_failures"
+  ],
+  "purpose": "Count hourly telemetry readings and heat dissipation failures per machine for Jul-Oct 2026"
+ }
+}

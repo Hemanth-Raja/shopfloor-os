@@ -2,20 +2,24 @@
  "kind": "json",
  "lane": "deep",
  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
- "text": "{\"tasks\": [{\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agvs and sf_fleet.agv_tasks, compute each AGV's faults_90d plus count of late/aborted tasks in Jul-Oct 2026, rank descending, and return the single least reliable agv_id with its totals.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_ops.incidents filtered to kind='agv_fault' and the agv_id from task 1, group by date(ts) and shift_code, count incidents and sum downtime_min, order by count desc to show when that AGV was least reliable.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agv_telemetry for the agv_id from task 1, count rows where fault_code is not null grouped by date(ts) and shift_code to pinpoint peak fault timestamps.\"}]}",
+ "text": "{\"tasks\": [{\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agvs, list agv_id, model, status, faults_90d, battery_health_pct, last_service_date for all AGVs ordered by faults_90d DESC, agv_id ASC to identify the least reliable AGV by recorded faults.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agv_tasks, group by agv_id and shift_code, count total tasks, aborted tasks, late tasks, and average delay_s, ordered by (aborted + late) DESC to find which AGV fails most and in which shift.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_ops.incidents, filter rows where kind='agv_fault' or agv_id is not null, group by agv_id, shift_code, cast(ts as date), count incidents, sum downtime_min, cars_lost, cost_usd ordered by incident count DESC to find the least reliable AGV and when incidents occurred.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agv_telemetry, filter fault_code is not null, group by agv_id, cast(ts as date), fault_code, count fault events ordered by count DESC to pinpoint when each AGV recorded telemetry faults.\"}]}",
  "data": {
   "tasks": [
    {
     "kind": "sql",
-    "ask": "Using sf_fleet.agvs and sf_fleet.agv_tasks, compute each AGV's faults_90d plus count of late/aborted tasks in Jul-Oct 2026, rank descending, and return the single least reliable agv_id with its totals."
+    "ask": "Using sf_fleet.agvs, list agv_id, model, status, faults_90d, battery_health_pct, last_service_date for all AGVs ordered by faults_90d DESC, agv_id ASC to identify the least reliable AGV by recorded faults."
    },
    {
     "kind": "sql",
-    "ask": "Using sf_ops.incidents filtered to kind='agv_fault' and the agv_id from task 1, group by date(ts) and shift_code, count incidents and sum downtime_min, order by count desc to show when that AGV was least reliable."
+    "ask": "Using sf_fleet.agv_tasks, group by agv_id and shift_code, count total tasks, aborted tasks, late tasks, and average delay_s, ordered by (aborted + late) DESC to find which AGV fails most and in which shift."
    },
    {
     "kind": "sql",
-    "ask": "Using sf_fleet.agv_telemetry for the agv_id from task 1, count rows where fault_code is not null grouped by date(ts) and shift_code to pinpoint peak fault timestamps."
+    "ask": "Using sf_ops.incidents, filter rows where kind='agv_fault' or agv_id is not null, group by agv_id, shift_code, cast(ts as date), count incidents, sum downtime_min, cars_lost, cost_usd ordered by incident count DESC to find the least reliable AGV and when incidents occurred."
+   },
+   {
+    "kind": "sql",
+    "ask": "Using sf_fleet.agv_telemetry, filter fault_code is not null, group by agv_id, cast(ts as date), fault_code, count fault events ordered by count DESC to pinpoint when each AGV recorded telemetry faults."
    }
   ]
  }

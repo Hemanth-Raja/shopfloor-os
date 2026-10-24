@@ -1,0 +1,18 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, shift_code, COUNT(*) AS total_tasks, SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) AS aborted_tasks, SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_tasks, ROUND(AVG(delay_s), 1) AS avg_delay_s FROM sf_fleet.agv_tasks GROUP BY agv_id, shift_code ORDER BY (SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) + SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END)) DESC, agv_id ASC, shift_code ASC LIMIT 20\", \"columns\": [\"agv_id\", \"shift_code\", \"total_tasks\", \"aborted_tasks\", \"late_tasks\", \"avg_delay_s\"], \"purpose\": \"Identify which AGV fails most and in which shift by total, aborted, late tasks and average delay\"}",
+ "data": {
+  "sql": "SELECT agv_id, shift_code, COUNT(*) AS total_tasks, SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) AS aborted_tasks, SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_tasks, ROUND(AVG(delay_s), 1) AS avg_delay_s FROM sf_fleet.agv_tasks GROUP BY agv_id, shift_code ORDER BY (SUM(CASE WHEN status = 'aborted' THEN 1 ELSE 0 END) + SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END)) DESC, agv_id ASC, shift_code ASC LIMIT 20",
+  "columns": [
+   "agv_id",
+   "shift_code",
+   "total_tasks",
+   "aborted_tasks",
+   "late_tasks",
+   "avg_delay_s"
+  ],
+  "purpose": "Identify which AGV fails most and in which shift by total, aborted, late tasks and average delay"
+ }
+}

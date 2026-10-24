@@ -1,0 +1,30 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"Overheat alarms include both real and false alarms; some machines show a 0.0 false-alarm share while temperature bands show false-alarm shares of 28.0, 23.9, and 25.0.\", \"findings\": [{\"claim\": \"M-05 at F30 recorded 2 overheat incidents with a 0.0 false-alarm share, indicating at least some overheat alarms are real.\", \"evidence\": [\"E1\"]}, {\"claim\": \"M-01 at B10 recorded 1 overheat incident with a 100.0 false-alarm share, showing that some alarms are false.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Outdoor temperature bands show false-alarm shares of 28.0 above 25 C, 23.9 for 15-25 C, and 25.0 below 15 C, so false alarms occur across all temperature ranges.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Investigate machines with high false-alarm shares and calibrate overheat alarm thresholds before acting on every alarm.\"}",
+ "data": {
+  "summary": "Overheat alarms include both real and false alarms; some machines show a 0.0 false-alarm share while temperature bands show false-alarm shares of 28.0, 23.9, and 25.0.",
+  "findings": [
+   {
+    "claim": "M-05 at F30 recorded 2 overheat incidents with a 0.0 false-alarm share, indicating at least some overheat alarms are real.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "M-01 at B10 recorded 1 overheat incident with a 100.0 false-alarm share, showing that some alarms are false.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Outdoor temperature bands show false-alarm shares of 28.0 above 25 C, 23.9 for 15-25 C, and 25.0 below 15 C, so false alarms occur across all temperature ranges.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Investigate machines with high false-alarm shares and calibrate overheat alarm thresholds before acting on every alarm."
+ }
+}

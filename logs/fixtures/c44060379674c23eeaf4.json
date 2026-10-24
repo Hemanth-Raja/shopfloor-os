@@ -1,0 +1,18 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, model, status, faults_90d, battery_health_pct, last_service_date FROM sf_fleet.agvs ORDER BY faults_90d DESC, agv_id ASC\", \"columns\": [\"agv_id\", \"model\", \"status\", \"faults_90d\", \"battery_health_pct\", \"last_service_date\"], \"purpose\": \"List all AGVs ordered by recorded faults to identify the least reliable AGV\"}",
+ "data": {
+  "sql": "SELECT agv_id, model, status, faults_90d, battery_health_pct, last_service_date FROM sf_fleet.agvs ORDER BY faults_90d DESC, agv_id ASC",
+  "columns": [
+   "agv_id",
+   "model",
+   "status",
+   "faults_90d",
+   "battery_health_pct",
+   "last_service_date"
+  ],
+  "purpose": "List all AGVs ordered by recorded faults to identify the least reliable AGV"
+ }
+}

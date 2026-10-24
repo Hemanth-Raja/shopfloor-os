@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT reason, shift_code, stopped_line, COUNT(*) AS event_count, ROUND(AVG(response_s), 1) AS avg_response_s, SUM(response_s) AS total_response_s, COUNT(DISTINCT incident_id) AS linked_incidents FROM sf_ops.andon_events WHERE station_id = 'F10' GROUP BY reason, shift_code, stopped_line ORDER BY event_count DESC, total_response_s DESC\", \"columns\": [\"reason\", \"shift_code\", \"stopped_line\", \"event_count\", \"avg_response_s\", \"total_response_s\", \"linked_incidents\"], \"purpose\": \"Summarize F10 andon stop triggers by reason, shift, and line-stoppage with event counts and response times\"}",
+ "data": {
+  "sql": "SELECT reason, shift_code, stopped_line, COUNT(*) AS event_count, ROUND(AVG(response_s), 1) AS avg_response_s, SUM(response_s) AS total_response_s, COUNT(DISTINCT incident_id) AS linked_incidents FROM sf_ops.andon_events WHERE station_id = 'F10' GROUP BY reason, shift_code, stopped_line ORDER BY event_count DESC, total_response_s DESC",
+  "columns": [
+   "reason",
+   "shift_code",
+   "stopped_line",
+   "event_count",
+   "avg_response_s",
+   "total_response_s",
+   "linked_incidents"
+  ],
+  "purpose": "Summarize F10 andon stop triggers by reason, shift, and line-stoppage with event counts and response times"
+ }
+}

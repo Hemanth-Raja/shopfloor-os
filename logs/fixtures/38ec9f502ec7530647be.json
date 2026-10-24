@@ -1,0 +1,35 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"verdicts\": [\n    {\n      \"index\": 0,\n      \"supported\": false,\n      \"reason\": \"E1 shows 74 false alarms (40+33+1), not 26; claim misstates count.\"\n    },\n    {\n      \"index\": 1,\n      \"supported\": true,\n      \"reason\": \"E3 confirms 4 heat_dissipation_failure=1 and 96 =0, matching claim.\"\n    },\n    {\n      \"index\": 2,\n      \"supported\": true,\n      \"reason\": \"E4 reports machine_overheat avg outdoor temp 24.4\u00b0C, higher than overall ~21\u00b0C.\"\n    },\n    {\n      \"index\": 3,\n      \"supported\": true,\n      \"reason\": \"E1 lists 40 false alarms on shift B and 33 on shift A, as stated.\"\n    },\n    {\n      \"index\": 4,\n      \"supported\": true,\n      \"reason\": \"E2 shows heat_dissipation_failures per machine ranging 0\u2011114, consistent with claim of rarity.\"\n    }\n  ]\n}",
+ "data": {
+  "verdicts": [
+   {
+    "index": 0,
+    "supported": false,
+    "reason": "E1 shows 74 false alarms (40+33+1), not 26; claim misstates count."
+   },
+   {
+    "index": 1,
+    "supported": true,
+    "reason": "E3 confirms 4 heat_dissipation_failure=1 and 96 =0, matching claim."
+   },
+   {
+    "index": 2,
+    "supported": true,
+    "reason": "E4 reports machine_overheat avg outdoor temp 24.4\u00b0C, higher than overall ~21\u00b0C."
+   },
+   {
+    "index": 3,
+    "supported": true,
+    "reason": "E1 lists 40 false alarms on shift B and 33 on shift A, as stated."
+   },
+   {
+    "index": 4,
+    "supported": true,
+    "reason": "E2 shows heat_dissipation_failures per machine ranging 0\u2011114, consistent with claim of rarity."
+   }
+  ]
+ }
+}

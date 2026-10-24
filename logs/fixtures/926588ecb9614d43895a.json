@@ -1,0 +1,30 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"AGV-3 is the least reliable AGV overall, with its highest failure concentration in shift A.\", \"findings\": [{\"claim\": \"AGV-3 has the highest 90-day fault count of 84, ranking it as the single least reliable AGV in sf_fleet.agvs.\", \"evidence\": [\"E1\"]}, {\"claim\": \"AGV-3 records 40 fault incidents in shift A, exceeding its 38 in shift B and 9 in shift N in sf_ops.incidents.\", \"evidence\": [\"E3\"]}, {\"claim\": \"AGV-3 shift A shows 86 aborted tasks and 313 late tasks with 81649 total delay seconds, the highest aborted count in sf_fleet.agv_tasks.\", \"evidence\": [\"E2\"]}], \"recommendation\": \"Schedule immediate preventive maintenance and inspection for AGV-3, prioritizing shift A where its fault incidents and aborted tasks are highest.\"}",
+ "data": {
+  "summary": "AGV-3 is the least reliable AGV overall, with its highest failure concentration in shift A.",
+  "findings": [
+   {
+    "claim": "AGV-3 has the highest 90-day fault count of 84, ranking it as the single least reliable AGV in sf_fleet.agvs.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "AGV-3 records 40 fault incidents in shift A, exceeding its 38 in shift B and 9 in shift N in sf_ops.incidents.",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "AGV-3 shift A shows 86 aborted tasks and 313 late tasks with 81649 total delay seconds, the highest aborted count in sf_fleet.agv_tasks.",
+    "evidence": [
+     "E2"
+    ]
+   }
+  ],
+  "recommendation": "Schedule immediate preventive maintenance and inspection for AGV-3, prioritizing shift A where its fault incidents and aborted tasks are highest."
+ }
+}

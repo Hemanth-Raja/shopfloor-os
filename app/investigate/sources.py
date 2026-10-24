@@ -88,7 +88,8 @@ def sql_runner(mode: str, live: Callable | None = None) -> Callable[[str], list[
         def record(sql: str) -> list[list]:
             rows = live(sql)
             FIXTURES.mkdir(parents=True, exist_ok=True)
-            (FIXTURES / f"{_key(sql)}.json").write_text(json.dumps({"sql": sql, "rows": rows}, default=str))
-            return rows
+            saved = json.dumps({"sql": sql, "rows": rows}, default=str)
+            (FIXTURES / f"{_key(sql)}.json").write_text(saved)
+            return json.loads(saved)["rows"]  # the agents see exactly what a replay will see, so later prompts match
         return record
     return live

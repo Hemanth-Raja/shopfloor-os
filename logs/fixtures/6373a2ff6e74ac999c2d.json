@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT i.kind AS incident_category, COUNT(*) AS incident_count, ROUND(AVG(w.temperature_c), 1) AS avg_outdoor_temp_c FROM sf_ops.incidents i JOIN sf_plant.weather_hourly w ON date_trunc('HOUR', i.ts) = w.ts GROUP BY i.kind ORDER BY incident_count DESC\", \"columns\": [\"incident_category\", \"incident_count\", \"avg_outdoor_temp_c\"], \"purpose\": \"Compare average outdoor temperature at machine overheat incidents versus all incident kinds\"}",
+ "data": {
+  "sql": "SELECT i.kind AS incident_category, COUNT(*) AS incident_count, ROUND(AVG(w.temperature_c), 1) AS avg_outdoor_temp_c FROM sf_ops.incidents i JOIN sf_plant.weather_hourly w ON date_trunc('HOUR', i.ts) = w.ts GROUP BY i.kind ORDER BY incident_count DESC",
+  "columns": [
+   "incident_category",
+   "incident_count",
+   "avg_outdoor_temp_c"
+  ],
+  "purpose": "Compare average outdoor temperature at machine overheat incidents versus all incident kinds"
+ }
+}

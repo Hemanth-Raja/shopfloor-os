@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT reason, shift_code, COUNT(*) AS count, ROUND(AVG(response_s), 1) AS avg_response_s, ROUND(AVG(resolved_s), 1) AS avg_resolved_s, SUM(CASE WHEN stopped_line THEN 1 ELSE 0 END) AS line_stops, collect_list(incident_id) AS incident_ids FROM sf_ops.andon_events WHERE station_id = 'F10' GROUP BY reason, shift_code ORDER BY count DESC\", \"columns\": [\"reason\", \"shift_code\", \"count\", \"avg_response_s\", \"avg_resolved_s\", \"line_stops\", \"incident_ids\"], \"purpose\": \"Summarize andon events at station F10 by reason and shift with counts, average response and resolution times, line stops, and incident IDs\"}",
+ "data": {
+  "sql": "SELECT reason, shift_code, COUNT(*) AS count, ROUND(AVG(response_s), 1) AS avg_response_s, ROUND(AVG(resolved_s), 1) AS avg_resolved_s, SUM(CASE WHEN stopped_line THEN 1 ELSE 0 END) AS line_stops, collect_list(incident_id) AS incident_ids FROM sf_ops.andon_events WHERE station_id = 'F10' GROUP BY reason, shift_code ORDER BY count DESC",
+  "columns": [
+   "reason",
+   "shift_code",
+   "count",
+   "avg_response_s",
+   "avg_resolved_s",
+   "line_stops",
+   "incident_ids"
+  ],
+  "purpose": "Summarize andon events at station F10 by reason and shift with counts, average response and resolution times, line stops, and incident IDs"
+ }
+}

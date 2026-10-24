@@ -1,0 +1,25 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"verdicts\": [\n    {\n      \"index\": 0,\n      \"supported\": true,\n      \"reason\": \"E1 row for M-05 at F30 shows 2 incidents and 0.0 false-alarm share, consistent with the claim.\"\n    },\n    {\n      \"index\": 1,\n      \"supported\": true,\n      \"reason\": \"E1 row for M-01 at B10 shows 1 incident and 100.0 false-alarm share, supporting the claim.\"\n    },\n    {\n      \"index\": 2,\n      \"supported\": true,\n      \"reason\": \"E3 provides three temperature bands with false-alarm shares 28.0, 23.9, and 25.0, confirming false alarms across all ranges.\"\n    }\n  ]\n}",
+ "data": {
+  "verdicts": [
+   {
+    "index": 0,
+    "supported": true,
+    "reason": "E1 row for M-05 at F30 shows 2 incidents and 0.0 false-alarm share, consistent with the claim."
+   },
+   {
+    "index": 1,
+    "supported": true,
+    "reason": "E1 row for M-01 at B10 shows 1 incident and 100.0 false-alarm share, supporting the claim."
+   },
+   {
+    "index": 2,
+    "supported": true,
+    "reason": "E3 provides three temperature bands with false-alarm shares 28.0, 23.9, and 25.0, confirming false alarms across all ranges."
+   }
+  ]
+ }
+}

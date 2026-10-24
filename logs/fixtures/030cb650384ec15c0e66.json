@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, shift_code, CAST(ts AS DATE) AS incident_date, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, SUM(cost_usd) AS total_cost_usd FROM sf_ops.incidents WHERE kind='agv_fault' OR agv_id IS NOT NULL GROUP BY agv_id, shift_code, CAST(ts AS DATE) ORDER BY incident_count DESC LIMIT 20\", \"columns\": [\"agv_id\", \"shift_code\", \"incident_date\", \"incident_count\", \"total_downtime_min\", \"total_cars_lost\", \"total_cost_usd\"], \"purpose\": \"Aggregate AGV fault incidents by AGV, shift, and date to identify the least reliable AGV and when incidents occurred.\"}",
+ "data": {
+  "sql": "SELECT agv_id, shift_code, CAST(ts AS DATE) AS incident_date, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, SUM(cost_usd) AS total_cost_usd FROM sf_ops.incidents WHERE kind='agv_fault' OR agv_id IS NOT NULL GROUP BY agv_id, shift_code, CAST(ts AS DATE) ORDER BY incident_count DESC LIMIT 20",
+  "columns": [
+   "agv_id",
+   "shift_code",
+   "incident_date",
+   "incident_count",
+   "total_downtime_min",
+   "total_cars_lost",
+   "total_cost_usd"
+  ],
+  "purpose": "Aggregate AGV fault incidents by AGV, shift, and date to identify the least reliable AGV and when incidents occurred."
+ }
+}

@@ -1,0 +1,16 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min FROM sf_ops.incidents WHERE kind = 'agv_fault' AND agv_id IS NOT NULL GROUP BY agv_id, shift_code ORDER BY incident_count DESC, total_downtime_min DESC\", \"columns\": [\"agv_id\", \"shift_code\", \"incident_count\", \"total_downtime_min\"], \"purpose\": \"Rank AGV fault incidents by agv_id and shift_code, counting incidents and summing downtime_min\"}",
+ "data": {
+  "sql": "SELECT agv_id, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min FROM sf_ops.incidents WHERE kind = 'agv_fault' AND agv_id IS NOT NULL GROUP BY agv_id, shift_code ORDER BY incident_count DESC, total_downtime_min DESC",
+  "columns": [
+   "agv_id",
+   "shift_code",
+   "incident_count",
+   "total_downtime_min"
+  ],
+  "purpose": "Rank AGV fault incidents by agv_id and shift_code, counting incidents and summing downtime_min"
+ }
+}

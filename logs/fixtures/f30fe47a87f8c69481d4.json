@@ -1,0 +1,17 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT false_alarm, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost FROM sf_ops.incidents WHERE kind = 'machine_overheat' AND ts >= DATE '2026-07-01' AND ts < DATE '2026-11-01' GROUP BY false_alarm, shift_code ORDER BY incident_count DESC\", \"columns\": [\"false_alarm\", \"shift_code\", \"incident_count\", \"total_downtime_min\", \"total_cars_lost\"], \"purpose\": \"Count machine_overheat incidents by false alarm flag and shift for Jul-Oct 2026, with downtime and cars lost sums.\"}",
+ "data": {
+  "sql": "SELECT false_alarm, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost FROM sf_ops.incidents WHERE kind = 'machine_overheat' AND ts >= DATE '2026-07-01' AND ts < DATE '2026-11-01' GROUP BY false_alarm, shift_code ORDER BY incident_count DESC",
+  "columns": [
+   "false_alarm",
+   "shift_code",
+   "incident_count",
+   "total_downtime_min",
+   "total_cars_lost"
+  ],
+  "purpose": "Count machine_overheat incidents by false alarm flag and shift for Jul-Oct 2026, with downtime and cars lost sums."
+ }
+}

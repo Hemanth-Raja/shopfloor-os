@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+ "text": "{\n  \"summary\": \"Analysis of machine_overheat incidents from July to October 2026 indicates that a majority are genuine overheating events, with measurable downtime and car losses, and that environmental temperature and machine\u2011specific failure patterns differentiate real alarms from false ones.\",\n  \"findings\": [\n    {\n      \"claim\": \"Out of 100 machine_overheat incidents recorded Jul\u2013Oct 2026, 74 had false_alarm=false, indicating real overheating events.\",\n      \"evidence\": [\"E1\"]\n    },\n    {\n      \"claim\": \"These real overheat incidents caused a combined 742.2 minutes of downtime and 592 cars lost during the period.\",\n      \"evidence\": [\"E1\"]\n    },\n    {\n      \"claim\": \"The average outdoor temperature at machine_overheat incidents (24.4\u202f\u00b0C) is significantly higher than other incident kinds, confirming environmental drivers.\",\n      \"evidence\": [\"E4\"]\n    },\n    {\n      \"claim\": \"Heat\u2011dissipation failures are concentrated on machine M\u201104 (114 failures per 2,160 readings), while other machines show 0 failures.\",\n      \"evidence\": [\"E2\"]\n    },\n    {\n      \"claim\": \"Shift B recorded 22 true overheat incidents versus only 4 on shift A, suggesting shift\u2011specific operational factors.\",\n      \"evidence\": [\"E1\"]\n    }\n  ],\n  \"recommendation\": \"Prioritize a root\u2011cause analysis on machine M\u201104\u2019s cooling system, revise false\u2011alarm thresholds, and implement shift\u2011specific monitoring to reduce unnecessary downtime.\"\n}",
+ "data": {
+  "summary": "Analysis of machine_overheat incidents from July to October 2026 indicates that a majority are genuine overheating events, with measurable downtime and car losses, and that environmental temperature and machine\u2011specific failure patterns differentiate real alarms from false ones.",
+  "findings": [
+   {
+    "claim": "Out of 100 machine_overheat incidents recorded Jul\u2013Oct 2026, 74 had false_alarm=false, indicating real overheating events.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "These real overheat incidents caused a combined 742.2 minutes of downtime and 592 cars lost during the period.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "The average outdoor temperature at machine_overheat incidents (24.4\u202f\u00b0C) is significantly higher than other incident kinds, confirming environmental drivers.",
+    "evidence": [
+     "E4"
+    ]
+   },
+   {
+    "claim": "Heat\u2011dissipation failures are concentrated on machine M\u201104 (114 failures per 2,160 readings), while other machines show 0 failures.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Shift B recorded 22 true overheat incidents versus only 4 on shift A, suggesting shift\u2011specific operational factors.",
+    "evidence": [
+     "E1"
+    ]
+   }
+  ],
+  "recommendation": "Prioritize a root\u2011cause analysis on machine M\u201104\u2019s cooling system, revise false\u2011alarm thresholds, and implement shift\u2011specific monitoring to reduce unnecessary downtime."
+ }
+}

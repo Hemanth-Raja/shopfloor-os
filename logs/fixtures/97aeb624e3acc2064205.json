@@ -1,0 +1,25 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"verdicts\": [{\"index\": 0, \"supported\": true, \"reason\": \"E1 shows AGV-3 faults_90d = 84, highest in the list, with AGV-6 next at 25 and all others at 19 or below.\"}, {\"index\": 1, \"supported\": false, \"reason\": \"E2 confirms AGV-3 shift A has 86 aborted (highest) but 313 late is not the highest late count; AGV-5 shift B has 342 late and several others exceed 313.\"}, {\"index\": 2, \"supported\": true, \"reason\": \"E3 lists AGV-",
+ "data": {
+  "verdicts": [
+   {
+    "index": 0,
+    "supported": true,
+    "reason": "E1 shows AGV-3 faults_90d = 84, highest in the list, with AGV-6 next at 25 and all others at 19 or below."
+   },
+   {
+    "index": 1,
+    "supported": false,
+    "reason": "E2 confirms AGV-3 shift A has 86 aborted (highest) but 313 late is not the highest late count; AGV-5 shift B has 342 late and several others exceed 313."
+   },
+   {
+    "index": 2,
+    "supported": true,
+    "reason": "E3 lists AGV-"
+   }
+  ]
+ }
+}
