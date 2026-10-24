@@ -13,12 +13,14 @@ data/seed/plant_sops.json are synthetic, written for this fictional plant.
 from __future__ import annotations
 
 import json
+import itertools
 from functools import lru_cache
 from pathlib import Path
 
 from app.engines.hmem import HMEM
 
 SEED = Path(__file__).resolve().parents[2] / "data" / "seed"
+_INDEX_IDS = itertools.count(1)
 # Which OSHA clauses govern which of our safety rules
 RULE_CLAUSES = {
     "R-CROSSING": ["29 CFR 1910.178(n)(4)"],
@@ -46,6 +48,7 @@ class CitationIndex:
         if sops is None:
             path = SEED / "plant_sops.json"
             sops = json.loads(path.read_text()) if path.exists() else []
+        self.uid = next(_INDEX_IDS)  # cache key part: unique per index, never reused
         self.hmem = HMEM(clock=lambda: 0.0, actor="citations")
         self.by_ref: dict[str, dict] = {}
         for e in osha:
@@ -66,13 +69,23 @@ class CitationIndex:
         return [self.by_ref[h["memory"]["source"]] for h in hits]
 
     def for_rule(self, rule_id: str, detail: str = "", top_n: int = 2) -> list[dict]:
-        """Clauses for a violated rule: the OSHA clause first, then the plant SOP."""
+        """Clauses for a violated rule: the OSHA clause first, then the plant SOP (cached: the index is fixed)."""
+        from app.cache import cache
+        return cache("clauses", 3600).get(("rule", self.uid, rule_id, detail, top_n),
+                                          lambda: self._for_rule(rule_id, detail, top_n))
+
+    def _for_rule(self, rule_id: str, detail: str = "", top_n: int = 2) -> list[dict]:
         tag = f"rule:{rule_id}"
         osha = self._ranked(detail or rule_id, lambda m: tag in m["tags"] and "doc:osha" in m["tags"], 1)
         sop = self._ranked(detail or rule_id, lambda m: tag in m["tags"] and "doc:sop" in m["tags"], max(1, top_n - 1))
         return (osha + sop)[:top_n]
 
     def for_incident(self, kind: str, description: str, top_n: int = 4) -> list[dict]:
+        from app.cache import cache
+        return cache("clauses", 3600).get(("kind", self.uid, kind, description, top_n),
+                                          lambda: self._for_incident(kind, description, top_n))
+
+    def _for_incident(self, kind: str, description: str, top_n: int = 4) -> list[dict]:
         tag = f"kind:{kind}"
         return self._ranked(description, lambda m: tag in m["tags"], top_n)
 

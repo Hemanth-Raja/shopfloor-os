@@ -362,7 +362,10 @@ class DynamicOrchestrator(Orchestrator):
     def _do_investigator(self, s, trace, incident, stall, args):
         t = time.perf_counter()
         try:
-            s.history = incident_history(self.run_sql, incident)
+            from app.cache import cache
+            agv = (incident.sensors or {}).get("agv") or (incident.agv_id or "").split(":")[-1] or None
+            key = (incident.kind, incident.station_id, agv, int(time.time() // 600))
+            s.history = dict(cache("history", 300).get(key, lambda: incident_history(self.run_sql, incident)))
             ok = True
         except Exception as err:  # noqa: BLE001 - history is optional evidence
             s.history, ok = {"error": f"{type(err).__name__}: {str(err)[:160]}", "summary": "history unavailable"}, False

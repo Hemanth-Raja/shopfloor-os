@@ -51,6 +51,8 @@ def maybe_sample(fn: Callable, kind: str, mode: str | None = None, folder: Path 
         key = _key(kind, lane, messages, schema)
         path = folder / f"{key}.json"
         if mode == "true":
+            from app.cache import cache
+            cache("llm_replay", 0).count(path.exists())
             if not path.exists():
                 if kind == "json" and getattr(schema, "__name__", "") == "Plan":
                     from app.agents.planner import rule_based_plan  # real agent logic, no model: still checked by the critic

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app import llm, models, zetaris
+from app.cache import cached_sql, stats as cache_stats
 from app.agents.health import CircuitBreaker, check_health
 
 BREAKERS = {"nightshift": CircuitBreaker("nightshift", threshold=2, cooldown_s=60),
@@ -12,7 +13,8 @@ BREAKERS = {"nightshift": CircuitBreaker("nightshift", threshold=2, cooldown_s=6
 # inside, and this Nightshift-wide breaker outside (all models failing means safe mode)
 chat_json = BREAKERS["nightshift"].wrap(models.chat_json)
 chat = BREAKERS["nightshift"].wrap(models.chat)
-run_sql = BREAKERS["zetaris"].wrap(zetaris.run_sql)
+# read-only results are cached for 120 s (app/cache.py); a write clears the cache
+run_sql = cached_sql(BREAKERS["zetaris"].wrap(zetaris.run_sql))
 
 PROBES = {"zetaris": lambda: zetaris.run_sql("SELECT 1"), "nightshift": llm.list_models}
 
@@ -20,4 +22,5 @@ PROBES = {"zetaris": lambda: zetaris.run_sql("SELECT 1"), "nightshift": llm.list
 def health(sim=None) -> dict:
     out = check_health(BREAKERS, PROBES, sim)
     out["models"] = {m: b.status() for m, b in models.BREAKERS.items()}  # per-model breakers
+    out["caches"] = cache_stats()
     return out
