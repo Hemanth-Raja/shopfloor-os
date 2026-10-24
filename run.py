@@ -5,6 +5,7 @@
     python run.py incident --kind part_shortage --station F30            # full agent loop on one incident
     python run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2
     python run.py incident --kind overheat --station F10 --false-alarm
+    SAMPLE_MODE=true python run.py incident ... --no-memory    # replay recorded replies: no keys, no Zetaris
 """
 
 import argparse
@@ -61,22 +62,30 @@ def context(zone):
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
-def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True):
+def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True, offline=False):
     from datetime import date
 
     from app.engines.plant_world import load_plant_world
+    from app.fixtures import maybe_sample, sample_mode
     from app.orchestrator import Orchestrator
-    from app.runtime import chat as guarded_chat, chat_json, run_sql as guarded_sql
+    from app.runtime import chat as guarded_chat, chat_json as guarded_json, run_sql as guarded_sql
     from app.sim.grid import Grid
+    from app.sim.offline import offline_plant
     from app.sim.sim import Sim
 
-    plant = load_plant_world(guarded_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")  # one Zetaris query
-    sim = Sim.from_plant(plant, Grid.load(guarded_sql), seed=seed, shift="B")
+    offline = offline or sample_mode() == "true"  # replay needs neither Zetaris nor Nightshift
+    if offline:
+        plant, grid = offline_plant(), Grid.from_generator()
+    else:
+        plant = load_plant_world(guarded_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")  # one Zetaris query
+        grid = Grid.load(guarded_sql)
+    sim = Sim.from_plant(plant, grid, seed=seed, shift="B")
+    chat_json, chat_text = maybe_sample(guarded_json, "json"), maybe_sample(guarded_chat, "text")
     agv_id = f"agv:plant:{agv}" if agv else None
     inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
     from app.engines.playbooks import PlaybookStore
     memory = PlaybookStore() if use_memory else None
-    trace = Orchestrator(plant, sim, chat_json, guarded_chat, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    trace = Orchestrator(plant, sim, chat_json, chat_text, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
     print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
     for st in trace.steps:
         d = st.detail
@@ -122,11 +131,12 @@ if __name__ == "__main__":
     inc.add_argument("--false-alarm", action="store_true", help="overheat: sensor noise, not a real fault")
     inc.add_argument("--stall-after", type=int, default=None, help="stall the first planned AGV after N ticks")
     inc.add_argument("--no-memory", action="store_true", help="ignore learned playbooks (shows the critic loop)")
+    inc.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
     args = parser.parse_args()
     if args.command == "context":
         context(args.zone)
     elif args.command == "incident":
-        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory)
+        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
     elif args.command == "health":
         health()
     else:

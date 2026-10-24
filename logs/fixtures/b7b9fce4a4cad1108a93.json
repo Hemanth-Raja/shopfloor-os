@@ -1,0 +1,22 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [{\"agv_id\": \"agv:plant:AGV-1\", \"to_station\": \"F30\", \"speed_mps\": 1.0}], \"priority\": \"medium\", \"rationale\": \"Medium AGV fault E52_NAV_LOST at F30. Assign W-18 Rosa Novak (5 cells away, agv_reset skill, score 95.0). Dispatch AGV-1 to F30 at 1.0 m/s (4 cells away, score 108.0, 90% battery health).\"}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [
+   {
+    "agv_id": "agv:plant:AGV-1",
+    "to_station": "F30",
+    "speed_mps": 1.0,
+    "crossing_speed_mps": null
+   }
+  ],
+  "priority": "medium",
+  "rationale": "Medium AGV fault E52_NAV_LOST at F30. Assign W-18 Rosa Novak (5 cells away, agv_reset skill, score 95.0). Dispatch AGV-1 to F30 at 1.0 m/s (4 cells away, score 108.0, 90% battery health)."
+ }
+}
