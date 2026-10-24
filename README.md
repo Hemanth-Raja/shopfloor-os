@@ -491,6 +491,19 @@ window and Super VL 1M. Limits are enforced in code anyway:
 Tests cover each path: `tests/test_models.py`, `tests/test_dynamic.py`, `tests/test_agent_loop.py` and
 `tests/test_health.py`.
 
+**When retrieval goes wrong.** Retrieval is treated as untrusted input; nothing retrieved is acted on unchecked.
+
+| Retrieval failure | What happens | Where |
+|---|---|---|
+| The SQL agent writes unsafe or invalid SQL | The guard allows one read-only `SELECT` on whitelisted `sf_*` tables; the rejection reason or Zetaris error goes back for one retry | `app/investigate/sqlguard.py`, `app/investigate/investigator.py` |
+| A query fails or returns nothing useful | The evidence is marked failed; any claim citing it is dropped with the reason | `investigator.py` (evidence critic) |
+| The analyst states a number the data does not contain | Every number in a claim must appear in the cited evidence, or the claim is dropped; a Lightning critic then reviews what is left | same |
+| Clause retrieval ranks the wrong regulation | The safety critic is code over `sf_ops.safety_rules`, not over what was retrieved, so a bad ranking cannot approve a plan; a rule the code cannot check blocks automatic action (default-deny) | `app/agents/safety_critic.py` |
+| The planner cites a clause that does not exist | Unknown references are flagged in the trace and dropped from the plan's citations | `app/engines/citations.py` |
+| The model names a person or robot that does not exist | World Model `ground()` rejects the id (GROUNDING violation) and the planner gets the reason | `app/agents/planner.py` |
+| A cached read is stale | Read-only Zetaris results expire (TTL), and any write clears the cache, so agents never read their own stale state | `app/cache.py` |
+| Retrieved lessons are wrong | H-MEM lowers a lesson's confidence when its outcome is not_helpful, and every plan still goes through the critic | `app/engines/playbooks.py` |
+
 ## Resilience: what happens when things go wrong
 | Failure | What the system does | Where |
 |---|---|---|
