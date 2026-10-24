@@ -172,7 +172,7 @@ class Sim:
     # ---------------------------------------------------------------- incidents
 
     def inject(self, kind: str, plant, station_id: str | None = None, agv_id: str | None = None,
-               false_alarm: bool | None = None, severity: str | None = None) -> Incident:
+               false_alarm: bool | None = None, severity: str | None = None, note: str | None = None) -> Incident:
         """Create an incident in the sim. Sensor readings are seeded, so the same seed gives the same incident."""
         self._incident_seq += 1
         inc_id = f"SIM-{self.seed}-{self._incident_seq:03d}"
@@ -204,8 +204,8 @@ class Sim:
         zone = self.grid.label(x, y) or "FLOOR"
         return Incident(id=inc_id, kind=kind, station_id=station_id, zone_id=zone, x=x, y=y, tick=self.tick,
                         severity=severity or {"part_shortage": "high", "agv_fault": "medium", "overheat": "high",
-                                              "spill": "high"}[kind],
-                        agv_id=agv_id, machine_id=machine_id,
+                                              "spill": "high"}.get(kind, "medium"),
+                        agv_id=agv_id, machine_id=machine_id, note=(note or "").strip()[:300] or None,
                         sensors=sensors, truth_false_alarm=false_alarm if kind == "overheat" else False)
 
     def _vibration(self, label: str) -> dict:

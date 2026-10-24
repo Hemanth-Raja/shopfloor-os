@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"WITH faults AS ( SELECT date(ts) AS fault_date, CASE WHEN hour(ts) >= 6 AND hour(ts) < 14 THEN 'A' WHEN hour(ts) >= 14 AND hour(ts) < 22 THEN 'B' ELSE 'N' END AS shift_code FROM sf_fleet.agv_telemetry WHERE agv_id = 'AGV-3' AND fault_code IS NOT NULL ) SELECT fault_date, shift_code, COUNT(*) AS fault_count FROM faults GROUP BY fault_date, shift_code ORDER BY fault_count DESC, fault_date DESC LIMIT 20\", \"columns\": [\"fault_date\", \"shift_code\", \"fault_count\"], \"purpose\": \"Count AGV-3 telemetry fault rows grouped by date and derived shift to identify peak fault periods\"}",
+ "data": {
+  "sql": "WITH faults AS ( SELECT date(ts) AS fault_date, CASE WHEN hour(ts) >= 6 AND hour(ts) < 14 THEN 'A' WHEN hour(ts) >= 14 AND hour(ts) < 22 THEN 'B' ELSE 'N' END AS shift_code FROM sf_fleet.agv_telemetry WHERE agv_id = 'AGV-3' AND fault_code IS NOT NULL ) SELECT fault_date, shift_code, COUNT(*) AS fault_count FROM faults GROUP BY fault_date, shift_code ORDER BY fault_count DESC, fault_date DESC LIMIT 20",
+  "columns": [
+   "fault_date",
+   "shift_code",
+   "fault_count"
+  ],
+  "purpose": "Count AGV-3 telemetry fault rows grouped by date and derived shift to identify peak fault periods"
+ }
+}

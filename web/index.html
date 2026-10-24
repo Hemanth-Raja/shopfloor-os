@@ -82,6 +82,15 @@
   #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
   #powered { margin:10px 18px 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
   #powered b { color:var(--ink); font-weight:600; } #powered .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
+  .ask { display:flex; gap:8px; } .ask input { flex:1; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; }
+  .form { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
+  .form select, .form input { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 7px; font-size:13px; }
+  .form input[name=note] { flex:1; min-width:160px; }
+  .ev { margin-top:10px; padding:8px 10px; background:var(--panel2); border-radius:8px; overflow-x:auto; }
+  .grid2 > div { min-width:0; }
+  .ev pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; margin:4px 0; color:#cfe4ff; }
+  .ev table { font-size:12px; } .find { padding:4px 0; } .find .eid { color:var(--accent); font-size:12px; }
+  .dropped { color:var(--muted); text-decoration:line-through; }
   @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(90,169,255,.55); } 50% { box-shadow:0 0 0 7px rgba(90,169,255,0); } }
 </style>
 </head>
@@ -100,6 +109,7 @@
 <nav>
   <button class="on" data-view="live">Live floor</button>
   <button data-view="flow">Flow</button>
+  <button data-view="ask">Ask the floor</button>
   <button data-view="lab">Lab</button>
   <button data-view="know">What the agents know</button>
 </nav>
@@ -138,6 +148,21 @@
           <button class="act" data-run='{"kind":"overheat","station":"F10","false_alarm":true}'>Overheat · F10 (false alarm)</button>
           <button class="act" data-run='{"kind":"spill","station":"F20"}'>Coolant spill · F20</button>
         </div>
+        <form class="form" id="custom" aria-label="Report a custom incident">
+          <b class="note" style="color:var(--ink)">Report your own:</b>
+          <select name="kind" aria-label="Kind">
+            <option value="part_shortage">part shortage</option><option value="agv_fault">AGV fault</option>
+            <option value="overheat">machine overheat</option><option value="spill">fluid spill</option>
+            <option value="robot_cell_fault">robot-cell fault</option><option value="torque_fault">nutrunner torque fault</option>
+            <option value="near_miss">pedestrian near miss</option><option value="quality_defect">quality defect</option>
+          </select>
+          <select name="station" aria-label="Station"></select>
+          <select name="agv" aria-label="AGV" style="display:none"></select>
+          <select name="severity" aria-label="Severity"><option value="">severity: default</option><option>low</option><option>medium</option><option>high</option><option>critical</option></select>
+          <input name="note" maxlength="300" placeholder="note (optional), e.g. operator saw smoke">
+          <button class="act primary" type="submit">Run</button>
+        </form>
+        <div class="note">Any kind the agents have no playbook for is fenced and escalated to a supervisor, with the reason.</div>
       </div>
     </div>
     <div>
@@ -168,6 +193,31 @@
     <div><span class="loop" id="loop-critic">⟲ critic → planner retries: 0</span><span class="loop" id="loop-replan">⟲ verifier → re-plans: 0</span></div>
   </div>
   <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent box.</div></div>
+</section>
+
+<section class="view" id="ask">
+  <div class="grid2">
+    <div>
+      <div class="panel">
+        <h2>Ask the floor</h2>
+        <p class="note">A team of agents investigates: a <b>coordinator</b> (Nemotron) splits your question, the <b>SQL agent</b>
+          writes read-only SQL that runs on Zetaris across fleet, HR, plant and ops (checked by a SQL guard first), the
+          <b>log agent</b> searches the agents' own traces, Nemotron calls and H-MEM lessons, the <b>analyst</b> correlates,
+          and the <b>critic</b> drops any claim the returned rows don't back up.</p>
+        <form class="ask" id="askform"><input id="askq" maxlength="400" placeholder="e.g. Which shift has the most part shortages at F30?" aria-label="Question"><button class="act primary" type="submit">Ask</button></form>
+        <div class="row">
+          <button class="act" data-ask="Why does F10 keep stopping?">Why does F10 keep stopping?</button>
+          <button class="act" data-ask="Which AGV is least reliable and when?">Which AGV is least reliable and when?</button>
+          <button class="act" data-ask="Are overheat alarms real?">Are overheat alarms real?</button>
+        </div>
+      </div>
+      <div class="panel"><h2>Answer</h2><div id="askout" class="muted">Ask a question.</div></div>
+    </div>
+    <div>
+      <div class="panel"><h2>Investigation steps</h2><div id="asksteps" class="muted">—</div></div>
+      <div class="panel"><h2>Evidence</h2><div id="askev" class="muted">SQL, row counts and log references appear here.</div></div>
+    </div>
+  </div>
 </section>
 
 <section class="view" id="lab">
@@ -332,7 +382,7 @@ async function load() {
   const s = await (await fetch("/api/state")).json();
   grid = s.grid; stations = s.stations; agents = s.agents; fence = s.geofence; involved = s.incident_agents || []; markMode(s.autonomy || "auto");
   $("mode").innerHTML = s.offline ? "mode <b>offline / replay</b>" : "mode <b>live</b>";
-  $("tick").textContent = `tick ${s.tick}`; draw();
+  $("tick").textContent = `tick ${s.tick}`; draw(); fillForm();
 }
 
 function cites(list) {
@@ -401,7 +451,8 @@ es.addEventListener("autonomy", e => markMode(JSON.parse(e.data).mode));
 function markMode(m) { document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); }
 for (const b of document.querySelectorAll(".seg button")) b.onclick = async () => {
   await fetch("/autonomy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode: b.dataset.mode})}); markMode(b.dataset.mode); };
-es.addEventListener("error", e => { if (e.data) $("decision").innerHTML = `<span class="bad-t">${esc(JSON.parse(e.data).error)}</span>`; });
+es.addEventListener("error", e => { if (!e.data) return; const d = JSON.parse(e.data);
+  $(String(d.incident || "").startsWith("ask-") ? "askout" : "decision").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; });
 es.addEventListener("lab_status", () => { $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
 es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
 es.addEventListener("lab_written", e => { $("labout").insertAdjacentHTML("beforeend", `<div class="ok-t" style="margin-top:8px">Saved ${esc(JSON.parse(e.data).experiment_id)} to sf_ops.experiments via Zetaris</div>`); });
@@ -423,6 +474,61 @@ for (const b of document.querySelectorAll("[data-run]")) b.onclick = async () =>
   const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body:b.dataset.run});
   if (!r.ok) alert((await r.json()).error);
 };
+
+const KIND_DEFAULT_STATION = {overheat:"F10", spill:"F20", robot_cell_fault:"B20", torque_fault:"T20", quality_defect:"E10"};
+function fillForm() {
+  const f = $("custom");
+  f.station.innerHTML = stations.map(s => `<option value="${esc(s.id)}">${esc(s.id)} · ${esc(s.name)}</option>`).join("");
+  f.agv.innerHTML = agents.filter(a => a.kind === "agv").map(a => a.id.split(":").pop()).sort().map(a => `<option>${esc(a)}</option>`).join("");
+  f.station.value = "F30";
+}
+$("custom").kind.onchange = e => { const f = $("custom"), k = e.target.value;
+  f.agv.style.display = k === "agv_fault" ? "" : "none"; if (KIND_DEFAULT_STATION[k]) f.station.value = KIND_DEFAULT_STATION[k]; };
+$("custom").onsubmit = async e => { e.preventDefault(); const f = e.target;
+  const body = {kind:f.kind.value, station:f.station.value, severity:f.severity.value || null, note:f.note.value.trim() || null};
+  if (body.kind === "agv_fault") body.agv = f.agv.value;
+  const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if (!r.ok) alert((await r.json()).error);
+};
+
+const ASK_WHO = {coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", analyst:"Analyst", critic:"Critic"};
+function askStep(st) {
+  const d = st.detail || {}; let txt = "";
+  if (st.step === "coordinator") txt = `${d.model}: ${(d.tasks || []).map(t => `[${t.kind}] ${t.ask}`).join(" · ")}`;
+  else if (st.step === "sql") txt = st.ok ? `${d.rows} rows from Zetaris (attempt ${d.attempt}): ${d.purpose || ""}` : `failed: ${d.error}`;
+  else if (st.step === "logs") txt = `${d.summary.incidents_matched_in_traces} traced incidents, ${d.summary.nemotron_calls_recent} recent Nemotron calls, ${d.summary.h_mem_lessons.length} H-MEM lessons`;
+  else if (st.step === "analyst") txt = `${d.model}: ${d.findings} findings`;
+  else if (st.step === "critic") txt = `kept ${d.kept}, dropped ${(d.dropped || []).length}`;
+  if ($("asksteps").classList.contains("muted")) { $("asksteps").classList.remove("muted"); $("asksteps").innerHTML = ""; }
+  $("asksteps").insertAdjacentHTML("beforeend", `<div class="step"><span class="n ${st.ok ? "ok-t" : "bad-t"}">${ASK_WHO[st.step] || esc(st.step)}</span><span class="ms">${(st.ms / 1000).toFixed(1)}s</span>${esc(txt)}</div>`);
+}
+function evTable(e) {
+  if (!e.preview || !e.preview.length) return "";
+  return `<table><tr>${(e.columns || []).map(c => `<th>${esc(c)}</th>`).join("")}</tr>${e.preview.slice(0, 8).map(r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function showAsk(r) {
+  if (!r || !r.question) return;
+  $("askout").classList.remove("muted");
+  $("askout").innerHTML = `<div class="muted">Q: ${esc(r.question)}</div><p style="font-size:15px">${esc(r.summary)}</p>`
+    + r.findings.map(f => `<div class="find">• ${esc(f.claim)} <span class="eid">[${f.evidence.map(esc).join(", ")}]</span></div>`).join("")
+    + (r.dropped.length ? `<div class="note" style="margin-top:8px">Dropped by the critic (not backed by the evidence):</div>` + r.dropped.map(f => `<div class="find"><span class="dropped">${esc(f.claim)}</span> <span class="note">${esc(f.reason)}</span></div>`).join("") : "")
+    + `<p><b>Recommendation:</b> ${esc(r.recommendation)}</p><div class="note">models ${esc(r.models.join(", "))} · ${r.execution_time_seconds}s · trace ${esc(r.log_file)}</div>`;
+  $("askev").classList.remove("muted");
+  $("askev").innerHTML = r.evidence.map(e => e.type === "sql"
+    ? `<div class="ev"><b>${esc(e.id)} · SQL agent</b> <span class="note">${esc(e.task)}</span>${e.ok ? ` <span class="ok-t">${e.rows} rows, ${e.query_ms} ms</span>` : ` <span class="bad-t">${esc(e.error)}</span>`}<pre>${esc(e.sql || "")}</pre>${evTable(e)}</div>`
+    : `<div class="ev"><b>${esc(e.id)} · Log agent</b> <span class="note">${esc(e.task)}</span><pre>${esc(JSON.stringify(e.summary, null, 1))}</pre>${(e.refs || []).map(x => `<div class="note">${esc(x)}</div>`).join("")}</div>`).join("");
+}
+async function ask(q) {
+  $("askq").value = q; $("asksteps").innerHTML = '<span class="muted">coordinator is splitting the question…</span>'; $("asksteps").classList.add("muted");
+  $("askout").innerHTML = '<span class="muted">investigating… (Nemotron calls can take up to a minute each)</span>';
+  const r = await fetch("/ask", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({question:q})});
+  if (!r.ok) alert((await r.json()).error);
+}
+$("askform").onsubmit = e => { e.preventDefault(); if ($("askq").value.trim()) ask($("askq").value.trim()); };
+for (const b of document.querySelectorAll("[data-ask]")) b.onclick = () => ask(b.dataset.ask);
+es.addEventListener("ask_step", e => askStep(JSON.parse(e.data)));
+es.addEventListener("ask_result", e => showAsk(JSON.parse(e.data)));
+fetch("/api/ask_last").then(r => r.json()).then(showAsk);
 
 $("labrun").onclick = async () => { $("labwrite").disabled = true; await fetch("/lab/run", {method:"POST"}); };
 $("labwrite").onclick = async () => { const r = await fetch("/lab/write", {method:"POST"}); if (!r.ok) alert((await r.json()).error); $("labwrite").disabled = true; };
@@ -496,7 +602,7 @@ async function poweredBy() {
 }
 flowReset(); load(); health(); restoreLast(); poweredBy(); setInterval(health, 15000); setInterval(poweredBy, 10000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
-if (["#lab", "#know", "#flow"].includes(location.hash)) show(location.hash.slice(1));
+if (["#lab", "#know", "#flow", "#ask"].includes(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"tasks\": [{\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agvs and sf_fleet.agv_tasks, compute each AGV's faults_90d plus count of late/aborted tasks in Jul-Oct 2026, rank descending, and return the single least reliable agv_id with its totals.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_ops.incidents filtered to kind='agv_fault' and the agv_id from task 1, group by date(ts) and shift_code, count incidents and sum downtime_min, order by count desc to show when that AGV was least reliable.\"}, {\"kind\": \"sql\", \"ask\": \"Using sf_fleet.agv_telemetry for the agv_id from task 1, count rows where fault_code is not null grouped by date(ts) and shift_code to pinpoint peak fault timestamps.\"}]}",
+ "data": {
+  "tasks": [
+   {
+    "kind": "sql",
+    "ask": "Using sf_fleet.agvs and sf_fleet.agv_tasks, compute each AGV's faults_90d plus count of late/aborted tasks in Jul-Oct 2026, rank descending, and return the single least reliable agv_id with its totals."
+   },
+   {
+    "kind": "sql",
+    "ask": "Using sf_ops.incidents filtered to kind='agv_fault' and the agv_id from task 1, group by date(ts) and shift_code, count incidents and sum downtime_min, order by count desc to show when that AGV was least reliable."
+   },
+   {
+    "kind": "sql",
+    "ask": "Using sf_fleet.agv_telemetry for the agv_id from task 1, count rows where fault_code is not null grouped by date(ts) and shift_code to pinpoint peak fault timestamps."
+   }
+  ]
+ }
+}

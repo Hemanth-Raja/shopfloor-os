@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 83 offline tests
+.venv/bin/python -m pytest -q                          # 115 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -81,6 +81,8 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | **Web UI** | `python -m app.server`: live floor, Lab and "What the agents know" tabs, Approve/Reject |
 | One incident (CLI trace) | `run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2` |
 | Zone briefing | `run.py context --zone FINAL` (World Model built from one federated Zetaris query, plus a Nemotron summary) |
+| **Ask the floor** (investigation) | `run.py ask "Why does F10 keep stopping?"` or the *Ask the floor* tab; `--json` prints the full result |
+| Custom incident | the *Report your own* form under the map (kind, station, severity, note), or `input.severity` / `input.note` in the JSON contract |
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 
 Request:
@@ -89,7 +91,10 @@ Request:
  "input": {"kind": "agv_fault", "agv": "AGV-3", "station": "F30", "stall_after": 2, "seed": 42},
  "options": {"sample_mode": false, "memory": false}}
 ```
-- `input.kind` is one of `part_shortage`, `agv_fault`, `overheat` or `spill`.
+- `input.kind` is one of `part_shortage`, `agv_fault`, `overheat`, `spill`, `robot_cell_fault`, `torque_fault`,
+  `near_miss` or `quality_defect`. A kind without a response playbook is fenced and escalated to a supervisor, with the
+  reason, instead of being planned.
+- Optional `severity` (`low`, `medium`, `high`, `critical`) and `note` (free text from the reporter).
 - `station` is a station id (B10, B20, P10, T10, T20, M10, F10, F20, F30, E10).
 - `false_alarm` makes an overheat sensor noise.
 - `stall_after` stalls the dispatched AGV mid-route.
@@ -142,6 +147,25 @@ None of them contain secrets.
 | executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none |
 | health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none |
 | lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | NEMOTRON_DEEP (hypothesis only) |
+
+## Ask the floor: investigating what happened
+The incident loop reacts to one incident. *Ask the floor* looks back over everything that happened. A question such
+as "Why does F10 keep stopping?" goes to a team of agents (`app/investigate/`):
+
+| Agent | Role | Model |
+|---|---|---|
+| coordinator | Splits the question into 1–4 sub-tasks: SQL over the plant data, and the agents' own logs | NEMOTRON_DEEP |
+| SQL agent | Writes one read-only Spark SQL query per sub-task from the table catalogue, runs it on Zetaris; on a guard refusal or Zetaris error it gets the message and one retry. A task that builds on another runs after it and sees its rows | NEMOTRON_FAST |
+| SQL guard | One `SELECT`/`WITH` only, no `;`, no DDL/DML/`SET`/`REFRESH`, only whitelisted `sf_*` tables, `LIMIT` capped at 200 | none (rules) |
+| log agent | Searches `logs/trace-*.jsonl` (decisions, critic rejections by rule, re-plans), `logs/llm.jsonl` (calls, latency, models) and H-MEM lessons | none |
+| analyst | Correlates the evidence into findings, each citing evidence ids (E1, E2…) | NEMOTRON_DEEP |
+| critic | Drops any finding that cites missing or failed evidence, or quotes a number not found in the cited rows (totals of up to three values in one column are allowed) | none (rules) |
+
+Independent sub-tasks run in parallel. The answer shows its evidence: the SQL, row counts, the top rows and log
+references, plus the claims the critic dropped and why. Each step streams to the UI and to `run.py watch`, and is
+written to `logs/trace-ask-<id>.jsonl`. Without Nightshift, a rule-based coordinator and analyst use fixed queries.
+In sample mode the three example questions replay recorded Nemotron replies and Zetaris rows; any other question
+runs on an offline SQLite copy of the four sources, built from `data/seed` on first use.
 
 ## How an incident is handled
 ```

@@ -49,6 +49,8 @@ def describe_step(r: dict) -> str:
                            for x in d.get("agv_routes", []))
         return (f"{model_name(d.get('model'))} attempt {d.get('attempt')} -> send "
                 f"{', '.join(short(a) for a in d.get('assignees', []))}{'; ' + routes if routes else ''}")
+    if step == "critic" and "kept" in d:
+        return f"kept {d.get('kept')} findings, dropped {len(d.get('dropped', []))}"
     if step == "critic":
         if ok:
             return "plan passes every safety rule"
@@ -62,6 +64,16 @@ def describe_step(r: dict) -> str:
         return f"{d.get('gate')} ({d.get('autonomy')}): {'; '.join(d.get('reasons', []))}"
     if step == "executor":
         return f"dispatched, ETA {d.get('eta_s')}"
+    if step == "coordinator":
+        return f"{model_name(d.get('model'))} split the question into {[t['kind'] for t in d.get('tasks', [])]}"
+    if step == "sql":
+        return (f"{d.get('rows')} rows (attempt {d.get('attempt')}): {' '.join(str(d.get('sql', '')).split())[:110]}"
+                if ok else f"failed: {str(d.get('error'))[:140]}")
+    if step == "logs":
+        s = d.get("summary", {})
+        return f"{s.get('incidents_matched_in_traces')} traced incidents, decisions {s.get('decisions')}, {len(s.get('h_mem_lessons', []))} lessons"
+    if step == "analyst":
+        return f"{model_name(d.get('model'))}: {d.get('findings')} findings"
     if step == "verifier":
         return "world changed as predicted" if ok else f"MISMATCH {[(short(m['agent']), m['issue']) for m in d.get('mismatches', [])]}: re-planning"
     return json.dumps(d)[:160]

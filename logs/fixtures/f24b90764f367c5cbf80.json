@@ -1,0 +1,30 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"AGV-3 is the least reliable AGV with faults_90d 84, late_aborted_tasks 769, and reliability_total 853; its peak fault activity was on 2026-10-12 during shift B (telemetry fault_count 67), with incident_count 3 tied on 2026-08-07 shift A and 2026-08-17 shift A (all total_downtime_min 0.0).\", \"findings\": [{\"claim\": \"AGV-3 is the least reliable AGV with faults_90d 84, late_aborted_tasks 769, and reliability_total 853.\", \"evidence\": [\"E1\"]}, {\"claim\": \"AGV-3 telemetry fault rows peaked at fault_count 67 on 2026-10-12 shift B.\", \"evidence\": [\"E3\"]}, {\"claim\": \"AGV-3 fault incidents peaked at incident_count 3 on 2026-10-12 shift B, tied with 2026-08-07 shift A and 2026-08-17 shift A, with total_downtime_min 0.0.\", \"evidence\": [\"E2\"]}], \"recommendation\": \"Schedule AGV-3 for immediate inspection and preventive maintenance, prioritizing the 2026-10-12 shift-B window and the tied high-incident dates of 2026-08-07 shift A and 2026-08-17 shift A.\"}",
+ "data": {
+  "summary": "AGV-3 is the least reliable AGV with faults_90d 84, late_aborted_tasks 769, and reliability_total 853; its peak fault activity was on 2026-10-12 during shift B (telemetry fault_count 67), with incident_count 3 tied on 2026-08-07 shift A and 2026-08-17 shift A (all total_downtime_min 0.0).",
+  "findings": [
+   {
+    "claim": "AGV-3 is the least reliable AGV with faults_90d 84, late_aborted_tasks 769, and reliability_total 853.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "AGV-3 telemetry fault rows peaked at fault_count 67 on 2026-10-12 shift B.",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "AGV-3 fault incidents peaked at incident_count 3 on 2026-10-12 shift B, tied with 2026-08-07 shift A and 2026-08-17 shift A, with total_downtime_min 0.0.",
+    "evidence": [
+     "E2"
+    ]
+   }
+  ],
+  "recommendation": "Schedule AGV-3 for immediate inspection and preventive maintenance, prioritizing the 2026-10-12 shift-B window and the tied high-incident dates of 2026-08-07 shift A and 2026-08-17 shift A."
+ }
+}

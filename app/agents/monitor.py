@@ -27,9 +27,12 @@ def assess(incident: Incident, llm_text: Callable | None = None) -> dict:
     elif incident.kind == "part_shortage":
         p_real, agreement = 0.95, True
         evidence.append(f"line-side stock {s.get('line_side_stock_min')} min")
-    else:  # agv_fault
+    elif incident.kind == "agv_fault":
         p_real, agreement = 0.97, True
         evidence.append(f"AGV fault code {s.get('fault_code')}")
+    else:  # reported by a person, no sensor to cross-check
+        p_real, agreement = 0.9, True
+        evidence.append(f"reported by a person{': ' + incident.note if incident.note else ''}")
     verdict = "real" if p_real >= 0.5 else "likely_noise"
     summary = f"{incident.kind} at {incident.station_id or incident.zone_id}: {verdict} (p={p_real:.2f}); " + "; ".join(evidence)
     model = None

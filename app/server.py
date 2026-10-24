@@ -7,8 +7,9 @@
     GET  /events       Server-Sent Events: trace steps, sim ticks, decisions, approvals
     GET  /health       health agent report (circuit breakers, floor vitals)
     GET  /api/knowledge what the agents know: World Model entities and checks, H-MEM lessons and ledger
+    POST /ask          investigator team in the background -> 'ask_step' and 'ask_result' events; GET /api/ask_last
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
-    POST /run          {"kind", "station", "agv", "false_alarm", "stall_after", "seed"} -> runs the agent loop
+    POST /run          {"kind", "station", "agv", "severity", "note", "false_alarm", "stall_after", "seed"} -> runs the agent loop
     POST /approve      {"incident_id", "approve": true|false, "by"} -> a human judges the decision
     POST /autonomy     {"mode": "auto" | "supervised" | "advisory"} -> how much the agents may do on their own
     POST /api/run      JSON run contract (see app/api.py): runs one incident synchronously, returns JSON
@@ -86,6 +87,8 @@ class App:
         self.memory = None if replay else PlaybookStore()  # learned lessons would change the replay keys
         self.traces: dict[str, object] = {}
         self.last_lab: dict | None = None
+        self.last_ask: dict | None = None
+        self.asking = False
         self.autonomy = "auto"
         self.busy = False
         threading.Thread(target=self._ticker, daemon=True).start()
@@ -123,12 +126,27 @@ class App:
         with self.lock:
             if self.busy:
                 raise RuntimeError("an incident is already running")
-            self.busy = True
-            if req.get("seed") is not None or self.replay:
-                self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
+            from app.api import KINDS, SEVERITIES
+            if req.get("kind") not in KINDS:
+                raise ValueError(f"kind must be one of {list(KINDS)}")
+            if req.get("severity") not in (None, "", *SEVERITIES):
+                raise ValueError(f"severity must be one of {list(SEVERITIES)}")
             agv = f"agv:plant:{req['agv']}" if req.get("agv") else None
-            inc = self.sim.inject(req["kind"], self.plant, station_id=req.get("station"), agv_id=agv,
-                                  false_alarm=bool(req.get("false_alarm")))
+            if req["kind"] == "agv_fault" and agv not in self.sim.agents:
+                raise ValueError("an AGV fault needs a known AGV, e.g. AGV-3")
+            if req["kind"] != "agv_fault" and not any(e["id"].split(":")[-1] == req.get("station")
+                                                      for e in self.plant.entities("station")):
+                raise ValueError(f"unknown station {req.get('station')!r}")
+            self.busy = True
+            try:
+                if req.get("seed") is not None or self.replay:
+                    self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
+                inc = self.sim.inject(req["kind"], self.plant, station_id=req.get("station"), agv_id=agv,
+                                      false_alarm=bool(req.get("false_alarm")), severity=req.get("severity") or None,
+                                      note=req.get("note"))
+            except Exception:
+                self.busy = False
+                raise
         self.bus.publish("incident", inc.model_dump(exclude={"truth_false_alarm"}))
         threading.Thread(target=self._run, args=(inc, req), daemon=True).start()
         return inc.id
@@ -260,6 +278,35 @@ class App:
                 self.bus.publish("lab", {"error": f"{type(err).__name__}: {err}"[:300]})
         threading.Thread(target=work, daemon=True).start()
 
+    def ask(self, req: dict) -> str:
+        """Run the investigator team in the background; steps stream as 'ask_step', the answer as 'ask_result'."""
+        question = str(req.get("question") or "").strip()
+        if not 5 <= len(question) <= 400:
+            raise ValueError("ask a question of 5 to 400 characters")
+        if self.asking:
+            raise RuntimeError("an investigation is already running")
+        self.asking = True
+        ask_id = f"ask-{int(time.time())}-{os.urandom(2).hex()}"
+
+        def work():
+            from app.fixtures import maybe_sample, sample_mode
+            from app import runtime
+            from app.investigate.investigator import Investigator
+            from app.investigate.sources import sql_runner
+            try:
+                runner = sql_runner("true") if self.offline and not self.replay else sql_runner(sample_mode(), self.run_sql)
+                inv = Investigator(runner, maybe_sample(runtime.chat_json, "json"), ask_id=ask_id, memory=self.memory, sample=sample_mode(),
+                                   on_step=lambda aid, st: self.bus.publish("ask_step", {"ask_id": aid, **st}))
+                self.last_ask = inv.run(question)
+                self.bus.publish("ask_result", self.last_ask)
+            except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
+                self.bus.publish("error", {"incident": ask_id, "error": f"{type(err).__name__}: {err}"[:300]})
+            finally:
+                self.asking = False
+
+        threading.Thread(target=work, daemon=True).start()
+        return ask_id
+
     def lab_write(self) -> dict:
         from app.lab.experiment import experiment_row, write_zetaris
         if not getattr(self, "last_lab", None):
@@ -308,6 +355,8 @@ def make_handler(app: App):
             if self.path == "/api/powered":
                 from app.powered import powered
                 return self._send(200, powered(sample_mode=app.replay))
+            if self.path == "/api/ask_last":
+                return self._send(200, app.last_ask or {})
             if self.path == "/api/lab_last":
                 return self._send(200, app.last_lab or {})
             if self.path == "/api/last":
@@ -356,6 +405,8 @@ def make_handler(app: App):
                     app.autonomy = mode
                     app.bus.publish("autonomy", {"mode": mode})
                     return self._send(200, {"autonomy": mode})
+                if self.path == "/ask":
+                    return self._send(202, {"ask_id": app.ask(self._json())})
                 if self.path == "/lab/run":
                     app.lab()
                     return self._send(202, {"status": "running"})

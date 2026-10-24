@@ -6,7 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-IncidentKind = Literal["part_shortage", "agv_fault", "overheat", "spill"]
+IncidentKind = Literal["part_shortage", "agv_fault", "overheat", "spill",
+                       "robot_cell_fault", "torque_fault", "near_miss", "quality_defect"]
 Decision = Literal["ACT", "SAFE_HOLD", "VERIFY", "ESCALATE", "DO_NOTHING"]
 
 
@@ -25,6 +26,7 @@ class Incident(Strict):
     severity: Literal["low", "medium", "high", "critical"] = "medium"
     agv_id: str | None = None
     machine_id: str | None = None
+    note: str | None = Field(default=None, max_length=300)  # free text from the person who reported it
     sensors: dict[str, Any] = Field(default_factory=dict)  # e.g. process_temp_k, vibration_recording, vibration_label
     truth_false_alarm: bool | None = Field(default=None, exclude=True)  # sim ground truth, never shown to agents
 

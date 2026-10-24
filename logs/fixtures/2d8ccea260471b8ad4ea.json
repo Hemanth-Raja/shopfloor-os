@@ -1,0 +1,16 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT CASE WHEN i.kind = 'machine_overheat' THEN 'machine_overheat' ELSE 'other' END AS incident_group, COUNT(*) AS incident_count, ROUND(AVG(w.temperature_c), 1) AS mean_temperature_c, ROUND(AVG(CASE WHEN w.temperature_c > 30 THEN 1 ELSE 0 END) * 100, 1) AS share_above_30c_pct FROM sf_ops.incidents i JOIN sf_plant.weather_hourly w ON date_trunc('HOUR', i.ts) = w.ts GROUP BY CASE WHEN i.kind = 'machine_overheat' THEN 'machine_overheat' ELSE 'other' END ORDER BY incident_count DESC\", \"columns\": [\"incident_group\", \"incident_count\", \"mean_temperature_c\", \"share_above_30c_pct\"], \"purpose\": \"Compare mean outdoor temperature and share above 30C for machine_overheat versus other incident kinds.\"}",
+ "data": {
+  "sql": "SELECT CASE WHEN i.kind = 'machine_overheat' THEN 'machine_overheat' ELSE 'other' END AS incident_group, COUNT(*) AS incident_count, ROUND(AVG(w.temperature_c), 1) AS mean_temperature_c, ROUND(AVG(CASE WHEN w.temperature_c > 30 THEN 1 ELSE 0 END) * 100, 1) AS share_above_30c_pct FROM sf_ops.incidents i JOIN sf_plant.weather_hourly w ON date_trunc('HOUR', i.ts) = w.ts GROUP BY CASE WHEN i.kind = 'machine_overheat' THEN 'machine_overheat' ELSE 'other' END ORDER BY incident_count DESC",
+  "columns": [
+   "incident_group",
+   "incident_count",
+   "mean_temperature_c",
+   "share_above_30c_pct"
+  ],
+  "purpose": "Compare mean outdoor temperature and share above 30C for machine_overheat versus other incident kinds."
+ }
+}

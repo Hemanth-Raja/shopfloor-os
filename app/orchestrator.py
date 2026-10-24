@@ -29,6 +29,7 @@ from app.llm import LLMUnavailable
 
 TRACE_PATH = Path(__file__).resolve().parents[1] / "logs" / "trace.jsonl"
 AUTONOMY = ("auto", "supervised", "advisory")
+SUPPORTED_KINDS = {"part_shortage", "agv_fault", "overheat", "spill"}  # kinds with a planning playbook
 PERSON_HAZARD_KINDS = {"spill", "overheat"}  # a person walks into the hazard (spill clean-up, machine repair)
 
 
@@ -151,6 +152,12 @@ class Orchestrator:
         t = time.perf_counter()
         mon = assess(incident, self.llm_text)
         self._step(trace, "monitor", t, True, **mon)
+
+        if incident.kind not in SUPPORTED_KINDS:  # no playbook, candidates or critic rules: a person takes over
+            trace.decision = RestraintDecision(decision="ESCALATE", score=0.0, reasons=[
+                f"no response playbook for '{incident.kind}' yet: the area is fenced and a supervisor must take over"])
+            self._step(trace, "restraint", time.perf_counter(), True, **trace.decision.model_dump())
+            return trace
 
         if self.memory is not None:
             t = time.perf_counter()

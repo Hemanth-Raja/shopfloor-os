@@ -1,0 +1,24 @@
+{
+ "id": "E4",
+ "type": "logs",
+ "task": "agent traces, model calls and H-MEM lessons",
+ "ok": true,
+ "keys": [
+  "F10"
+ ],
+ "summary": {
+  "incidents_matched_in_traces": 0,
+  "decisions": {},
+  "critic_rejections_by_rule": {},
+  "verifier_replans": 0,
+  "nemotron_calls_recent": 103,
+  "avg_latency_s": 22.9,
+  "models": [
+   "nvidia/nemotron-3.5-super-vl-120b-a12b"
+  ],
+  "h_mem_lessons": [
+   "part_shortage at F30: R-CROSSING agv:plant:AGV-5 crosses X-WEST at 1.0 m/s; set crossing_speed_mps <= 0.5 (confidence 0.75, source SIM-42-005)"
+  ]
+ },
+ "refs": []
+}

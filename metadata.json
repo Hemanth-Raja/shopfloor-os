@@ -29,8 +29,8 @@
   "models": {
     "provider": "Meterless Nightshift (OpenAI-compatible)",
     "lanes": {
-      "deep": "NEMOTRON_DEEP (planner, lab hypothesis)",
-      "fast": "NEMOTRON_FAST (monitor one-line summary)"
+      "deep": "NEMOTRON_DEEP (planner, lab hypothesis, investigation coordinator and analyst)",
+      "fast": "NEMOTRON_FAST (monitor one-line summary, investigation SQL agent)"
     },
     "call_layer": "app/llm.py only"
   },
@@ -56,12 +56,12 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (83 offline tests, including Meterless conformance: tests/test_world_model.py, tests/test_hmem.py)",
+  "tests": "python -m pytest  (115 offline tests, including Meterless conformance: tests/test_world_model.py, tests/test_hmem.py, and the SQL guard: tests/test_investigate.py)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",
     "http": "POST /api/run on python -m app.server (port $PORT, default 8000)",
-    "ui": "python -m app.server -> http://127.0.0.1:8000 (live floor, Lab, What the agents know)",
+    "ui": "python -m app.server -> http://127.0.0.1:8000 (live floor with custom incident form, Flow, Ask the floor, Lab, What the agents know)",
     "docker": "docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os"
   },
   "sample_inputs": [
@@ -85,5 +85,40 @@
     "cursor": ".cursor/rules/shopfloor.mdc + AGENTS.md; app/llm.py built in Cursor"
   },
   "pre_existing_components": "none (repository started 2026-10-23, inside the build window)",
-  "repository": "to be made public on GitHub before submission"
+  "repository": "to be made public on GitHub before submission",
+  "investigation": {
+    "entry_points": [
+      "python run.py ask \"Why does F10 keep stopping?\"",
+      "POST /ask on the server (SSE ask_step / ask_result), UI tab 'Ask the floor'"
+    ],
+    "agents": [
+      "coordinator",
+      "sql_agent",
+      "sql_guard",
+      "log_agent",
+      "analyst",
+      "evidence_critic"
+    ],
+    "code": "app/investigate/",
+    "sample_questions": [
+      "Why does F10 keep stopping?",
+      "Which AGV is least reliable and when?",
+      "Are overheat alarms real?"
+    ],
+    "logs": "logs/trace-ask-<id>.jsonl"
+  },
+  "incident_kinds": {
+    "planned": [
+      "part_shortage",
+      "agv_fault",
+      "overheat",
+      "spill"
+    ],
+    "escalated_without_playbook": [
+      "robot_cell_fault",
+      "torque_fault",
+      "near_miss",
+      "quality_defect"
+    ]
+  }
 }

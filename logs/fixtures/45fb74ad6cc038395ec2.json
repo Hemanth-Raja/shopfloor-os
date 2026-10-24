@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT reason, stopped_line, COUNT(*) AS pull_count, ROUND(AVG(response_s), 1) AS avg_response_s, SUM(CASE WHEN stopped_line THEN 1 ELSE 0 END) AS line_stop_count, MIN(ts) AS first_ts, MAX(ts) AS last_ts FROM sf_ops.andon_events WHERE station_id = 'F10' AND ts >= TIMESTAMP '2026-07-01 00:00:00' AND ts <= TIMESTAMP '2026-10-31 23:59:59' GROUP BY reason, stopped_line ORDER BY line_stop_count DESC, pull_count DESC\", \"columns\": [\"reason\", \"stopped_line\", \"pull_count\", \"avg_response_s\", \"line_stop_count\", \"first_ts\", \"last_ts\"], \"purpose\": \"Summarize F10 andon pulls from Jul-Oct 2026 by reason and line-stop flag to identify which pulls stopped the line\"}",
+ "data": {
+  "sql": "SELECT reason, stopped_line, COUNT(*) AS pull_count, ROUND(AVG(response_s), 1) AS avg_response_s, SUM(CASE WHEN stopped_line THEN 1 ELSE 0 END) AS line_stop_count, MIN(ts) AS first_ts, MAX(ts) AS last_ts FROM sf_ops.andon_events WHERE station_id = 'F10' AND ts >= TIMESTAMP '2026-07-01 00:00:00' AND ts <= TIMESTAMP '2026-10-31 23:59:59' GROUP BY reason, stopped_line ORDER BY line_stop_count DESC, pull_count DESC",
+  "columns": [
+   "reason",
+   "stopped_line",
+   "pull_count",
+   "avg_response_s",
+   "line_stop_count",
+   "first_ts",
+   "last_ts"
+  ],
+  "purpose": "Summarize F10 andon pulls from Jul-Oct 2026 by reason and line-stop flag to identify which pulls stopped the line"
+ }
+}

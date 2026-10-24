@@ -27,7 +27,7 @@ SYSTEM = (
 def make_plan(incident: Incident, cands: dict, llm_json: Callable, feedback: list[Violation] | None = None,
               clauses: list[dict] | None = None) -> Plan:
     payload = {
-        "incident": incident.model_dump(exclude={"truth_false_alarm"}),
+        "incident": incident.model_dump(exclude={"truth_false_alarm"} | ({"note"} if incident.note is None else set())),
         "worker_candidates": [c.model_dump() for c in cands["workers"]],
         "agv_candidates": [c.model_dump() for c in cands["agvs"]],
     }

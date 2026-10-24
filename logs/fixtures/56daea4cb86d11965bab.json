@@ -1,0 +1,16 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"WITH late_aborted AS ( SELECT agv_id, COUNT(*) AS late_aborted_tasks FROM sf_fleet.agv_tasks WHERE status IN ('late','aborted') AND start_ts >= '2026-07-01' AND start_ts < '2026-11-01' GROUP BY agv_id ) SELECT a.agv_id, a.faults_90d, COALESCE(l.late_aborted_tasks, 0) AS late_aborted_tasks, (a.faults_90d + COALESCE(l.late_aborted_tasks, 0)) AS reliability_total FROM sf_fleet.agvs a LEFT JOIN late_aborted l ON l.agv_id = a.agv_id ORDER BY reliability_total DESC, a.faults_90d DESC, late_aborted_tasks DESC LIMIT 1\", \"columns\": [\"agv_id\", \"faults_90d\", \"late_aborted_tasks\", \"reliability_total\"], \"purpose\": \"Rank AGVs by combined 90-day faults and Jul-Oct 2026 late/aborted task counts, returning the single least reliable AGV with its totals.\"}",
+ "data": {
+  "sql": "WITH late_aborted AS ( SELECT agv_id, COUNT(*) AS late_aborted_tasks FROM sf_fleet.agv_tasks WHERE status IN ('late','aborted') AND start_ts >= '2026-07-01' AND start_ts < '2026-11-01' GROUP BY agv_id ) SELECT a.agv_id, a.faults_90d, COALESCE(l.late_aborted_tasks, 0) AS late_aborted_tasks, (a.faults_90d + COALESCE(l.late_aborted_tasks, 0)) AS reliability_total FROM sf_fleet.agvs a LEFT JOIN late_aborted l ON l.agv_id = a.agv_id ORDER BY reliability_total DESC, a.faults_90d DESC, late_aborted_tasks DESC LIMIT 1",
+  "columns": [
+   "agv_id",
+   "faults_90d",
+   "late_aborted_tasks",
+   "reliability_total"
+  ],
+  "purpose": "Rank AGVs by combined 90-day faults and Jul-Oct 2026 late/aborted task counts, returning the single least reliable AGV with its totals."
+ }
+}

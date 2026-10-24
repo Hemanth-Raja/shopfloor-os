@@ -1,0 +1,26 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"tasks\": [{\"kind\": \"sql\", \"ask\": \"Query sf_ops.incidents for station_id 'F10' between Jul 1 and Oct 31 2026, returning kind, cause, ts, shift_code, downtime_min, cars_lost, false_alarm, and description ordered by ts to identify recurring stop patterns.\"}, {\"kind\": \"sql\", \"ask\": \"Query sf_ops.andon_events for station_id 'F10' over the same period, returning reason, response_s, stopped_line, incident_id, and ts ordered by ts to see which andon pulls line-stopped F10.\"}, {\"kind\": \"sql\", \"ask\": \"Join sf_plant.machines at station_id 'F10' to sf_plant.machine_telemetry listing failure, overstrain_failure, heat_dissipation_failure, tool_wear_min, rpm, and torque_nm by hour around F10 stop timestamps to detect machine-level faults.\"}, {\"kind\": \"logs\", \"ask\": \"Retrieve agent traces, model calls, human approvals, and learned lessons from prior F10 investigation steps to summarize what has been checked and which root-cause hypotheses remain open.\"}]}",
+ "data": {
+  "tasks": [
+   {
+    "kind": "sql",
+    "ask": "Query sf_ops.incidents for station_id 'F10' between Jul 1 and Oct 31 2026, returning kind, cause, ts, shift_code, downtime_min, cars_lost, false_alarm, and description ordered by ts to identify recurring stop patterns."
+   },
+   {
+    "kind": "sql",
+    "ask": "Query sf_ops.andon_events for station_id 'F10' over the same period, returning reason, response_s, stopped_line, incident_id, and ts ordered by ts to see which andon pulls line-stopped F10."
+   },
+   {
+    "kind": "sql",
+    "ask": "Join sf_plant.machines at station_id 'F10' to sf_plant.machine_telemetry listing failure, overstrain_failure, heat_dissipation_failure, tool_wear_min, rpm, and torque_nm by hour around F10 stop timestamps to detect machine-level faults."
+   },
+   {
+    "kind": "logs",
+    "ask": "Retrieve agent traces, model calls, human approvals, and learned lessons from prior F10 investigation steps to summarize what has been checked and which root-cause hypotheses remain open."
+   }
+  ]
+ }
+}

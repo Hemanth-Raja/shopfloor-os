@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"F10 stops mainly due to part shortages (supplier shortfalls and AGV downtime/lateness) and recurring torque equipment faults, confirmed by line-stopping andon pulls and M-06 telemetry failures.\", \"findings\": [{\"claim\": \"Part shortages are the largest stop driver at F10, with supplier_short on shift A at 23 incidents and 423.7 downtime_min, agv_down on shift A at 68 incidents and 247.1 downtime_min, and agv_late on shift A at 71 incidents and 109.9 downtime_min.\", \"evidence\": [\"E1\"]}, {\"claim\": \"AGV-related shortages recur on shift B, with agv_down at 46 incidents and 86.4 downtime_min and agv_late at 55 incidents and 85.3 downtime_min.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Torque faults are a recurring secondary cause, including controller_fault on shift A at 26 incidents and 272.0 downtime_min and on shift B at 14 incidents and 179.7 downtime_min, plus repeated torque_out_of_range and socket_worn faults.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Andon pulls confirm missing_part and equipment stops the line, with all 157 missing_part pulls and all 131 equipment pulls marked stopped_line true, while all 90 quality_check pulls did not stop the line.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Machine telemetry for F10 machine M-06 shows 22 failures and 4 overstrain failures across 708 telemetry hours, supporting equipment-level faults as a stop cause.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Prioritize AGV reliability and parts replenishment at F10, especially agv_down and agv_late events and supplier shortfalls, and inspect or recalibrate the F10 torque equipment such as M-06.\"}",
+ "data": {
+  "summary": "F10 stops mainly due to part shortages (supplier shortfalls and AGV downtime/lateness) and recurring torque equipment faults, confirmed by line-stopping andon pulls and M-06 telemetry failures.",
+  "findings": [
+   {
+    "claim": "Part shortages are the largest stop driver at F10, with supplier_short on shift A at 23 incidents and 423.7 downtime_min, agv_down on shift A at 68 incidents and 247.1 downtime_min, and agv_late on shift A at 71 incidents and 109.9 downtime_min.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "AGV-related shortages recur on shift B, with agv_down at 46 incidents and 86.4 downtime_min and agv_late at 55 incidents and 85.3 downtime_min.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Torque faults are a recurring secondary cause, including controller_fault on shift A at 26 incidents and 272.0 downtime_min and on shift B at 14 incidents and 179.7 downtime_min, plus repeated torque_out_of_range and socket_worn faults.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Andon pulls confirm missing_part and equipment stops the line, with all 157 missing_part pulls and all 131 equipment pulls marked stopped_line true, while all 90 quality_check pulls did not stop the line.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Machine telemetry for F10 machine M-06 shows 22 failures and 4 overstrain failures across 708 telemetry hours, supporting equipment-level faults as a stop cause.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Prioritize AGV reliability and parts replenishment at F10, especially agv_down and agv_late events and supplier shortfalls, and inspect or recalibrate the F10 torque equipment such as M-06."
+ }
+}

@@ -38,7 +38,9 @@
 | 3 | *AGV-3 fault + stall* | AGV-3 is fenced; the replacement AGV stalls; the verifier re-plans with another AGV | 30–90 s |
 | 4 | *Overheat · F10 (false alarm)* | The monitor sees the sensors disagree, so VERIFY: "Waiting for you" (a technician would enter the machine area). **Approve** | 10–60 s |
 | 5 | **Lab** tab, *Run experiment* | Nemotron proposes a policy; 20 replays and a CI bar; *Save proposal to Zetaris* | 20–60 s |
-| 6 | **What the agents know** | World Model fleet (AGV-3 overdue), certificates (a lapsed forklift card), OSHA rules, H-MEM lessons | instant |
+| 6 | **Ask the floor** tab, *Why does F10 keep stopping?* (or type your own question) | Coordinator → SQL agents on Zetaris → log agent → analyst → critic; the answer cites E1–E4 with the SQL and rows | 60–200 s live (4–6 Nemotron calls); instant in sample mode |
+| 7 | **Report your own** under the map: e.g. *nutrunner torque fault* at T20, severity high, a note | Fenced, then ESCALATE with the reason (no playbook yet), or the full loop for a planned kind | instant to 90 s |
+| 8 | **What the agents know** | World Model fleet (AGV-3 overdue), certificates (a lapsed forklift card), OSHA rules, H-MEM lessons | instant |
 
 The plain-English line above the trace explains each step as it happens, so you can read it out loud.
 

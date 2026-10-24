@@ -36,7 +36,8 @@ AGENT_ROLES = {
     "verifier": "Checks that the world changed as predicted and triggers a re-plan if not",
     "safe_mode": "Rule-based fallback when Nightshift is unavailable",
 }
-KINDS = ("part_shortage", "agv_fault", "overheat", "spill")
+KINDS = ("part_shortage", "agv_fault", "overheat", "spill", "robot_cell_fault", "torque_fault", "near_miss", "quality_defect")
+SEVERITIES = ("low", "medium", "high", "critical")
 
 
 class RunError(Exception):
@@ -48,6 +49,8 @@ class RunError(Exception):
 def _validate(inp: dict) -> dict:
     if inp.get("kind") not in KINDS:
         raise RunError("InvalidInput", f"input.kind must be one of {list(KINDS)}", recoverable=False)
+    if inp.get("severity") not in (None, *SEVERITIES):
+        raise RunError("InvalidInput", f"input.severity must be one of {list(SEVERITIES)}", recoverable=False)
     if inp["kind"] == "agv_fault" and not inp.get("agv"):
         raise RunError("InvalidInput", "agv_fault needs input.agv, e.g. AGV-3", recoverable=False)
     if inp["kind"] != "agv_fault" and not inp.get("station"):
@@ -89,7 +92,8 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
             raise RunError("InvalidInput", f"unknown AGV {inp['agv']}", recoverable=False)
         try:
             incident = sim.inject(inp["kind"], plant, station_id=inp.get("station"), agv_id=agv,
-                                  false_alarm=bool(inp.get("false_alarm")))
+                                  false_alarm=bool(inp.get("false_alarm")), severity=inp.get("severity"),
+                                  note=inp.get("note"))
         except KeyError as err:
             raise RunError("InvalidInput", f"unknown station {inp.get('station')}", recoverable=False) from err
         memory = PlaybookStore() if opts.get("memory") else None

@@ -1,0 +1,20 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT kind, cause, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, ROUND(AVG(downtime_min), 1) AS avg_downtime_min, SUM(CASE WHEN false_alarm THEN 1 ELSE 0 END) AS false_alarm_count FROM sf_ops.incidents WHERE station_id = 'F10' AND ts >= TIMESTAMP '2026-07-01 00:00:00' AND ts <= TIMESTAMP '2026-10-31 23:59:59' GROUP BY kind, cause, shift_code ORDER BY total_downtime_min DESC\", \"columns\": [\"kind\", \"cause\", \"shift_code\", \"incident_count\", \"total_downtime_min\", \"total_cars_lost\", \"avg_downtime_min\", \"false_alarm_count\"], \"purpose\": \"Aggregate F10 incidents Jul-Oct 2026 by kind, cause, and shift to surface recurring stop patterns\"}",
+ "data": {
+  "sql": "SELECT kind, cause, shift_code, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cars_lost) AS total_cars_lost, ROUND(AVG(downtime_min), 1) AS avg_downtime_min, SUM(CASE WHEN false_alarm THEN 1 ELSE 0 END) AS false_alarm_count FROM sf_ops.incidents WHERE station_id = 'F10' AND ts >= TIMESTAMP '2026-07-01 00:00:00' AND ts <= TIMESTAMP '2026-10-31 23:59:59' GROUP BY kind, cause, shift_code ORDER BY total_downtime_min DESC",
+  "columns": [
+   "kind",
+   "cause",
+   "shift_code",
+   "incident_count",
+   "total_downtime_min",
+   "total_cars_lost",
+   "avg_downtime_min",
+   "false_alarm_count"
+  ],
+  "purpose": "Aggregate F10 incidents Jul-Oct 2026 by kind, cause, and shift to surface recurring stop patterns"
+ }
+}

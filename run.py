@@ -7,6 +7,7 @@
     python run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2
     python run.py incident --kind overheat --station F10 --false-alarm
     SAMPLE_MODE=true python run.py incident ... --no-memory    # replay recorded replies: no keys, no Zetaris
+    python run.py ask "Why does F10 keep stopping?"   # investigator team: SQL over Zetaris + agent logs + critic
 """
 
 import argparse
@@ -145,6 +146,37 @@ def run_file(path: str, out: str | None):
         Path(out).write_text(text + "\n")
 
 
+def ask(question: str, as_json: bool = False):
+    from app.engines.playbooks import PlaybookStore
+    from app.fixtures import maybe_sample, sample_mode
+    from app.investigate.investigator import Investigator
+    from app.investigate.sources import sql_runner
+    from app.runtime import chat_json as guarded_json
+
+    def show(_, st):
+        if not as_json:
+            print(f"  {'ok ' if st['ok'] else 'XX '} {st['step']:<12} {st['ms']:>9.1f} ms")
+
+    inv = Investigator(sql_runner(sample_mode()), maybe_sample(guarded_json, "json"), on_step=show, memory=PlaybookStore(),
+                       sample=sample_mode())
+    result = inv.run(question)
+    if as_json:
+        print(json.dumps(result, indent=2, default=str))
+        return
+    print(f"\nQ: {question}\nA: {result['summary']}")
+    for f in result["findings"]:
+        print(f"  - {f['claim']} [{', '.join(f['evidence'])}]")
+    for f in result["dropped"]:
+        print(f"  dropped by the critic: {f['claim']} ({f['reason']})")
+    print(f"Recommendation: {result['recommendation']}")
+    for e in result["evidence"]:
+        if e["type"] == "sql":
+            print(f"\n{e['id']} SQL ({'ok, %s rows' % e['rows'] if e.get('ok') else 'failed: ' + str(e.get('error'))}):\n{e.get('sql', '')}")
+        else:
+            print(f"\n{e['id']} logs: {json.dumps(e['summary'], default=str)[:400]}")
+    print(f"\nmodels {result['models']} | trace {result['log_file']} | {result['execution_time_seconds']} s")
+
+
 def watch():
     from app.watch import follow
 
@@ -172,6 +204,9 @@ if __name__ == "__main__":
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
     sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
+    ask_p = sub.add_parser("ask", help="ask the investigator team a question about the plant and the agents' history")
+    ask_p.add_argument("question")
+    ask_p.add_argument("--json", action="store_true", help="print the full JSON result")
     sub.add_parser("watch", help="live, human-readable view of the agents' logs (run in a second terminal)")
     rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
     rf.add_argument("file")
@@ -196,6 +231,8 @@ if __name__ == "__main__":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
     elif args.command == "health":
         health()
+    elif args.command == "ask":
+        ask(args.question, args.json)
     elif args.command == "watch":
         watch()
     elif args.command == "run":

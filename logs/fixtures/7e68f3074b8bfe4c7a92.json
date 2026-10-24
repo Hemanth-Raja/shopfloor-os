@@ -1,0 +1,16 @@
+{
+ "kind": "json",
+ "lane": "fast",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT false_alarm, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cost_usd) AS total_cost_usd FROM sf_ops.incidents WHERE kind = 'machine_overheat' GROUP BY false_alarm ORDER BY total_cost_usd DESC\", \"columns\": [\"false_alarm\", \"incident_count\", \"total_downtime_min\", \"total_cost_usd\"], \"purpose\": \"Compare false alarms versus confirmed machine_overheat events by incident count, total downtime, and total cost.\"}",
+ "data": {
+  "sql": "SELECT false_alarm, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cost_usd) AS total_cost_usd FROM sf_ops.incidents WHERE kind = 'machine_overheat' GROUP BY false_alarm ORDER BY total_cost_usd DESC",
+  "columns": [
+   "false_alarm",
+   "incident_count",
+   "total_downtime_min",
+   "total_cost_usd"
+  ],
+  "purpose": "Compare false alarms versus confirmed machine_overheat events by incident count, total downtime, and total cost."
+ }
+}

@@ -31,6 +31,7 @@ Folders marked (planned) do not exist yet; create them when the first module nee
 | `app/data/` | Data generator (`generate.py`) and the optional rebuild of `data/seed/` (`fetch_sources.py`) |
 | `app/sim/` | Deterministic floor simulation: AGV movement, incidents, time stepping |
 | `app/agents/` | The reasoning agents and their Pydantic message models |
+| `app/investigate/` | Ask the floor: coordinator, SQL agent behind `sqlguard.py` (read-only, whitelisted `sf_*`), log agent, analyst, evidence critic |
 | `app/lab/` | Offline experiments and replays of incident history |
 | `app/engines/` | Meterless engines and other non-LLM engines. `world_model.py` is the Meterless World Model; `shopfloor_world.py` builds it from one Zetaris query |
 | `app/zetaris.py` | The only data access layer |

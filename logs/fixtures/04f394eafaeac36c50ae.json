@@ -1,0 +1,22 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"tasks\": [{\"kind\": \"sql\", \"ask\": \"From sf_ops.incidents where kind='machine_overheat', group by false_alarm; count incidents, sum downtime_min, and sum cost_usd to compare false alarms versus confirmed overheat events.\"}, {\"kind\": \"sql\", \"ask\": \"Join sf_ops.incidents kind='machine_overheat' to sf_plant.machine_telemetry on machine_id and date_trunc('HOUR', incidents.ts)=telemetry.ts; count incidents with telemetry.failure=1 or heat_dissipation_failure=1 versus no signal.\"}, {\"kind\": \"sql\", \"ask\": \"Join sf_ops.incidents kind='machine_overheat' to sf_plant.weather_hourly on date_trunc('HOUR', incidents.ts)=weather.ts; compare mean temperature and share above 30C for overheat alarms versus other incident kinds.\"}]}",
+ "data": {
+  "tasks": [
+   {
+    "kind": "sql",
+    "ask": "From sf_ops.incidents where kind='machine_overheat', group by false_alarm; count incidents, sum downtime_min, and sum cost_usd to compare false alarms versus confirmed overheat events."
+   },
+   {
+    "kind": "sql",
+    "ask": "Join sf_ops.incidents kind='machine_overheat' to sf_plant.machine_telemetry on machine_id and date_trunc('HOUR', incidents.ts)=telemetry.ts; count incidents with telemetry.failure=1 or heat_dissipation_failure=1 versus no signal."
+   },
+   {
+    "kind": "sql",
+    "ask": "Join sf_ops.incidents kind='machine_overheat' to sf_plant.weather_hourly on date_trunc('HOUR', incidents.ts)=weather.ts; compare mean temperature and share above 30C for overheat alarms versus other incident kinds."
+   }
+  ]
+ }
+}

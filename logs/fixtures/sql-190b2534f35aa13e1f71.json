@@ -1,0 +1,1 @@
+{"sql": "SELECT false_alarm, COUNT(*) AS incident_count, SUM(downtime_min) AS total_downtime_min, SUM(cost_usd) AS total_cost_usd FROM sf_ops.incidents WHERE kind = 'machine_overheat' GROUP BY false_alarm ORDER BY total_cost_usd DESC\nLIMIT 200", "rows": [["false", "74", "709.9001", "1066539"], ["true", "26", "32.3", "48559"]]}

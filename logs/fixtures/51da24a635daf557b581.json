@@ -1,0 +1,36 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"Most machine_overheat alarms are logged as real and carry far more downtime and cost than false alarms, but most incidents lack a same-hour telemetry failure signal, with weather showing only a temperature association.\", \"findings\": [{\"claim\": \"74 machine_overheat incidents are logged as real alarms (false_alarm=false) versus 26 logged as false alarms (false_alarm=true).\", \"evidence\": [\"E1\"]}, {\"claim\": \"Real alarms sum 709.9 downtime_min and 1066539 cost_usd, while false alarms sum 32.3 downtime_min and 48559 cost_usd.\", \"evidence\": [\"E1\"]}, {\"claim\": \"95 of 100 overheat incidents have no telemetry failure or heat_dissipation_failure signal in the incident hour, while only 5 have such a signal.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Machine_overheat incidents coincide with higher mean outdoor temperature (24.4C versus 21.3C) and a higher share above 30C (7.0% versus 1.1%) than other incidents.\", \"evidence\": [\"E3\"]}], \"recommendation\": \"Treat machine_overheat alarms as genuine faults and prioritize inspection of affected machines, while auditing the 26 false-alarm entries and 95 no-signal incidents for sensor or calibration issues.\"}",
+ "data": {
+  "summary": "Most machine_overheat alarms are logged as real and carry far more downtime and cost than false alarms, but most incidents lack a same-hour telemetry failure signal, with weather showing only a temperature association.",
+  "findings": [
+   {
+    "claim": "74 machine_overheat incidents are logged as real alarms (false_alarm=false) versus 26 logged as false alarms (false_alarm=true).",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Real alarms sum 709.9 downtime_min and 1066539 cost_usd, while false alarms sum 32.3 downtime_min and 48559 cost_usd.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "95 of 100 overheat incidents have no telemetry failure or heat_dissipation_failure signal in the incident hour, while only 5 have such a signal.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Machine_overheat incidents coincide with higher mean outdoor temperature (24.4C versus 21.3C) and a higher share above 30C (7.0% versus 1.1%) than other incidents.",
+    "evidence": [
+     "E3"
+    ]
+   }
+  ],
+  "recommendation": "Treat machine_overheat alarms as genuine faults and prioritize inspection of affected machines, while auditing the 26 false-alarm entries and 95 no-signal incidents for sensor or calibration issues."
+ }
+}

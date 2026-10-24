@@ -15,7 +15,7 @@ FENCE_RADIUS = {"spill": 2, "overheat": 1, "agv_fault": 1, "part_shortage": 0}
 
 def reflex(sim, incident: Incident) -> dict:
     started = time.perf_counter()
-    radius = FENCE_RADIUS[incident.kind]
+    radius = FENCE_RADIUS.get(incident.kind, 1)  # unknown kinds: a small safety fence
     fence = sim.grid.cells_within(incident.x, incident.y, radius) if radius else set()
     sim.set_geofence(fence)
     stopped, rerouted = [], []
