@@ -46,7 +46,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 115 offline tests
+.venv/bin/python -m pytest -q                          # 120 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.
@@ -92,8 +92,8 @@ Request:
  "options": {"sample_mode": false, "memory": false}}
 ```
 - `input.kind` is one of `part_shortage`, `agv_fault`, `overheat`, `spill`, `robot_cell_fault`, `torque_fault`,
-  `near_miss` or `quality_defect`. A kind without a response playbook is fenced and escalated to a supervisor, with the
-  reason, instead of being planned.
+  `near_miss` or `quality_defect`. All eight run through the full loop. A kind without a response playbook would be
+  fenced and escalated to a supervisor with the reason, instead of being planned.
 - Optional `severity` (`low`, `medium`, `high`, `critical`) and `note` (free text from the reporter).
 - `station` is a station id (B10, B20, P10, T10, T20, M10, F10, F20, F30, E10).
 - `false_alarm` makes an overheat sensor noise.
@@ -116,6 +116,10 @@ than a crash.
 | `example_2.json`: AGV-3 fault plus a stall | The replacement AGV-1 stalls mid-route. The verifier detects it and the loop re-plans with AGV-2. Result: ACT | `example_2.json` |
 | `example_3.json`: overheat at F10, false alarm | The temperature is over its threshold, but the Bosch vibration recording is normal, so the sensors disagree. Result: VERIFY (a technician checks; the line keeps running) | `example_3.json` |
 | `example_4.json`: coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | `example_4.json` |
+| `example_5.json`: robot-cell fault at B10 (weld robots) | The cell is fenced. Only a technician with in-date lockout/tagout and a robot-cell card may enter (29 CFR 1910.147, SOP-ROBOT-02). ACT, but it waits for a person to approve | `example_5.json` |
+| `example_6.json`: nutrunner torque fault at F10 | Nemotron sends a tool technician; the critic rejects it (SOP-TORQUE-01: joints since the last good torque must be re-audited) and the re-plan adds the torque auditor. A single NOK with `false_alarm` gives VERIFY | `example_6.json` |
+| `example_7.json`: pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | `example_7.json` |
+| `example_8.json`: quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | `example_8.json` |
 
 ### Logs
 **Watch it live:**
@@ -141,7 +145,7 @@ None of them contain secrets.
 | memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) |
 | candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none |
 | planner | Chooses among the candidates; strict JSON; must cite the governing clauses | NEMOTRON_DEEP |
-| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries | none |
+| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none |
 | dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none |
 | restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none |
 | executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none |

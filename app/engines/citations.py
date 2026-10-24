@@ -30,9 +30,12 @@ RULE_CLAUSES = {
     "R-GUARD": ["29 CFR 1910.212(a)(1)", "29 CFR 1910.212(a)(3)(ii)"],
     "R-PRESS": ["29 CFR 1910.217(c)(1)(i)"],
     "R-ROBOT-CELL": ["29 CFR 1910.212(a)(1)"],
+    "R-NEAR-MISS": ["29 CFR 1910.178(m)(1)"],
 }
 KIND_RULES = {"part_shortage": ["R-CROSSING", "R-SAFE-SPEED", "R-TRAIN"], "agv_fault": ["R-CROSSING", "R-PED-CLEAR"],
-              "overheat": ["R-LOTO", "R-GUARD"], "spill": ["R-SURFACE"]}
+              "overheat": ["R-LOTO", "R-GUARD"], "spill": ["R-SURFACE"],
+              "robot_cell_fault": ["R-LOTO", "R-ROBOT-CELL", "R-GUARD"], "torque_fault": ["R-TORQUE-QA"],
+              "near_miss": ["R-NEAR-MISS", "R-CROSSING"], "quality_defect": ["R-CONTAIN"]}
 
 
 class CitationIndex:

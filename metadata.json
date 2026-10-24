@@ -56,7 +56,7 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (115 offline tests, including Meterless conformance: tests/test_world_model.py, tests/test_hmem.py, and the SQL guard: tests/test_investigate.py)",
+  "tests": "python -m pytest  (120 offline tests, including Meterless conformance: tests/test_world_model.py, tests/test_hmem.py, and the SQL guard: tests/test_investigate.py)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",
@@ -68,13 +68,21 @@
     "input_examples/example_1.json",
     "input_examples/example_2.json",
     "input_examples/example_3.json",
-    "input_examples/example_4.json"
+    "input_examples/example_4.json",
+    "input_examples/example_5.json",
+    "input_examples/example_6.json",
+    "input_examples/example_7.json",
+    "input_examples/example_8.json"
   ],
   "sample_outputs": [
     "output_examples/example_1.json",
     "output_examples/example_2.json",
     "output_examples/example_3.json",
-    "output_examples/example_4.json"
+    "output_examples/example_4.json",
+    "output_examples/example_5.json",
+    "output_examples/example_6.json",
+    "output_examples/example_7.json",
+    "output_examples/example_8.json"
   ],
   "logs": "logs/trace-<run_id>.jsonl per run, plus [INFO] lines on stdout; logs/llm.jsonl records the model per request",
   "sample_mode": "SAMPLE_MODE=true: offline plant, recorded Nemotron replies where available, rule-based planner otherwise; real agent logic, no network",
@@ -112,13 +120,12 @@
       "part_shortage",
       "agv_fault",
       "overheat",
-      "spill"
-    ],
-    "escalated_without_playbook": [
+      "spill",
       "robot_cell_fault",
       "torque_fault",
       "near_miss",
       "quality_defect"
-    ]
+    ],
+    "without_playbook": "fenced and escalated with a reason"
   }
 }

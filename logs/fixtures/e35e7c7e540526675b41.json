@@ -1,0 +1,19 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-16\", \"worker:plant:W-20\"], \"agv_routes\": [], \"priority\": \"medium\", \"rationale\": \"Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.\", \"citations\": [\"SOP-TORQUE-01 \u00a72\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-16",
+   "worker:plant:W-20"
+  ],
+  "agv_routes": [],
+  "priority": "medium",
+  "rationale": "Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.",
+  "citations": [
+   "SOP-TORQUE-01 \u00a72"
+  ]
+ }
+}

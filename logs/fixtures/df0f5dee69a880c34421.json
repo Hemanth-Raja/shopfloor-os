@@ -1,0 +1,18 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-16\"], \"agv_routes\": [], \"priority\": \"medium\", \"rationale\": \"Medium torque fault at F10: nutrunner reads 96.3 Nm, below 110-130 Nm spec, 3 bad in a row. Assign W-16 Petra Rahman (0 cells, torque_tools, score 100) to stop tool use and swap/recalibrate per SOP-TORQUE-01 \u00a72. No AGV candidates available.\", \"citations\": [\"SOP-TORQUE-01 \u00a72\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-16"
+  ],
+  "agv_routes": [],
+  "priority": "medium",
+  "rationale": "Medium torque fault at F10: nutrunner reads 96.3 Nm, below 110-130 Nm spec, 3 bad in a row. Assign W-16 Petra Rahman (0 cells, torque_tools, score 100) to stop tool use and swap/recalibrate per SOP-TORQUE-01 \u00a72. No AGV candidates available.",
+  "citations": [
+   "SOP-TORQUE-01 \u00a72"
+  ]
+ }
+}

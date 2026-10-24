@@ -270,7 +270,7 @@ function draw() {
   drawAreas(c);
   ctx.fillStyle = "rgba(229,83,75,.38)"; for (const [x, y] of fence) ctx.fillRect(x*c, y*c, c-1, c-1);
   for (const a of agents) {
-    const bad = a.status === "fault" || a.status === "stalled", moving = a.status === "moving";
+    const bad = a.status === "fault" || a.status === "stalled" || a.status === "held", moving = a.status === "moving";
     if (involved.includes(a.id)) { ctx.strokeStyle = "#f0c674"; ctx.lineWidth = 2;
       ctx.strokeRect(a.x*c+1, a.y*c+1, c-3, c-3); }
     ctx.fillStyle = bad ? "#e5534b" : a.kind === "agv" ? (moving ? "#5aa9ff" : "#35618c") : (moving ? "#3fb27f" : "#2a6f50");
@@ -475,7 +475,7 @@ for (const b of document.querySelectorAll("[data-run]")) b.onclick = async () =>
   if (!r.ok) alert((await r.json()).error);
 };
 
-const KIND_DEFAULT_STATION = {overheat:"F10", spill:"F20", robot_cell_fault:"B20", torque_fault:"T20", quality_defect:"E10"};
+const KIND_DEFAULT_STATION = {overheat:"F10", spill:"F20", robot_cell_fault:"B10", torque_fault:"F10", near_miss:"F30", quality_defect:"E10"};
 function fillForm() {
   const f = $("custom");
   f.station.innerHTML = stations.map(s => `<option value="${esc(s.id)}">${esc(s.id)} · ${esc(s.name)}</option>`).join("");

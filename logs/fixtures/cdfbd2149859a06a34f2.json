@@ -1,0 +1,20 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-18\"], \"agv_routes\": [], \"priority\": \"medium\", \"rationale\": \"Medium near miss at F30. Assign W-18 Rosa Novak (7 cells, incident_command and first_aid, cert valid, score 93.0) to secure the scene and check the operator per SOP-NEARMISS-01 \u00a71. AGV-5 remains stopped; agv_candidates empty so no routes issued. Other AGVs keep 0.5 m/s at the crossing.\", \"citations\": [\"SOP-NEARMISS-01 \u00a71\", \"29 CFR 1910.178(n)(4)\", \"29 CFR 1910.178(m)(1)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-18"
+  ],
+  "agv_routes": [],
+  "priority": "medium",
+  "rationale": "Medium near miss at F30. Assign W-18 Rosa Novak (7 cells, incident_command and first_aid, cert valid, score 93.0) to secure the scene and check the operator per SOP-NEARMISS-01 \u00a71. AGV-5 remains stopped; agv_candidates empty so no routes issued. Other AGVs keep 0.5 m/s at the crossing.",
+  "citations": [
+   "SOP-NEARMISS-01 \u00a71",
+   "29 CFR 1910.178(n)(4)",
+   "29 CFR 1910.178(m)(1)"
+  ]
+ }
+}

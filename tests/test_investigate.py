@@ -122,8 +122,10 @@ def test_without_a_model_the_rule_based_team_still_answers_from_offline_data():
 
 # ---------------------------------------------------------------- custom incidents
 
-def test_unsupported_kind_is_fenced_and_escalated():
+def test_unsupported_kind_is_fenced_and_escalated(monkeypatch):
+    from app import orchestrator
     from app.api import run_request
+    monkeypatch.setattr(orchestrator, "SUPPORTED_KINDS", orchestrator.SUPPORTED_KINDS - {"near_miss"})
     out = run_request({"input": {"kind": "near_miss", "station": "F20", "severity": "high", "note": "forklift and walker"},
                        "options": {"sample_mode": True}})
     assert out["status"] == "success"

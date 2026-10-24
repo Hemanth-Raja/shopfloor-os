@@ -1,0 +1,132 @@
+{
+  "run_id": "example-5",
+  "status": "success",
+  "output": {
+    "summary": "robot cell fault at B10: ACT, SRVO-050 collision fault at B10; cell stopped with gate closed. SOP-ROBOT-02 \u00a72 requires a technician with in-date lockout/tagout and robot-cell entry to lock out and enter. W-12 lacks lockout/tagout, so assign W-19 (machine_repair, lockout_tagout, robot_cell_entry certs valid).",
+    "incident": {
+      "id": "SIM-42-001",
+      "kind": "robot_cell_fault",
+      "station_id": "B10",
+      "zone_id": "BODY",
+      "x": 14,
+      "y": 4,
+      "tick": 0,
+      "severity": "high",
+      "agv_id": null,
+      "machine_id": "machine:plant:M-01",
+      "note": "weld robot stopped mid-cycle",
+      "sensors": {
+        "fault_code": "SRVO-050 collision detect",
+        "cell_state": "stopped, gate closed"
+      }
+    },
+    "decision": "ACT",
+    "score": 0.967,
+    "reasons": [
+      "p_real=0.97",
+      "sensors agree=True",
+      "expected cost of waiting $12,610 vs acting $42",
+      "acting is cheaper than waiting"
+    ],
+    "plan": {
+      "incident_id": "SIM-42-001",
+      "assignee_ids": [
+        "worker:plant:W-19"
+      ],
+      "agv_routes": [],
+      "priority": "high",
+      "rationale": "SRVO-050 collision fault at B10; cell stopped with gate closed. SOP-ROBOT-02 \u00a72 requires a technician with in-date lockout/tagout and robot-cell entry to lock out and enter. W-12 lacks lockout/tagout, so assign W-19 (machine_repair, lockout_tagout, robot_cell_entry certs valid).",
+      "citations": [
+        "SOP-ROBOT-02 \u00a72",
+        "SOP-LOTO-01 \u00a74",
+        "29 CFR 1910.147(c)(1)"
+      ]
+    },
+    "citations": [
+      {
+        "ref": "SOP-ROBOT-02 \u00a72",
+        "title": "Robot cell fault recovery (synthetic plant SOP)",
+        "text": "After a robot or press fault the cell stays in stop. Only a maintenance technician holding an in-date lockout/tagout authorisation and a robot-cell entry card may lock out the cell and enter; operators and inspectors wait outside the guarding. Restart only after the technician removes their own lock.",
+        "doc": "sop"
+      },
+      {
+        "ref": "SOP-LOTO-01 \u00a74",
+        "title": "Machine repair under lockout/tagout (synthetic plant SOP)",
+        "text": "Before servicing a machine, an authorised maintenance technician with in-date lockout/tagout training isolates every energy source, applies a personal lock and tag, and tries to start the machine to verify zero energy.",
+        "doc": "sop"
+      },
+      {
+        "ref": "29 CFR 1910.147(c)(1)",
+        "title": "The control of hazardous energy (lockout/tagout).",
+        "text": "(c) General\u2014(1) Energy control program. The employer shall establish a program consisting of energy control procedures, employee training and periodic inspections to ensure that before any employee performs any servicing or maintenance on a machine or equipment where the unexpected energizing, start up or release of stored energy could occur and cause injury, the machine or equipment shall be isolated from the energy source, and rendered inoperative.",
+        "doc": "osha"
+      }
+    ],
+    "critic_rejections": 0,
+    "replans": 0,
+    "safe_mode": false,
+    "collisions": 0,
+    "autonomy": "auto",
+    "gate": "awaiting_approval",
+    "gate_reasons": [
+      "a person would enter the robot cell fault hazard area"
+    ]
+  },
+  "agents": [
+    {
+      "name": "reflex",
+      "role": "Geofences the incident and stops or re-routes AGVs at once (rules only, under 100 ms)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "monitor",
+      "role": "Classifies the alarm as real or sensor noise from thresholds and Bosch vibration evidence",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "candidates",
+      "role": "Ranks qualified workers and healthy AGVs from the Meterless World Model (one Zetaris query)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "planner",
+      "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "critic",
+      "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "dryrun",
+      "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "restraint",
+      "role": "Decides ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence and cost",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "gate",
+      "role": "",
+      "runs": 1,
+      "ok": true
+    }
+  ],
+  "models": [
+    "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
+    "rule-based"
+  ],
+  "trace_id": "trace-example-5",
+  "log_file": "logs/trace-example-5.jsonl",
+  "execution_time_seconds": 0.02
+}

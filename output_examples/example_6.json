@@ -1,0 +1,135 @@
+{
+  "run_id": "example-6",
+  "status": "success",
+  "output": {
+    "summary": "torque fault at F10: ACT, Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.",
+    "incident": {
+      "id": "SIM-42-001",
+      "kind": "torque_fault",
+      "station_id": "F10",
+      "zone_id": "FINAL",
+      "x": 25,
+      "y": 9,
+      "tick": 0,
+      "severity": "medium",
+      "agv_id": null,
+      "machine_id": "machine:plant:M-06",
+      "note": null,
+      "sensors": {
+        "spec_nm": [
+          110.0,
+          130.0
+        ],
+        "nok_in_row": 3,
+        "torque_nm": 96.3
+      }
+    },
+    "decision": "ACT",
+    "score": 0.698,
+    "reasons": [
+      "p_real=0.93",
+      "sensors agree=True",
+      "expected cost of waiting $9,160 vs acting $3,042",
+      "acting is cheaper than waiting"
+    ],
+    "plan": {
+      "incident_id": "SIM-42-001",
+      "assignee_ids": [
+        "worker:plant:W-16",
+        "worker:plant:W-20"
+      ],
+      "agv_routes": [],
+      "priority": "medium",
+      "rationale": "Nutrunner M-06 at F10 reads 96.3 Nm vs 110-130 Nm spec, 3 bad in a row. W-16 stops tool use and swaps/recalibrates per SOP-TORQUE-01 \u00a72; W-20 re-audits all joints fastened since last good audit before cars leave.",
+      "citations": [
+        "SOP-TORQUE-01 \u00a72"
+      ]
+    },
+    "citations": [
+      {
+        "ref": "SOP-TORQUE-01 \u00a72",
+        "title": "Nutrunner torque fault containment (synthetic plant SOP)",
+        "text": "When a nutrunner reports torque or angle out of range, stop using the tool, swap or re-calibrate it, and have a torque auditor or quality inspector re-check every joint fastened since the last good audit before those cars leave the station.",
+        "doc": "sop"
+      }
+    ],
+    "critic_rejections": 1,
+    "replans": 0,
+    "safe_mode": false,
+    "collisions": 0,
+    "autonomy": "auto",
+    "gate": "auto_executed",
+    "gate_reasons": [
+      "routine ACT: critic and dry-run passed; you can override"
+    ]
+  },
+  "agents": [
+    {
+      "name": "reflex",
+      "role": "Geofences the incident and stops or re-routes AGVs at once (rules only, under 100 ms)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "monitor",
+      "role": "Classifies the alarm as real or sensor noise from thresholds and Bosch vibration evidence",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "candidates",
+      "role": "Ranks qualified workers and healthy AGVs from the Meterless World Model (one Zetaris query)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "planner",
+      "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
+      "runs": 2,
+      "ok": true
+    },
+    {
+      "name": "critic",
+      "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
+      "runs": 2,
+      "ok": false
+    },
+    {
+      "name": "dryrun",
+      "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "restraint",
+      "role": "Decides ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence and cost",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "gate",
+      "role": "",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "executor",
+      "role": "Dispatches the agents in the simulator",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "verifier",
+      "role": "Checks that the world changed as predicted and triggers a re-plan if not",
+      "runs": 1,
+      "ok": true
+    }
+  ],
+  "models": [
+    "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
+    "rule-based"
+  ],
+  "trace_id": "trace-example-6",
+  "log_file": "logs/trace-example-6.jsonl",
+  "execution_time_seconds": 0.02
+}

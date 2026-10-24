@@ -1,0 +1,13 @@
+{
+  "run_id": "example-5",
+  "input": {
+    "kind": "robot_cell_fault",
+    "station": "B10",
+    "severity": "high",
+    "note": "weld robot stopped mid-cycle",
+    "seed": 42
+  },
+  "options": {
+    "sample_mode": true
+  }
+}

@@ -43,7 +43,8 @@ def plant_rows() -> list[dict]:
     for r in g.SAFETY_RULES:
         rows.append({"row_kind": "rule", "id": r[0], "name": r[1], "x": None, "y": None, "a": r[3], "b": r[4],
                      "c": r[2], "d": None})
-    for kind, cost in (("part_shortage", 5350), ("agv_fault", 900), ("machine_overheat", 9000), ("fluid_spill", 1200)):
+    for kind, cost in (("part_shortage", 5350), ("agv_fault", 900), ("machine_overheat", 9000), ("fluid_spill", 1200),
+                       ("robot_cell_fault", 13000), ("torque_fault", 9850), ("near_miss", 1200), ("quality_defect", 420)):
         rows.append({"row_kind": "stat", "id": kind, "name": None, "x": None, "y": None, "a": cost, "b": 3, "c": 4, "d": 100})
     return rows
 

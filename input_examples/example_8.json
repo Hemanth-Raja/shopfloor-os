@@ -1,0 +1,12 @@
+{
+  "run_id": "example-8",
+  "input": {
+    "kind": "quality_defect",
+    "station": "E10",
+    "severity": "low",
+    "seed": 42
+  },
+  "options": {
+    "sample_mode": true
+  }
+}

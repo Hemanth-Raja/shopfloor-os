@@ -29,8 +29,11 @@ from app.llm import LLMUnavailable
 
 TRACE_PATH = Path(__file__).resolve().parents[1] / "logs" / "trace.jsonl"
 AUTONOMY = ("auto", "supervised", "advisory")
-SUPPORTED_KINDS = {"part_shortage", "agv_fault", "overheat", "spill"}  # kinds with a planning playbook
-PERSON_HAZARD_KINDS = {"spill", "overheat"}  # a person walks into the hazard (spill clean-up, machine repair)
+SUPPORTED_KINDS = {"part_shortage", "agv_fault", "overheat", "spill",  # kinds with a planning playbook
+                   "robot_cell_fault", "torque_fault", "near_miss", "quality_defect"}
+# a person walks into the hazard (spill clean-up, machine repair, entering a stopped robot cell)
+PERSON_HAZARD_KINDS = {"spill", "overheat", "robot_cell_fault"}
+SIGN_OFF_KINDS = {"near_miss"}  # safety events: a supervisor signs off whatever the autonomy level
 
 
 def executable_plan(trace: Trace):
@@ -53,7 +56,9 @@ def gate_reasons(trace: Trace, plant, autonomy: str) -> list[str]:
     if d in ("ESCALATE", "SAFE_HOLD", "DO_NOTHING"):
         reasons.append(f"{d}: the agents are not confident enough to act alone")
     if trace.incident.kind in PERSON_HAZARD_KINDS and d in ("ACT", "VERIFY"):
-        reasons.append(f"a person would enter the {trace.incident.kind} hazard area")
+        reasons.append(f"a person would enter the {trace.incident.kind.replace('_', ' ')} hazard area")
+    if trace.incident.kind in SIGN_OFF_KINDS and d in ("ACT", "VERIFY"):
+        reasons.append("a near miss is a safety event: a supervisor signs off before the AGV is released")
     for wid in (trace.plan.assignee_ids if trace.plan else []):
         w = plant.entity(wid)
         if w and w["type"] == "worker":

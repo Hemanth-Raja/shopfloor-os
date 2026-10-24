@@ -63,6 +63,17 @@ def rule_based_plan(messages: list[dict]) -> Plan:
     payload = json.loads(messages[1]["content"])
     inc = payload["incident"]
     workers = [c["id"] for c in payload["worker_candidates"][:1]]
+    if len(messages) > 2:  # critic feedback: drop the people it named, add someone with the skills it asked for
+        feedback = json.loads(messages[-1]["content"].split(": ", 1)[1])
+        named = {v["detail"].split(" ")[0] for v in feedback}
+        pool = [c for c in payload["worker_candidates"] if c["id"] not in named]
+        workers = [c["id"] for c in pool[:1]]
+        for v in feedback:
+            if "skills [" in v["detail"]:
+                need = set(json.loads(v["detail"].split("skills ", 1)[1].replace("'", '"')))
+                fit = next((c["id"] for c in pool if need & set(c["skills"])), None)
+                if fit and fit not in workers:
+                    workers.append(fit)
     agvs = [c["id"] for c in payload["agv_candidates"][:1]]
     routes = [{"agv_id": agvs[0], "to_station": inc["station_id"], "speed_mps": 1.0, "crossing_speed_mps": 0.5}] \
         if agvs and inc.get("station_id") else []

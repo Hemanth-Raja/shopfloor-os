@@ -30,6 +30,23 @@ def assess(incident: Incident, llm_text: Callable | None = None) -> dict:
     elif incident.kind == "agv_fault":
         p_real, agreement = 0.97, True
         evidence.append(f"AGV fault code {s.get('fault_code')}")
+    elif incident.kind == "robot_cell_fault":
+        p_real, agreement = 0.97, True
+        evidence.append(f"robot controller {s.get('fault_code')}; cell {s.get('cell_state')}")
+    elif incident.kind == "torque_fault":
+        nok = int(s.get("nok_in_row", 1))
+        lo, hi = s.get("spec_nm", [0, 0])
+        out = not lo <= s.get("torque_nm", lo) <= hi
+        agreement = out == (nok >= 2)  # one NOK can be a cross-thread on one car; repeated NOKs are the tool
+        p_real = 0.93 if out and nok >= 2 else 0.35 if out else 0.05
+        evidence.append(f"torque {s.get('torque_nm')} Nm vs spec {lo}-{hi} Nm, {nok} NOK in a row")
+    elif incident.kind == "near_miss":
+        p_real, agreement = 0.95, True
+        evidence.append(f"{s.get('agv', 'vehicle')} passed {s.get('min_distance_m')} m from a person at "
+                        f"{s.get('agv_speed_mps')} m/s")
+    elif incident.kind == "quality_defect":
+        p_real, agreement = 0.9, True
+        evidence.append(f"defect {s.get('defect_code')} on {s.get('units_affected')} unit(s)")
     else:  # reported by a person, no sensor to cross-check
         p_real, agreement = 0.9, True
         evidence.append(f"reported by a person{': ' + incident.note if incident.note else ''}")

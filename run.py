@@ -65,7 +65,7 @@ def context(zone):
     print(f"\nNemotron ({reply.model}):\n{reply.text}")
 
 
-def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True, offline=False):
+def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True, offline=False, severity=None, note=None):
     from datetime import date
 
     from app.engines.plant_world import load_plant_world
@@ -85,7 +85,7 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
     sim = Sim.from_plant(plant, grid, seed=seed, shift="B")
     chat_json, chat_text = maybe_sample(guarded_json, "json"), maybe_sample(guarded_chat, "text")
     agv_id = f"agv:plant:{agv}" if agv else None
-    inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
+    inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm, severity=severity, note=note)
     from app.engines.playbooks import PlaybookStore
     memory = PlaybookStore() if use_memory else None
     trace = Orchestrator(plant, sim, chat_json, chat_text, memory=memory, run_id=f"{inc.id}").handle(inc, stall=(0, stall_after) if stall_after is not None else None)
@@ -216,19 +216,22 @@ if __name__ == "__main__":
     lab_p.add_argument("--target", choices=["zetaris", "local"], default="zetaris",
                        help="write through Zetaris (default) or straight to the local Postgres container")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
-    inc.add_argument("--kind", required=True, choices=["part_shortage", "agv_fault", "overheat", "spill"])
+    inc.add_argument("--kind", required=True, choices=list(__import__("app.api", fromlist=["KINDS"]).KINDS))
     inc.add_argument("--station", default=None)
     inc.add_argument("--agv", default=None, help="for agv_fault, e.g. AGV-3")
     inc.add_argument("--seed", type=int, default=42)
     inc.add_argument("--false-alarm", action="store_true", help="overheat: sensor noise, not a real fault")
     inc.add_argument("--stall-after", type=int, default=None, help="stall the first planned AGV after N ticks")
     inc.add_argument("--no-memory", action="store_true", help="ignore learned playbooks (shows the critic loop)")
+    inc.add_argument("--severity", choices=["low", "medium", "high", "critical"], default=None)
+    inc.add_argument("--note", default=None, help="free text from the person reporting it")
     inc.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
     args = parser.parse_args()
     if args.command == "context":
         context(args.zone)
     elif args.command == "incident":
-        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline)
+        incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline,
+                 args.severity, args.note)
     elif args.command == "health":
         health()
     elif args.command == "ask":

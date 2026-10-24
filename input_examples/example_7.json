@@ -1,0 +1,12 @@
+{
+  "run_id": "example-7",
+  "input": {
+    "kind": "near_miss",
+    "station": "F30",
+    "note": "AGV passed close to an operator at the crossing",
+    "seed": 42
+  },
+  "options": {
+    "sample_mode": true
+  }
+}

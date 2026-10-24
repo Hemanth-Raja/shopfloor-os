@@ -201,12 +201,43 @@ class Sim:
                 sensors = {"camera_confidence": round(self.rng.uniform(0.8, 0.97), 2), "fluid": "coolant"}
             elif kind == "part_shortage":
                 sensors = {"line_side_stock_min": round(self.rng.uniform(2.0, 6.0), 1)}
+            elif kind in ("robot_cell_fault", "torque_fault"):
+                kinds = ("weld_robot", "press", "paint_booth") if kind == "robot_cell_fault" else ("nutrunner",)
+                machine = next((m for m in plant.entities("machine") if m["attrs"]["station_id"] == station_id
+                                and m["attrs"].get("kind") in kinds), None)
+                machine_id = machine["id"] if machine else None
+                if kind == "robot_cell_fault":
+                    sensors = {"fault_code": self.rng.choice(["SRVO-050 collision detect", "SRVO-062 overcurrent",
+                                                              "light curtain trip", "tip dress failure"]),
+                               "cell_state": "stopped, gate closed"}
+                else:
+                    false_alarm = bool(false_alarm)
+                    spec = [110.0, 130.0]
+                    sensors = {"spec_nm": spec, "nok_in_row": 1 if false_alarm else self.rng.randint(3, 6),
+                               "torque_nm": round(self.rng.uniform(96.0, 106.0), 1)}
+            elif kind == "near_miss":
+                taken = {a.pos for a in self.agents.values()}
+                agvs = [a for a in self.agents.values() if a.kind == "agv" and a.status != "fault"]
+                involved = self.agents[agv_id] if agv_id else min(
+                    agvs, key=lambda a: (abs(a.pos[0] - x) + abs(a.pos[1] - y), a.id))
+                agv_id = involved.id
+                cell = self._free_cell_near(x, y + 4, taken - {involved.pos})  # on the aisle below the station
+                self.res.release(agv_id)
+                involved.pos = cell
+                self.stop(agv_id, status="held")
+                x, y = cell  # the near miss happened where the AGV stopped
+                sensors = {"agv": agv_id.split(":")[-1], "min_distance_m": round(self.rng.uniform(0.3, 0.9), 1),
+                           "agv_speed_mps": round(self.rng.uniform(0.9, 1.3), 1)}
+            elif kind == "quality_defect":
+                sensors = {"defect_code": self.rng.choice(["torque_out_of_spec", "paint_run", "missing_clip", "seal_gap",
+                                                           "connector_not_seated"]),
+                           "units_affected": self.rng.randint(1, 4)}
         zone = self.grid.label(x, y) or "FLOOR"
         return Incident(id=inc_id, kind=kind, station_id=station_id, zone_id=zone, x=x, y=y, tick=self.tick,
                         severity=severity or {"part_shortage": "high", "agv_fault": "medium", "overheat": "high",
                                               "spill": "high"}.get(kind, "medium"),
                         agv_id=agv_id, machine_id=machine_id, note=(note or "").strip()[:300] or None,
-                        sensors=sensors, truth_false_alarm=false_alarm if kind == "overheat" else False)
+                        sensors=sensors, truth_false_alarm=false_alarm if kind in ("overheat", "torque_fault") else False)
 
     def _vibration(self, label: str) -> dict:
         path = SEED_DIR / "bosch_cnc_vibration_summary.csv"

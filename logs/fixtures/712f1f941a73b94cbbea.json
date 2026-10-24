@@ -1,0 +1,20 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-19\"], \"agv_routes\": [], \"priority\": \"medium\", \"rationale\": \"Robot cell fault SRVO-050 at B10 with gate closed. SOP-ROBOT-02 \u00a72 requires a maintenance technician with in-date lockout/tagout and robot-cell entry to lock out and enter; W-12 lacks lockout/tagout, so assign W-19 (skills lockout_tagout, robot_cell_entry, machine_repair). No AGV candidates available.\", \"citations\": [\"SOP-ROBOT-02 \u00a72\", \"SOP-LOTO-01 \u00a74\", \"29 CFR 1910.147(c)(1)\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-19"
+  ],
+  "agv_routes": [],
+  "priority": "medium",
+  "rationale": "Robot cell fault SRVO-050 at B10 with gate closed. SOP-ROBOT-02 \u00a72 requires a maintenance technician with in-date lockout/tagout and robot-cell entry to lock out and enter; W-12 lacks lockout/tagout, so assign W-19 (skills lockout_tagout, robot_cell_entry, machine_repair). No AGV candidates available.",
+  "citations": [
+   "SOP-ROBOT-02 \u00a72",
+   "SOP-LOTO-01 \u00a74",
+   "29 CFR 1910.147(c)(1)"
+  ]
+ }
+}

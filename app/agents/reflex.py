@@ -10,7 +10,8 @@ import time
 
 from app.contracts import Incident
 
-FENCE_RADIUS = {"spill": 2, "overheat": 1, "agv_fault": 1, "part_shortage": 0}
+FENCE_RADIUS = {"spill": 2, "overheat": 1, "agv_fault": 1, "part_shortage": 0,
+                "robot_cell_fault": 2, "torque_fault": 1, "near_miss": 2, "quality_defect": 0}
 
 
 def reflex(sim, incident: Incident) -> dict:
@@ -20,7 +21,7 @@ def reflex(sim, incident: Incident) -> dict:
     sim.set_geofence(fence)
     stopped, rerouted = [], []
     for agent in sorted(sim.agents.values(), key=lambda a: a.id):
-        if agent.kind != "agv" or agent.status == "fault":
+        if agent.kind != "agv" or agent.status in ("fault", "held"):
             continue
         if agent.pos in fence:
             sim.stop(agent.id)

@@ -1,0 +1,133 @@
+{
+  "run_id": "example-7",
+  "status": "success",
+  "output": {
+    "summary": "near miss at F30: ACT, Medium near miss at F30. Assign W-18 Rosa Novak (7 cells, incident_command and first_aid, cert valid, score 93.0) to secure the scene and check the operator per SOP-NEARMISS-01 \u00a71. AGV-5 remains stopped; agv_candidates empty so no routes issued. Other AGVs keep 0.5 m/s at the crossing.",
+    "incident": {
+      "id": "SIM-42-001",
+      "kind": "near_miss",
+      "station_id": "F30",
+      "zone_id": "LANE-S",
+      "x": 31,
+      "y": 13,
+      "tick": 0,
+      "severity": "medium",
+      "agv_id": "agv:plant:AGV-5",
+      "machine_id": null,
+      "note": "AGV passed close to an operator at the crossing",
+      "sensors": {
+        "agv": "AGV-5",
+        "min_distance_m": 0.7,
+        "agv_speed_mps": 0.9
+      }
+    },
+    "decision": "ACT",
+    "score": 0.916,
+    "reasons": [
+      "p_real=0.95",
+      "sensors agree=True",
+      "expected cost of waiting $1,140 vs acting $42",
+      "acting is cheaper than waiting"
+    ],
+    "plan": {
+      "incident_id": "SIM-42-001",
+      "assignee_ids": [
+        "worker:plant:W-18"
+      ],
+      "agv_routes": [],
+      "priority": "medium",
+      "rationale": "Medium near miss at F30. Assign W-18 Rosa Novak (7 cells, incident_command and first_aid, cert valid, score 93.0) to secure the scene and check the operator per SOP-NEARMISS-01 \u00a71. AGV-5 remains stopped; agv_candidates empty so no routes issued. Other AGVs keep 0.5 m/s at the crossing.",
+      "citations": [
+        "SOP-NEARMISS-01 \u00a71",
+        "29 CFR 1910.178(n)(4)",
+        "29 CFR 1910.178(m)(1)"
+      ]
+    },
+    "citations": [
+      {
+        "ref": "SOP-NEARMISS-01 \u00a71",
+        "title": "Pedestrian near miss (synthetic plant SOP)",
+        "text": "After a vehicle-pedestrian near miss the AGV involved stays stopped where it is. A shift supervisor with incident command secures the scene, checks the person, records the event within the shift and releases the AGV. Other AGVs keep 0.5 m/s at the crossing.",
+        "doc": "sop"
+      },
+      {
+        "ref": "29 CFR 1910.178(n)(4)",
+        "title": "Powered industrial trucks.",
+        "text": "(4) The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed. If the load being carried obstructs forward view, the driver shall be required to travel with the load trailing.",
+        "doc": "osha"
+      },
+      {
+        "ref": "29 CFR 1910.178(m)(1)",
+        "title": "Powered industrial trucks.",
+        "text": "(m) Truck operations. (1) Trucks shall not be driven up to anyone standing in front of a bench or other fixed object.",
+        "doc": "osha"
+      }
+    ],
+    "critic_rejections": 0,
+    "replans": 0,
+    "safe_mode": false,
+    "collisions": 0,
+    "autonomy": "auto",
+    "gate": "awaiting_approval",
+    "gate_reasons": [
+      "a near miss is a safety event: a supervisor signs off before the AGV is released"
+    ]
+  },
+  "agents": [
+    {
+      "name": "reflex",
+      "role": "Geofences the incident and stops or re-routes AGVs at once (rules only, under 100 ms)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "monitor",
+      "role": "Classifies the alarm as real or sensor noise from thresholds and Bosch vibration evidence",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "candidates",
+      "role": "Ranks qualified workers and healthy AGVs from the Meterless World Model (one Zetaris query)",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "planner",
+      "role": "Nemotron (deep lane) chooses among the candidates and cites the governing clauses",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "critic",
+      "role": "Checks the plan against OSHA-based safety rules and cites the exact clause for each violation",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "dryrun",
+      "role": "Simulates the plan for 60 s headless (A* with a reservation table) and checks collisions and ETA",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "restraint",
+      "role": "Decides ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence and cost",
+      "runs": 1,
+      "ok": true
+    },
+    {
+      "name": "gate",
+      "role": "",
+      "runs": 1,
+      "ok": true
+    }
+  ],
+  "models": [
+    "nvidia/nemotron-3.5-super-vl-120b-a12b (replay)",
+    "rule-based"
+  ],
+  "trace_id": "trace-example-7",
+  "log_file": "logs/trace-example-7.jsonl",
+  "execution_time_seconds": 0.02
+}

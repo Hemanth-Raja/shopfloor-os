@@ -1,0 +1,18 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"incident_id\": \"SIM-42-001\", \"assignee_ids\": [\"worker:plant:W-20\"], \"agv_routes\": [], \"priority\": \"low\", \"rationale\": \"Assign W-20 Tara Quintero: 2 cells away with quality_inspection and torque_audit skills (score 98.0). Tag affected unit at E10, check cars built since last good unit, decide rework or hold per SOP-QUAL-01 \u00a71.\", \"citations\": [\"SOP-QUAL-01 \u00a71\"]}",
+ "data": {
+  "incident_id": "SIM-42-001",
+  "assignee_ids": [
+   "worker:plant:W-20"
+  ],
+  "agv_routes": [],
+  "priority": "low",
+  "rationale": "Assign W-20 Tara Quintero: 2 cells away with quality_inspection and torque_audit skills (score 98.0). Tag affected unit at E10, check cars built since last good unit, decide rework or hold per SOP-QUAL-01 \u00a71.",
+  "citations": [
+   "SOP-QUAL-01 \u00a71"
+  ]
+ }
+}

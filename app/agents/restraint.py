@@ -10,18 +10,20 @@ from __future__ import annotations
 from app.contracts import Incident, RestraintDecision
 
 STAT_KIND = {"part_shortage": "part_shortage", "agv_fault": "agv_fault", "overheat": "machine_overheat",
-             "spill": "fluid_spill"}
-HAZARD = {"spill", "overheat"}
+             "spill": "fluid_spill", "robot_cell_fault": "robot_cell_fault", "torque_fault": "torque_fault",
+             "near_miss": "near_miss", "quality_defect": "quality_defect"}
+HAZARD = {"spill", "overheat", "robot_cell_fault", "near_miss"}
 LABOUR_USD_PER_HOUR = 85
 LINE_STOP_USD_PER_MIN = 1500
-ACT_STOP_MIN = {"overheat": 10, "spill": 3, "part_shortage": 0, "agv_fault": 0}  # line stop that acting itself costs
+ACT_STOP_MIN = {"overheat": 10, "spill": 3, "part_shortage": 0, "agv_fault": 0, "robot_cell_fault": 0,
+                "torque_fault": 2, "near_miss": 0, "quality_defect": 0}  # line stop that acting itself costs
 
 
 def decide(incident: Incident, monitor: dict, dryrun: dict | None, plan_ok: bool, stats: dict) -> RestraintDecision:
     p = monitor["p_real"]
-    avg_cost = (stats.get(STAT_KIND[incident.kind]) or {}).get("avg_cost_usd") or 5000.0
+    avg_cost = (stats.get(STAT_KIND.get(incident.kind, incident.kind)) or {}).get("avg_cost_usd") or 5000.0
     cost_wait = round(p * avg_cost, 0)
-    cost_act = round(0.5 * LABOUR_USD_PER_HOUR + ACT_STOP_MIN[incident.kind] * LINE_STOP_USD_PER_MIN, 0)
+    cost_act = round(0.5 * LABOUR_USD_PER_HOUR + ACT_STOP_MIN.get(incident.kind, 0) * LINE_STOP_USD_PER_MIN, 0)
     reasons = [f"p_real={p:.2f}", f"sensors agree={monitor['sensor_agreement']}",
                f"expected cost of waiting ${cost_wait:,.0f} vs acting ${cost_act:,.0f}"]
     score = round(p * (cost_wait / max(cost_wait + cost_act, 1)), 3)

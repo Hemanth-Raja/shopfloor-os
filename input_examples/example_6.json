@@ -1,0 +1,11 @@
+{
+  "run_id": "example-6",
+  "input": {
+    "kind": "torque_fault",
+    "station": "F10",
+    "seed": 42
+  },
+  "options": {
+    "sample_mode": true
+  }
+}

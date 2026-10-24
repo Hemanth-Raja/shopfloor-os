@@ -7,6 +7,7 @@ blocked spill zone. Violations carry the rule id and CFR reference from the rule
 
 from __future__ import annotations
 
+from app.agents.candidates import MUST_HAVE
 from app.contracts import Citation, CriticVerdict, Incident, Plan, Violation
 from app.agents.executor import agv_legs
 from app.sim.pathing import plan_path
@@ -35,10 +36,11 @@ def _review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
         if not w or w["type"] != "worker":
             continue
         name = f"{wid} ({w['name']})"
-        if incident.kind == "overheat" and not plant.cert_valid(w, "lockout_tagout"):
+        if incident.kind in ("overheat", "robot_cell_fault") and not plant.cert_valid(w, "lockout_tagout"):
             exp = w["attrs"].get("cert_expiry", {}).get("lockout_tagout", "none")
             out.append(Violation(rule_id="R-LOTO", cfr_ref=ref("R-LOTO"),
-                                 detail=f"{name} lockout/tagout not valid (expires {exp}) for machine repair"))
+                                 detail=f"{name} lockout/tagout not valid (expires {exp}) for "
+                                        f"{'machine repair' if incident.kind == 'overheat' else 'robot cell recovery'}"))
         if incident.zone_id in ("BODY", "PAINT") and not plant.cert_valid(w, "robot_cell_entry"):
             out.append(Violation(rule_id="R-ROBOT-CELL", cfr_ref=ref("R-ROBOT-CELL"),
                                  detail=f"{name} has no valid robot-cell entry card for {incident.zone_id}"))
@@ -46,6 +48,16 @@ def _review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
                 and not plant.cert_valid(w, "forklift"):
             out.append(Violation(rule_id="R-TRAIN", cfr_ref=ref("R-TRAIN"),
                                  detail=f"{name} forklift/tugger training not valid"))
+
+    if incident.kind in MUST_HAVE:
+        rule_id, need, why = MUST_HAVE[incident.kind]
+        people = [plant.entity(i) for i in plan.assignee_ids]
+        if not any(p and p["type"] == "worker" and need & set(p["attrs"]["skills"]) for p in people):
+            out.append(Violation(rule_id=rule_id, cfr_ref=ref(rule_id),
+                                 detail=f"{why}: assign someone with one of the skills {sorted(need)}"))
+    if incident.kind == "near_miss" and incident.agv_id and any(r.agv_id == incident.agv_id for r in plan.agv_routes):
+        out.append(Violation(rule_id="R-NEAR-MISS", cfr_ref=ref("R-NEAR-MISS"),
+                             detail=f"{incident.agv_id} was in the near miss and stays stopped until a supervisor releases it"))
 
     for route in plan.agv_routes:
         agv = sim.agents.get(route.agv_id)
