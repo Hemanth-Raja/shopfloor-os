@@ -65,18 +65,18 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
     from datetime import date
 
     from app.engines.plant_world import load_plant_world
-    from app.llm import chat_json
     from app.orchestrator import Orchestrator
+    from app.runtime import chat as guarded_chat, chat_json, run_sql as guarded_sql
     from app.sim.grid import Grid
     from app.sim.sim import Sim
 
-    plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")  # one Zetaris query
-    sim = Sim.from_plant(plant, Grid.load(run_sql), seed=seed, shift="B")
+    plant = load_plant_world(guarded_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")  # one Zetaris query
+    sim = Sim.from_plant(plant, Grid.load(guarded_sql), seed=seed, shift="B")
     agv_id = f"agv:plant:{agv}" if agv else None
     inc = sim.inject(kind, plant, station_id=station, agv_id=agv_id, false_alarm=false_alarm)
     from app.engines.playbooks import PlaybookStore
     memory = PlaybookStore() if use_memory else None
-    trace = Orchestrator(plant, sim, chat_json, chat, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
+    trace = Orchestrator(plant, sim, chat_json, guarded_chat, memory=memory).handle(inc, stall=(0, stall_after) if stall_after is not None else None)
     print(f"{inc.id} {inc.kind} at {inc.station_id or inc.zone_id} ({inc.zone_id}) sensors={inc.sensors}")
     for st in trace.steps:
         d = st.detail
@@ -96,6 +96,12 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
           f" | safe mode {trace.safe_mode} | collisions {len(sim.collisions)}")
 
 
+def health():
+    from app.runtime import health as check
+
+    print(json.dumps(check(), indent=1))
+
+
 def models():
     for model_id in list_models():
         print(model_id)
@@ -107,6 +113,7 @@ if __name__ == "__main__":
     ctx = sub.add_parser("context", help="zone context from Zetaris plus a Nemotron summary")
     ctx.add_argument("--zone", default="FINAL")
     sub.add_parser("models", help="list model ids offered by Nightshift")
+    sub.add_parser("health", help="probe Zetaris and Nightshift through their circuit breakers")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
     inc.add_argument("--kind", required=True, choices=["part_shortage", "agv_fault", "overheat", "spill"])
     inc.add_argument("--station", default=None)
@@ -120,5 +127,7 @@ if __name__ == "__main__":
         context(args.zone)
     elif args.command == "incident":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory)
+    elif args.command == "health":
+        health()
     else:
         models()
