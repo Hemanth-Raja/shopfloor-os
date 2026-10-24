@@ -1,5 +1,5 @@
 {
-  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves. Chains use the three models with Nightshift lanes: Nemotron 3.5 Super VL 120B, Nemotron 3.5 Lightning 30B and Llama-3.3-Nemotron-Super 49B v1.5.",
+  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves. Chains use the three models with Nightshift lanes: Nemotron 3.5 Super VL 120B, Nemotron 3.5 Lightning 30B and Llama-3.3-Nemotron-Super 49B v1.5. `app` is the meterless-app name sent with the role's calls: Nightshift routes by its per-app rule, so give each app name a lane allowlist in Nightshift's Apps panel (shopfloor-os-fast -> Lightning, shopfloor-os-code -> Llama-3.3-Nemotron-Super 49B, shopfloor-os -> Super VL).",
   "defaults": {
     "lane_roles": {
       "deep": "planner",
@@ -17,7 +17,8 @@
       ],
       "budget_s": 30,
       "max_tokens": 1500,
-      "why": "Orchestrator hops: a small decision over a short state, many times per incident: Nemotron 3.5 Lightning 30B A3B (3B active) for the lowest latency."
+      "why": "Orchestrator hops: a small decision over a short state, many times per incident: Nemotron 3.5 Lightning 30B A3B (3B active) for the lowest latency.",
+      "app": "shopfloor-os-fast"
     },
     "monitor": {
       "chain": [
@@ -27,7 +28,8 @@
       ],
       "budget_s": 20,
       "max_tokens": 1000,
-      "why": "A one-line summary for the supervisor; the classification itself is rules."
+      "why": "A one-line summary for the supervisor; the classification itself is rules.",
+      "app": "shopfloor-os-fast"
     },
     "planner": {
       "chain": [
@@ -37,7 +39,8 @@
       ],
       "budget_s": 120,
       "max_tokens": 2000,
-      "why": "Grounded multi-constraint planning with clause citations: the deep reasoning model."
+      "why": "Grounded multi-constraint planning with clause citations: the deep reasoning model.",
+      "app": "shopfloor-os"
     },
     "coordinator": {
       "chain": [
@@ -47,7 +50,8 @@
       ],
       "budget_s": 90,
       "max_tokens": 2000,
-      "why": "Splits an open question into sub-tasks over the table catalogue: deep reasoning."
+      "why": "Splits an open question into sub-tasks over the table catalogue: deep reasoning.",
+      "app": "shopfloor-os"
     },
     "sql_agent": {
       "chain": [
@@ -57,7 +61,8 @@
       ],
       "budget_s": 90,
       "max_tokens": 2000,
-      "why": "Writes Spark SQL: Llama-3.3-Nemotron-Super 49B v1.5, NVIDIA's code- and tool-tuned model with a Nightshift lane. The coder models in the list (Qwen2.5-Coder, Codestral) are non-NVIDIA local-runtime models that would load on the PC, so they are not used."
+      "why": "Writes Spark SQL: Llama-3.3-Nemotron-Super 49B v1.5, NVIDIA's code- and tool-tuned model with a Nightshift lane. The coder models in the list (Qwen2.5-Coder, Codestral) are non-NVIDIA local-runtime models that would load on the PC, so they are not used.",
+      "app": "shopfloor-os-code"
     },
     "analyst": {
       "chain": [
@@ -67,7 +72,8 @@
       ],
       "budget_s": 180,
       "max_tokens": 2000,
-      "why": "Correlates evidence into cited findings: deep reasoning."
+      "why": "Correlates evidence into cited findings: deep reasoning.",
+      "app": "shopfloor-os"
     },
     "evidence_critic": {
       "chain": [
@@ -77,7 +83,8 @@
       ],
       "budget_s": 120,
       "max_tokens": 1500,
-      "why": "Checks the analyst's claims against the rows: a different model family (Llama-3.3-Nemotron) from the analyst (Nemotron 3.5 Super VL) for an independent check. It can only drop claims, after the rule-based number check."
+      "why": "Checks the analyst's claims against the rows: a different model family (Llama-3.3-Nemotron) from the analyst (Nemotron 3.5 Super VL) for an independent check. It can only drop claims, after the rule-based number check.",
+      "app": "shopfloor-os-code"
     },
     "lab": {
       "chain": [
@@ -87,7 +94,8 @@
       ],
       "budget_s": 120,
       "max_tokens": 2000,
-      "why": "Proposes one testable policy change from history: deep reasoning."
+      "why": "Proposes one testable policy change from history: deep reasoning.",
+      "app": "shopfloor-os"
     }
   }
 }

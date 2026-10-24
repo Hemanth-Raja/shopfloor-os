@@ -87,6 +87,9 @@ def receipt_for(request_id: str | None, wait_s: float = 1.0) -> str | None:
 def _complete(model: str, role: str, messages: list[dict], max_tokens: int, timeout_s: float,
               json_mode: bool) -> SimpleNamespace:
     kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens, "timeout": timeout_s}
+    app = CFG["roles"].get(role, {}).get("app")
+    if app:  # Nightshift routes by the app's rule (mode, lane allowlist), not by the model id we send
+        kwargs["extra_headers"] = {"meterless-app": app}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     started = time.perf_counter()
@@ -185,6 +188,7 @@ def mapping() -> list[dict]:
     out = []
     for role, spec in CFG["roles"].items():
         out.append({"role": role, "chain": spec["chain"], "why": spec["why"], "budget_s": spec["budget_s"],
+                    "app": spec.get("app", "shopfloor-os"),
                     "max_tokens": spec["max_tokens"],
                     "breakers": {m: BREAKERS[m].state if m in BREAKERS else "CLOSED" for m in spec["chain"]},
                     "served_by": {m: (probe.get(m) or {}).get("answering") for m in spec["chain"]},

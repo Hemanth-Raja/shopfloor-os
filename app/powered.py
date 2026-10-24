@@ -40,7 +40,7 @@ def receipts_path() -> Path | None:
 
 
 def receipts_summary(path: Path | None, app: str = APP) -> dict | None:
-    """Count Nightshift's receipts for this app and describe the latest one (no prompts, no secrets)."""
+    """Count Nightshift's receipts for this app (and its per-role app names) and describe the latest one (no prompts, no secrets)."""
     if path is None or not path.exists():
         return None
     count, last = 0, None
@@ -53,7 +53,7 @@ def receipts_summary(path: Path | None, app: str = APP) -> dict | None:
                 rc = (json.loads(body) if isinstance(body, str) else body)["receipt"]
             except (ValueError, KeyError, TypeError):
                 continue
-            if rc.get("app") != app:
+            if not str(rc.get("app") or "").startswith(app):  # shopfloor-os, shopfloor-os-fast, shopfloor-os-code
                 continue
             count += 1
             last = rc
