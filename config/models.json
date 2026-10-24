@@ -1,5 +1,5 @@
 {
-  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves. Chains use the three models with Nightshift lanes: Nemotron 3.5 Super VL 120B, Nemotron 3.5 Lightning 30B and Llama-3.3-Nemotron-Super 49B v1.5. `app` is the meterless-app name sent with the role's calls: Nightshift routes by its per-app rule, so give each app name a lane allowlist in Nightshift's Apps panel (shopfloor-os-fast -> Lightning, shopfloor-os-code -> Llama-3.3-Nemotron-Super 49B, shopfloor-os -> Super VL).",
+  "_doc": "Agent role -> model chain, tried in order through Meterless Nightshift only. Edit this file, not the code. Every model is NVIDIA. The safety critic, dry run, restraint gate and executor are deterministic code and have no model. data/model_probe.json (scripts/probe_models.py) records which models Nightshift actually serves. Chains use the three models with Nightshift lanes: Nemotron 3.5 Super VL 120B, Nemotron 3.5 Lightning 30B and Llama-3.3-Nemotron-Super 49B v1.5. `app` is the meterless-app name sent with the role's calls: Nightshift routes by its per-app rule, so give each app name a lane allowlist in Nightshift's Apps panel (shopfloor-os-fast -> Lightning, shopfloor-os-code -> Llama-3.3-Nemotron-Super 49B, shopfloor-os -> Super VL). model_apps: the app name pinned to each model in Nightshift (one lane per app), so a fallback to another model is sent under that model's app.",
   "defaults": {
     "lane_roles": {
       "deep": "planner",
@@ -97,5 +97,10 @@
       "why": "Proposes one testable policy change from history: deep reasoning.",
       "app": "shopfloor-os"
     }
+  },
+  "model_apps": {
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": "shopfloor-os",
+    "nvidia/nemotron-3.5-lightning-30b-a3b": "shopfloor-os-fast",
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5": "shopfloor-os-code"
   }
 }

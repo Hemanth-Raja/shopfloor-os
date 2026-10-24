@@ -87,7 +87,8 @@ def receipt_for(request_id: str | None, wait_s: float = 1.0) -> str | None:
 def _complete(model: str, role: str, messages: list[dict], max_tokens: int, timeout_s: float,
               json_mode: bool) -> SimpleNamespace:
     kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens, "timeout": timeout_s}
-    app = CFG["roles"].get(role, {}).get("app")
+    # the app pinned to this model in Nightshift (a fallback model goes out under its own app), else the role's app
+    app = CFG.get("model_apps", {}).get(model) or CFG["roles"].get(role, {}).get("app")
     if app:  # Nightshift routes by the app's rule (mode, lane allowlist), not by the model id we send
         kwargs["extra_headers"] = {"meterless-app": app}
     if json_mode:
