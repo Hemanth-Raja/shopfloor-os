@@ -391,7 +391,12 @@ def run(live_llm=None, out_md: Path = ROOT / "docs" / "eval.md") -> dict:
            "calibration": calibration()}
     if live_llm is not None:
         res["live"] = live(live_llm)
-    out_md.write_text(report(res), encoding="utf-8")
+    text = report(res)
+    if live_llm is None and out_md.exists():  # keep the last live results; an offline rerun refreshes only parts 1-2
+        old = out_md.read_text(encoding="utf-8")
+        if "## 3. Nemotron-only baseline" in old:
+            text = text.split("## 3-4. Live parts")[0] + old[old.index("## 3. Nemotron-only baseline"):]
+    out_md.write_text(text, encoding="utf-8")
     log = ROOT / "logs" / f"eval-{datetime.now():%Y%m%d-%H%M%S}.json"
     log.write_text(json.dumps(res, indent=1, default=str), encoding="utf-8")
     return res
