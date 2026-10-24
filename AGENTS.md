@@ -16,6 +16,8 @@ Shop-Floor OS is a multi-agent dispatch system for a fictional car final-assembl
   conformance checks pass in `tests/test_world_model.py`. Keep them green when you change the engine.
 - **Second Meterless Engine:** H-MEM (`app/engines/hmem.py`) runs the incident playbooks; its 13
   conformance vectors pass in `tests/test_hmem.py`. Keep them green too.
+- **Third Meterless Engine:** Markovian (`app/engines/markovian.py`) runs the shift handover (`run.py handover`)
+  in bounded chunks with compressed carryover; `tests/test_markovian.py` covers it. Keep it green too.
 
 ## Repo layout
 Folders marked (planned) do not exist yet; create them when the first module needs them.

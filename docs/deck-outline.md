@@ -57,8 +57,9 @@ Visual: `02-agv-fault-replan.png` (the verifier re-plans after a stall).
 Visual: `05-agents-know.png`.
 
 ## 7. What was unique about our use of the sponsor technology (point 6)
-- **Two Meterless engines work together.** The World Model answers "what exists and is true"; H-MEM answers
-  "what have we learned, and what does the regulation say".
+- **Three Meterless engines work together.** The World Model answers "what exists and is true"; H-MEM answers
+  "what have we learned, and what does the regulation say"; Markovian turns a whole shift's journal into a
+  handover note in bounded chunks, with the token savings measured.
 - **The LLM is never trusted alone.** Nemotron proposes, a deterministic critic cites the CFR clause, a simulator
   dry-runs the plan, a restraint gate weighs cost, and a verifier checks reality.
 - **Zetaris federation is the agents' only view of the plant.** One query, four sources, every incident.

@@ -69,8 +69,8 @@ Zetaris. Everything is traced, runs as JSON in and JSON out, and works offline w
   - `nvidia/nemotron-3.5-lightning-30b-a3b` writes the monitor summaries.
   - The answering model is logged per request (`logs/llm.jsonl`, `logs/trace-<run_id>.jsonl`).
 - **What was unique:**
-  - Two Meterless engines work together: the World Model for truth about the plant, H-MEM for learned lessons
-    and regulation.
+  - Three Meterless engines work together: the World Model for truth about the plant, H-MEM for learned lessons
+    and regulation, Markovian for the shift handover over the whole journal in bounded chunks.
   - The LLM is never trusted alone. Every plan is grounded, critic-checked with CFR citations, simulated, cost-
     gated, verified and human-approved.
 

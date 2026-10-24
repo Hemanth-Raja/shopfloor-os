@@ -13,6 +13,7 @@
 import argparse
 from pathlib import Path
 import json
+import os
 import re
 
 from dotenv import load_dotenv
@@ -166,6 +167,42 @@ def run_file(path: str, out: str | None):
     print(text)
     if out:
         Path(out).write_text(text + "\n")
+
+
+def shift_handover(shifts: int, as_json: bool):
+    from app.handover import handover
+    from app.runtime import chat
+
+    def show(phase, detail):
+        if not as_json:
+            print(f"  {phase:<12} {detail}", flush=True)
+    out = handover(chat, shifts=shifts, on_phase=show)
+    if as_json:
+        print(json.dumps(out, indent=2, default=str))
+        return
+    t = out["tokens"]
+    print(f"\n{out['note']}\n")
+    print(f"{out['events']} journal events in {out['chunks']} chunks | prompt tokens {t['markovian_prompt_tokens']} "
+          f"vs {t['standard_prompt_tokens']} re-sending history ({t['saved_percent']}% saved, chars/4 estimate) | "
+          f"run {out['run_id']} in logs/markovian.jsonl")
+
+
+def evaluate(live: bool):
+    os.environ.setdefault("MODEL_CONCURRENCY_MAX", "2")  # free endpoints: live runs stay at concurrency 2
+    from app.lab.evaluate import run
+    llm = None
+    if live:
+        from app.runtime import chat_json as llm
+    res = run(llm)
+    p, r, c = res["planted"], res["random"], res["calibration"]
+    print(f"planted: {p['unsafe']} unsafe plans, critic recall {p['recall']:.0%}, false rejects {p['false_rejects']}/{p['safe']}")
+    print(f"random: {r['runtime_events']} runtime events, {r['rejected_of_those']} rejected; approved with event {r['approved_with_event']}")
+    print(f"monitor: Brier {c['brier_monitor']} vs threshold alarm {c['brier_threshold_alarm']}")
+    if live:
+        lv = res["live"]
+        print(f"live: baseline unsafe {lv['baseline_unsafe_or_ungrounded']}/{lv['answered']}, "
+              f"full loop unsafe executed {lv['full_loop_unsafe_executed']}, fell back {lv['fell_back']}")
+    print("report: docs/eval.md")
 
 
 def ask(question: str, as_json: bool = False):
@@ -358,6 +395,11 @@ if __name__ == "__main__":
     lab_p.add_argument("--write", action="store_true", help="insert the proposal into ops.experiments")
     lab_p.add_argument("--target", choices=["zetaris", "local"], default="zetaris",
                        help="write through Zetaris (default) or straight to the local Postgres container")
+    ev = sub.add_parser("eval", help="evaluation: planted unsafe plans, Monitor calibration (offline) -> docs/eval.md")
+    ev.add_argument("--live", action="store_true", help="also the Nemotron-only baseline and 3x stability (Nightshift)")
+    ho = sub.add_parser("handover", help="shift handover note from the journal (Meterless Markovian engine, Nemotron)")
+    ho.add_argument("--shifts", type=int, default=1, help="hand over the last N shifts (more = a longer chain)")
+    ho.add_argument("--json", action="store_true")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
     inc.add_argument("--kind", required=True, choices=list(__import__("app.api", fromlist=["KINDS"]).KINDS))
     inc.add_argument("--station", default=None)
@@ -392,5 +434,9 @@ if __name__ == "__main__":
         run_file(args.file, args.out)
     elif args.command == "lab":
         lab(args.write, args.target)
+    elif args.command == "handover":
+        shift_handover(args.shifts, args.json)
+    elif args.command == "eval":
+        evaluate(args.live)
     else:
         models(args.check)

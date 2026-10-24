@@ -94,8 +94,15 @@ def rule_based_plan(messages: list[dict]) -> Plan:
 
 
 def fallback_plan(incident: Incident, cands: dict) -> Plan:
-    """Rule-based safe-mode plan when Nightshift is unavailable: best candidates, safe speeds."""
-    assignees = [c.id for c in cands["workers"][:1]] or [c.id for c in cands["agvs"][:1]]
+    """Rule-based safe-mode plan when Nightshift is unavailable: best qualified candidate, safe speeds."""
+    from app.agents.candidates import MUST_HAVE
+    need = MUST_HAVE.get(incident.kind, (None, set()))[1]
+    def qualified(c) -> bool:  # what the critic will ask for, as far as the candidate card shows it (eval found this gap)
+        if need and not need & set(c.skills):
+            return False
+        return incident.kind not in ("overheat", "robot_cell_fault") or c.certs_valid.get("lockout_tagout", False)
+    best = next((c for c in cands["workers"] if qualified(c)), cands["workers"][0] if cands["workers"] else None)
+    assignees = [best.id] if best else [c.id for c in cands["agvs"][:1]]
     routes = [{"agv_id": cands["agvs"][0].id, "to_station": incident.station_id, "speed_mps": 1.0,
                "crossing_speed_mps": 0.5}] if cands["agvs"] and incident.station_id else []
     return Plan(incident_id=incident.id, assignee_ids=assignees or ["none"], agv_routes=routes, priority="high",

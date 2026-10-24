@@ -16,6 +16,7 @@ requested), the latency, the token budget and the id of Nightshift's signed rece
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -147,7 +148,9 @@ def limiter(model: str) -> AIMDLimiter:
     with _lock:
         if model not in LIMITERS:
             d = CFG["defaults"]
-            LIMITERS[model] = AIMDLimiter(start=d.get("concurrency_start", 3), high=d.get("concurrency_max", 8),
+            cap = os.environ.get("MODEL_CONCURRENCY_MAX")  # live demos and eval runs pin it (e.g. 2) for the free endpoints
+            high = int(cap) if cap else d.get("concurrency_max", 8)
+            LIMITERS[model] = AIMDLimiter(start=min(d.get("concurrency_start", 3), high), high=high,
                                           slow_s=d.get("slow_reply_s", 60))
         return LIMITERS[model]
 

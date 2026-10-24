@@ -68,6 +68,26 @@
       "why": "Writes Spark SQL: Nemotron 3.5 Super VL, the strongest model this Nightshift serves. Llama-3.3-Nemotron-Super 49B can only be a Nightshift verify lane, NVIDIA's endpoint for Nemotron 3 Super 120B is not enabled for this key (404), and the coder models in the list are non-NVIDIA local models that would load on the PC.",
       "app": "shopfloor-os"
     },
+    "handover": {
+      "chain": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
+      ],
+      "budget_s": 60,
+      "max_tokens": 1500,
+      "why": "Markovian shift handover: reads one bounded slice of the journal per chunk; a fast model is enough.",
+      "app": "shopfloor-os-fast"
+    },
+    "handover_reflect": {
+      "chain": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "budget_s": 120,
+      "max_tokens": 1500,
+      "why": "Writes the final handover note from the carried state: deep reasoning.",
+      "app": "shopfloor-os"
+    },
     "analyst": {
       "chain": [
         "nvidia/nemotron-3.5-super-vl-120b-a12b",

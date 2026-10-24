@@ -23,6 +23,15 @@
         "app/engines/playbooks.py (critic lessons recalled before planning, outcome feedback)"
       ],
       "evidence": "tests/test_hmem.py runs the spec's 13 conformance vectors (tests/fixtures/hmem_vectors.json)"
+    },
+    {
+      "engine": "Markovian",
+      "spec": "Meterless Markovian Agent Engine reference (headless, v1.0)",
+      "implementation": "app/engines/markovian.py (Python port)",
+      "used_by": [
+        "app/handover.py (run.py handover: shift journal in bounded chunks, then a handover note)"
+      ],
+      "evidence": "tests/test_markovian.py (config bounds, markers, compression cascade order, token formulas, abort, reflection failure); logs/markovian.jsonl run records"
     }
   ],
   "memory": "app/engines/playbooks.py: incident playbooks running on the H-MEM engine",
