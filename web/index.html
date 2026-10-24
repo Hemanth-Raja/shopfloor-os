@@ -739,7 +739,11 @@ async function health() {
     $("health").innerHTML = (h.mode === "offline" ? '<div class="note" style="margin-bottom:4px">Sample mode: no network, no keys. Real agent logic on the offline plant.</div>' : "")
       + ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
       `<div class="kv"><span>${label[k]}</span><span class="${cls(h[k].status)}">${esc(h[k].note || h[k].status)}${h[k].breaker ? " · breaker " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
-      + `<div class="kv"><span>Safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`;
+      + `<div class="kv"><span>Safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`
+      + (h.invariants ? `<div class="kv"><span>Runtime safety checks</span><span class="${h.invariants.violations ? "bad-t" : "ok-t"}">${h.invariants.violations ? h.invariants.violations + " violation(s) " + esc(JSON.stringify(h.invariants.by_rule)) : "no violations"}</span></div>` : "")
+      + (h.journal ? `<div class="kv"><span>Journal</span><span class="${h.journal.chain_ok ? "ok-t" : "bad-t"}">${h.journal.events} events · chain ${h.journal.chain_ok ? "intact" : "BROKEN"}${h.journal.signed ? " · signed" : ""}${(h.journal.recovered_interrupted || []).length ? " · recovered " + h.journal.recovered_interrupted.length + " interrupted" : ""}</span></div>` : "")
+      + (h.model_pins && h.model_pins.warnings.length ? `<div class="kv"><span>Model pins</span><span class="bad-t">${esc(h.model_pins.warnings.join("; "))}</span></div>` : "")
+      + (h.caches ? `<div class="kv"><span>Caches</span><span class="muted">${Object.entries(h.caches).filter(([, c]) => c.hits + c.misses).map(([n, c]) => `${n} ${Math.round(100 * (c.hit_rate || 0))}%`).join(" · ") || "warming up"}</span></div>` : "");
     $("health").classList.remove("muted");
   } catch { $("health").textContent = "checking… (retrying)"; setTimeout(health, 3000); }
 }

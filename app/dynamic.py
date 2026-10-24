@@ -184,6 +184,8 @@ class DynamicOrchestrator(Orchestrator):
             if s.critic_ok is None:
                 return ["critic"]
             if s.critic_ok is False:
+                if any(v.rule_id == "R-UNVERIFIED" for v in (s.feedback or [])):
+                    return ["restraint"]  # default-deny: re-planning cannot fix an uncheckable rule
                 if s.pending is not None:
                     return ["refine"]  # the model's plan may fix it
                 return (["planner", "candidates"] if s.attempts < MAX_ATTEMPTS else ["restraint"])
@@ -317,7 +319,7 @@ class DynamicOrchestrator(Orchestrator):
         self._hop, self._route = 0, {"by": "code", "reason": "the reflex always runs first"}
         trace.path.append({"hop": 0, "agent": "reflex", **self._route})
         with self._floor("reflex"):
-            fenced = reflex(self.sim, incident)
+            fenced = reflex(self.sim, incident, self.plant)
         self._step(trace, "reflex", t, True, **fenced)
         yield "reflex"
         if incident.kind not in linear.SUPPORTED_KINDS:  # no playbook, candidates or critic rules: a person takes over

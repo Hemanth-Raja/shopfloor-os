@@ -221,6 +221,8 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
         plant = load_plant_world(guarded_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
         grid = Grid.load(guarded_sql)
     sim = Sim.from_plant(plant, grid, seed=seed, shift="B")
+    from app.sim.invariants import InvariantMonitor
+    sim.monitor = InvariantMonitor(plant)  # independent runtime safety checks after every tick
     chat_json, chat_text = maybe_sample(guarded_json, "json"), maybe_sample(guarded_chat, "text")
     memory = PlaybookStore(path=None) if replay else PlaybookStore()
     runner = sql_runner("true") if offline else guarded_sql
@@ -263,6 +265,7 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
           f"escalated {len(result['escalations'])}; mean {result['mean_minutes_to_resolve']} min to resolve; "
           f"~{result['cars_saved_estimate']} cars saved; {result['preemptions']} pre-emptions; "
           f"max {result['max_concurrent']} at once; {result['wall_seconds']} s")
+    print(f"  runtime invariants: {sim.monitor.summary()['violations']} violations {sim.monitor.summary()['by_rule']}")
 
 
 def audit():

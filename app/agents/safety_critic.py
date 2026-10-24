@@ -16,6 +16,20 @@ MAX_SPEED_MPS = 1.5
 CROSSING_SPEED_MPS = 0.5
 MIN_SEPARATION_CELLS = 2
 CELL_ENTRY_KINDS = {"robot_cell_fault", "overheat"}  # the responder steps into the robot cell or machine guarding
+# Rules from sf_ops.safety_rules this critic checks in code (or that another check fully covers). Any other rule that
+# applies to an incident is default-deny: no automatic action; a person confirms (R-UNVERIFIED).
+IMPLEMENTED = {"R-TRAIN", "R-PED-CLEAR", "R-CROSSING", "R-SAFE-SPEED", "R-SURFACE", "R-LOTO", "R-PRESS", "R-ROBOT-CELL"}
+COVERED = {"R-GUARD": "entering a guarded cell needs lockout/tagout (R-LOTO) and a robot-cell card (R-ROBOT-CELL)"}
+
+
+def _applies(rule: dict, incident: Incident) -> bool:
+    params = dict(p.split("=", 1) for p in str(rule.get("params") or "").split(";") if "=" in p)
+    scope = {s.strip() for s in params.get("applies_to", "").split(",") if s.strip()}
+    if not scope:
+        return True
+    machine = (incident.machine_id or "").split(":")[-1]
+    kind = {"overheat": "machine_overheat", "spill": "fluid_spill"}.get(incident.kind, incident.kind)
+    return bool(scope & {incident.kind, kind, machine, incident.station_id or "", incident.zone_id})
 
 
 def review(plan: Plan, incident: Incident, plant, sim, citations=None) -> CriticVerdict:
@@ -31,13 +45,26 @@ def _review(plan: Plan, incident: Incident, plant, sim) -> CriticVerdict:
     rules = plant.rules
     ref = lambda rid: rules.get(rid, {}).get("cfr_ref", "plant rule")  # noqa: E731
     out: list[Violation] = []
+    for rid, rule in sorted(rules.items()):  # default-deny: a rule we cannot check blocks automatic action
+        if rid not in IMPLEMENTED and rid not in COVERED and _applies(rule, incident):
+            out.append(Violation(rule_id="R-UNVERIFIED", cfr_ref=ref(rid),
+                                 detail=f"{rid} ({rule.get('summary', '')[:80]}) cannot be checked automatically: "
+                                        "a person must confirm"))
 
+    hazard = [k for k, cells in getattr(sim, "fences", {}).items() if k != incident.id
+              and getattr(sim, "fence_kinds", {}).get(k) in CELL_ENTRY_KINDS
+              and any(abs(incident.x - x) + abs(incident.y - y) <= 1 for x, y in cells)]
     for wid in plan.assignee_ids:
         w = plant.entity(wid)
         if not w or w["type"] != "worker":
             continue
         name = f"{wid} ({w['name']})"
-        if incident.kind in ("overheat", "robot_cell_fault") and not plant.cert_valid(w, "lockout_tagout"):
+        if hazard and not plant.cert_valid(w, "lockout_tagout"):  # another incident's locked-out area is in the way
+            out.append(Violation(rule_id="R-HAZARD-ZONE", cfr_ref=ref("R-LOTO"),
+                                 detail=f"{name} would enter {hazard[0]}'s robot-cell/repair area without "
+                                        "lockout/tagout: wait until it is cleared"))
+        if (incident.kind in ("overheat", "robot_cell_fault") or (incident.machine_id or "").endswith("M-02")) \
+                and not plant.cert_valid(w, "lockout_tagout"):  # R-LOTO, and R-PRESS for the hemming press
             exp = w["attrs"].get("cert_expiry", {}).get("lockout_tagout", "none")
             out.append(Violation(rule_id="R-LOTO", cfr_ref=ref("R-LOTO"),
                                  detail=f"{name} lockout/tagout not valid (expires {exp}) for "

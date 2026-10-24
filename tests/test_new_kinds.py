@@ -71,3 +71,24 @@ def test_new_kinds_wait_for_a_person_when_someone_enters_a_hazard_or_signs_off()
         out = run(kind=kind, station=station)
         assert out["gate"] == "awaiting_approval" and any(text in r for r in out["gate_reasons"])
     assert run(kind="quality_defect", station="E10")["gate"] == "auto_executed"
+
+
+def test_a_rule_the_critic_cannot_check_is_default_deny(world):
+    from app.contracts import Plan
+    from app.dynamic import DynamicOrchestrator
+    from tests.conftest import FakePlanner
+    plant, sim = world
+    plant.rules["R-NOISE"] = {"cfr_ref": "29 CFR 1910.95", "check_type": "max_db", "params": "applies_to=spill",
+                              "summary": "Hearing protection above 85 dB"}
+    try:
+        inc = sim.inject("spill", plant, station_id="F20")
+        v = review(Plan(incident_id=inc.id, assignee_ids=["worker:plant:W-15"], priority="high", rationale="x"),
+                   inc, plant, sim)
+        assert [x.rule_id for x in v.violations] == ["R-UNVERIFIED"] and "R-NOISE" in v.violations[0].detail
+        trace = DynamicOrchestrator(plant, sim, FakePlanner(), trace_path=None).handle(inc)
+        assert trace.decision.decision == "ESCALATE" and [p["agent"] for p in trace.path].count("planner") == 1
+        other = sim.inject("part_shortage", plant, station_id="F30")  # the rule does not apply here
+        assert not any(x.rule_id == "R-UNVERIFIED" for x in review(Plan(incident_id=other.id,
+                       assignee_ids=["worker:plant:W-18"], priority="high", rationale="x"), other, plant, sim).violations)
+    finally:
+        plant.rules.pop("R-NOISE")

@@ -89,6 +89,7 @@ class App:
             self.plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
         self.grid = Grid.load(self.run_sql)
         self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift="B")
+        self._watch_invariants()
         # replay: an in-memory store per session, so a repeated incident can take the playbook route
         self.memory = PlaybookStore(path=None) if replay else PlaybookStore()
         self.mode = "dynamic"  # or "linear" (POST /run {"mode": "linear"}) for comparison
@@ -116,6 +117,13 @@ class App:
                                               "note": "process restarted: these need a person"})
         self.shift_summary: dict | None = None
         threading.Thread(target=self._ticker, daemon=True).start()
+
+    def _watch_invariants(self) -> None:
+        """Independent runtime checks on the floor after every tick (app/sim/invariants.py)."""
+        from app.sim.invariants import InvariantMonitor
+        self.invariants = getattr(self, "invariants", None) or InvariantMonitor(
+            self.plant, on_violation=lambda v: self.bus.publish("invariant", v))
+        self.sim.monitor = self.invariants
 
     def llm(self):
         from app import runtime
@@ -171,6 +179,7 @@ class App:
             try:
                 if req.get("seed") is not None or self.replay:
                     self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
+                    self._watch_invariants()
                 self.sim.fences.clear()  # one incident at a time here: the new fence replaces the last one
                 inc = self.sim.inject(req["kind"], self.plant, station_id=req.get("station"), agv_id=agv,
                                       false_alarm=bool(req.get("false_alarm")), severity=req.get("severity") or None,
@@ -328,7 +337,7 @@ class App:
                     if aid in self.sim.agents:
                         self.sim.stop(aid)
                         if tuple(start) != self.sim.agents[aid].pos:
-                            self.sim.assign(aid, tuple(start))  # roll back: return to where it started
+                            self.sim.assign(aid, tuple(start), 1.0, 0.5 if self.sim.agents[aid].kind == "agv" else None)  # roll back
                 trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
             elif approved:
                 action = "auto-executed plan confirmed by the human"
@@ -464,6 +473,7 @@ class App:
         else:
             from app.runtime import health
             out = health(self.sim)
+        out["invariants"] = self.invariants.summary()
         v = self.journal.verify()
         out["journal"] = {"events": v["events"], "chain_ok": v["ok"], "signed": v.get("signed", False),
                           "problem": v["reason"], "replicated_to_postgres": self.journal.replicated,

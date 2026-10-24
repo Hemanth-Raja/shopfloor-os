@@ -33,6 +33,7 @@ RULE_CLAUSES = {
     "R-PRESS": ["29 CFR 1910.217(c)(1)(i)"],
     "R-ROBOT-CELL": ["29 CFR 1910.212(a)(1)"],
     "R-NEAR-MISS": ["29 CFR 1910.178(m)(1)"],
+    "R-HAZARD-ZONE": ["29 CFR 1910.147(c)(1)"],
 }
 KIND_RULES = {"part_shortage": ["R-CROSSING", "R-SAFE-SPEED", "R-TRAIN"], "agv_fault": ["R-CROSSING", "R-PED-CLEAR"],
               "overheat": ["R-LOTO", "R-GUARD"], "spill": ["R-SURFACE"],
@@ -65,8 +66,16 @@ class CitationIndex:
         self.by_ref[ref] = {"ref": ref, "title": title, "text": text, "doc": doc}
 
     def _ranked(self, query: str, where, top_n: int) -> list[dict]:
-        hits = self.hmem.query(query, threshold=0, top_n=top_n, where=where)["memories"]
-        return [self.by_ref[h["memory"]["source"]] for h in hits]
+        """Tag filter first (rule/kind), then two rankings fused with RRF: H-MEM's hybrid ranking and BM25."""
+        hits = self.hmem.query(query, threshold=0, top_n=64, where=where)["memories"]
+        by_hmem = [h["memory"]["source"] for h in hits]
+        if not hasattr(self, "_bm25") or self._bm25_size != len(self.by_ref):
+            from app.engines.bm25 import BM25
+            self._bm25 = BM25({r: f"{c['title']} {c['text']}" for r, c in self.by_ref.items()})
+            self._bm25_size = len(self.by_ref)
+        from app.engines.bm25 import rrf
+        fused = rrf(by_hmem, self._bm25.rank(query, by_hmem))
+        return [self.by_ref[r] for r in fused[:top_n]]
 
     def for_rule(self, rule_id: str, detail: str = "", top_n: int = 2) -> list[dict]:
         """Clauses for a violated rule: the OSHA clause first, then the plant SOP (cached: the index is fixed)."""

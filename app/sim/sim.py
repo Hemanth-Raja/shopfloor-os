@@ -32,6 +32,7 @@ class Agent:
     status: str = "idle"  # idle | moving | stopped | fault | stalled
     goal: Cell | None = None
     speed_mps: float = 1.0
+    crossing_speed_mps: float | None = None
 
 
 def slow_at_crossings(grid: Grid, path: list[Cell], crossing_speed_mps: float | None) -> list[Cell]:
@@ -55,6 +56,8 @@ class Sim:
         self.agents: dict[str, Agent] = {}
         self.res = Reservations()
         self.fences: dict[str, set[Cell]] = {}  # one geofence per open incident; AGVs avoid their union
+        self.fence_kinds: dict[str, str] = {}  # fence -> incident kind (for the invariant monitor)
+        self.monitor = None  # app/sim/invariants.InvariantMonitor: checked after every tick
         self.stalls: dict[str, int] = {}  # agent -> tick the stall starts
         self.collisions: list[tuple[int, Cell, str, str]] = []
         self.history: list[dict[str, Cell]] = []
@@ -88,7 +91,11 @@ class Sim:
         return agent
 
     def clone(self) -> "Sim":
-        return copy.deepcopy(self)
+        monitor, self.monitor = self.monitor, None  # a dry-run copy must not report or enforce on the real floor
+        try:
+            return copy.deepcopy(self)
+        finally:
+            self.monitor = monitor
 
     # ---------------------------------------------------------------- commands
 
@@ -98,7 +105,13 @@ class Sim:
         cell at `goal`, and start moving."""
         agent = self.agents[agent_id]
         # The fence keeps AGVs out of the incident area; the people responding to it may enter.
-        fence = set() if agent.kind == "worker" else self.geofence
+        if agent.kind == "worker":  # people may enter a fence they respond to, but never cross a robot-cell/repair area
+            fence = set().union(*[c for k, c in self.fences.items()
+                                  if self.fence_kinds.get(k) in ("robot_cell_fault", "overheat") and goal not in c
+                                  and not any(abs(goal[0] - x) + abs(goal[1] - y) <= 2 for x, y in c)]) \
+                if self.fences else set()
+        else:
+            fence = self.geofence
         # avoid where others stand and where others are heading: two responders never share a target cell
         others = {a.pos for a in self.agents.values() if a.id != agent_id} | fence \
             | {a.goal for a in self.agents.values() if a.id != agent_id and a.goal is not None and a.status == "moving"}
@@ -120,10 +133,14 @@ class Sim:
             self.res.park(agent_id, agent.pos)
             return None
         if agent.kind == "agv":
+            # the fleet layer enforces the plant's crossing speed limit whatever the plan says (zone speed limit):
+            # a path can differ from the critic's estimate (reservations, detours), the limit cannot
+            crossing_speed_mps = min(crossing_speed_mps if crossing_speed_mps is not None else speed_mps, 0.5)
             path = slow_at_crossings(self.grid, path, crossing_speed_mps)
         self.res.reserve_path(agent_id, path, self.tick)
         agent.path, agent.path_start, agent.goal = path, self.tick, target
         agent.status, agent.speed_mps = "moving", speed_mps
+        agent.crossing_speed_mps = crossing_speed_mps if agent.kind == "agv" else None
         return path
 
     def stop(self, agent_id: str, status: str = "stopped") -> None:
@@ -135,11 +152,14 @@ class Sim:
     def geofence(self) -> set[Cell]:
         return set().union(*self.fences.values()) if self.fences else set()
 
-    def set_geofence(self, cells: set[Cell], key: str = "default") -> None:
+    def set_geofence(self, cells: set[Cell], key: str = "default", kind: str | None = None) -> None:
         self.fences[key] = set(cells)
+        if kind:
+            self.fence_kinds[key] = kind
 
     def clear_geofence(self, key: str) -> None:
         self.fences.pop(key, None)
+        self.fence_kinds.pop(key, None)
 
     def inject_stall(self, agent_id: str, at_tick: int) -> None:
         self.stalls[agent_id] = at_tick
@@ -172,6 +192,8 @@ class Sim:
                 self.collisions.append((self.tick, agent.pos, seen[agent.pos], agent.id))
             seen[agent.pos] = agent.id
         self.history.append({a.id: a.pos for a in self.agents.values()})
+        if self.monitor is not None:
+            self.monitor.check(self)
 
     def run(self, ticks: int) -> None:
         """Headless fast mode: no rendering, no sleeping."""

@@ -43,3 +43,11 @@ def test_health_reports_cache_hit_rates(monkeypatch):
     monkeypatch.setattr(runtime, "check_health", lambda *a: {"overall": "ok"})
     out = runtime.health()
     assert "caches" in out and all("hit_rate" in v for v in out["caches"].values())
+
+
+def test_bm25_ranks_the_matching_clause_first_and_rrf_fuses():
+    from app.engines.bm25 import BM25, rrf
+    b = BM25({"a": "slow down and sound the horn at cross aisles", "b": "keep walking surfaces dry and clean",
+              "c": "lockout tagout before servicing machines"})
+    assert b.rank("AGV too fast at the crossing aisle horn", ["a", "b", "c"])[0] == "a"
+    assert rrf(["x", "y", "z"], ["y", "x", "z"])[:2] in (["x", "y"], ["y", "x"]) and rrf(["x"], ["x"]) == ["x"]

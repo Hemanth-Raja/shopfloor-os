@@ -154,7 +154,7 @@ class Orchestrator:
         """Run the loop. `stall=(route_index, after_ticks)` stalls that planned AGV mid-execution (demo/test)."""
         trace = Trace(incident=incident)
         t = time.perf_counter()
-        reflex_out = reflex(self.sim, incident)
+        reflex_out = reflex(self.sim, incident, self.plant)
         self._step(trace, "reflex", t, True, **reflex_out)
 
         t = time.perf_counter()

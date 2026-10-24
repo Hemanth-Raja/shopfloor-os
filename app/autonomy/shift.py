@@ -108,9 +108,12 @@ class Shift:
                     continue
                 if agent.status == "moving" or self.leases.holder(aid):
                     continue  # still on its way, or already working on another incident
+                if any(home in cells for k, cells in self.sim.fences.items()
+                       if self.sim.fence_kinds.get(k) in ("robot_cell_fault", "overheat")):
+                    continue  # home is inside a locked-out area now: wait until it is cleared
                 self.returns.pop(aid)
                 if agent.pos != home:
-                    self.sim.assign(aid, home, agent.speed_mps)
+                    self.sim.assign(aid, home, agent.speed_mps, 0.5 if agent.kind == "agv" else None)
 
     def watch(self) -> None:
         """One Sentinel pass over the signals that arrived since the last pass."""

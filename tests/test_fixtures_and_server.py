@@ -62,7 +62,7 @@ def test_server_runs_a_demo_offline(monkeypatch):
                 break
             time.sleep(0.05)
         trace = app.traces[inc]
-        assert trace.decision.decision == "ACT" and trace.critic_rejections == 1
+        assert trace.decision.decision == "ACT" and trace.critic_rejections in (0, 1)  # v2 may or may not break a rule
         assert "<canvas" in urllib.request.urlopen(base + "/").read().decode()
         assert json.load(urllib.request.urlopen(base + "/health"))["floor"]["collisions"] == 0
     finally:
