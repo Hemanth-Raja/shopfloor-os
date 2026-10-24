@@ -25,23 +25,46 @@ DRAIN_WALL_S = 600  # live: wait at most 10 minutes for open incidents after the
 class Shift:
     def __init__(self, plant, sim, make_orchestrator: Callable, minutes: float = 10, seed: int = 7, workers: int = 3,
                  threads: bool = False, sentinel_llm: Callable | None = None, on_event: Callable | None = None,
-                 sim_lock=None, memory=None, rate_per_min: float = 1.0):
+                 sim_lock=None, memory=None, rate_per_min: float = 1.0, journal=None):
         self.plant, self.sim, self.minutes, self.seed = plant, sim, minutes, seed
-        self.on_event = on_event or (lambda kind, data: None)
+        self.journal = journal  # app/journal.py: durable, hash-chained record of the shift
+        outer = on_event or (lambda kind, data: None)
+
+        def on_event(kind, data):
+            if self.journal is not None and kind in ("queued", "started", "finished"):
+                self.journal.append(kind, {k: v for k, v in data.items() if k != "route"} | (
+                    {"route": data["route"]} if "route" in data else {}))
+            outer(kind, data)
+        self.on_event = on_event
         self.sim_lock = sim_lock or threading.RLock()
         self.memory = memory
         self.leases = LeaseBook(ttl_s=300.0, clock=lambda: self.sim.tick * TICK_S)  # leases run on floor time
+        if journal is not None:
+            self.leases.on_event = journal.append
+            self.leases.next_token = journal.recover()["last_token"] + 1  # fencing tokens never go backwards
+        from app.connectors import SimFleet
+        self.fleet = SimFleet(sim)
         self.signals = generate_signals(plant, minutes, seed, rate_per_min)
         self.start_tick = sim.tick
         self.sentinel = Sentinel(sentinel_llm, on_event=self.on_event)
         self.traces: dict[str, object] = {}
-        self.dispatcher = Dispatcher(lambda inc, risk: make_orchestrator(inc, risk, self.leases, self.sim_lock),
+        self.dispatcher = Dispatcher(lambda inc, risk: self._with_fleet(make_orchestrator(inc, risk, self.leases,
+                                                                                          self.sim_lock)),
                                      plant.stats, workers=workers, threads=threads, on_event=self.on_event,
                                      on_done=self._done, leases=self.leases, sim=sim)
         self.returns: dict[str, tuple] = {}  # responders to send back once they are free
         self.next_signal = 0
         self.stopped = False
         self.wall_started = time.perf_counter()
+
+    def _with_fleet(self, orch):
+        orch.fleet = self.fleet
+        return orch
+
+    def begin(self) -> None:
+        if self.journal is not None:
+            self.journal.append("shift_started", {"minutes": self.minutes, "seed": self.seed,
+                                                  "signals": len(self.signals)})
 
     def _done(self, trace, result) -> None:
         self.sentinel.close(result["incident"])
@@ -110,6 +133,7 @@ class Shift:
 
     def run_headless(self) -> dict:
         """Drive the floor clock ourselves: one tick, one Sentinel pass, one dispatcher step, repeat."""
+        self.begin()
         while not self.finished():
             with self.sim_lock:
                 self.sim.step()
@@ -118,7 +142,13 @@ class Shift:
             self.dispatcher.step()
             if self.dispatcher.threads:
                 time.sleep(LIVE_TICK_S)
-        return self.summary()
+        return self.end()
+
+    def end(self) -> dict:
+        out = self.summary()
+        if self.journal is not None:
+            self.journal.append("shift_finished", {k: v for k, v in out.items() if k != "results"})
+        return out
 
     def poll(self) -> None:
         """For a clock driven elsewhere (the web server's ticker): watch and dispatch once."""

@@ -22,6 +22,7 @@ class Lease:
     incident: str
     risk: float
     expires: float
+    token: int = 0  # fencing token: only ever increases
 
 
 @dataclass
@@ -31,7 +32,13 @@ class LeaseBook:
     leases: dict[str, Lease] = field(default_factory=dict)
     preempted: dict[str, set[str]] = field(default_factory=dict)  # incident -> resources it lost
     log: list[dict] = field(default_factory=list)
+    next_token: int = 1  # resumes above the last token in the journal after a restart
+    on_event: Callable | None = None  # journal hook: (kind, data)
     _lock: threading.RLock = field(default_factory=threading.RLock)
+
+    def _emit(self, kind: str, data: dict) -> None:
+        if self.on_event:
+            self.on_event(kind, data)
 
     def _live(self, resource: str) -> Lease | None:
         lease = self.leases.get(resource)
@@ -56,7 +63,7 @@ class LeaseBook:
 
     def acquire(self, incident: str, risk: float, resources) -> dict:
         """Take every resource; pre-empt lower-risk holders. Returns {granted, preempted: {resource: loser}, refused}."""
-        out = {"granted": [], "preempted": {}, "refused": []}
+        out = {"granted": [], "preempted": {}, "refused": [], "tokens": {}}
         with self._lock:
             for r in resources:
                 held = self._live(r)
@@ -67,9 +74,16 @@ class LeaseBook:
                     out["preempted"][r] = held.incident
                     self.preempted.setdefault(held.incident, set()).add(r)
                     self.log.append({"op": "preempt", "resource": r, "from": held.incident, "to": incident})
-                self.leases[r] = Lease(r, incident, risk, self.clock() + self.ttl_s)
+                    self._emit("preempt", {"resource": r, "from": held.incident, "to": incident})
+                if held and held.incident == incident:
+                    token = held.token  # renewing our own lease keeps its token
+                else:
+                    token, self.next_token = self.next_token, self.next_token + 1
+                self.leases[r] = Lease(r, incident, risk, self.clock() + self.ttl_s, token)
                 out["granted"].append(r)
-                self.log.append({"op": "lease", "resource": r, "incident": incident})
+                out["tokens"][r] = token
+                self.log.append({"op": "lease", "resource": r, "incident": incident, "token": token})
+                self._emit("lease", {"resource": r, "incident": incident, "risk": risk, "token": token})
         return out
 
     def take_preempted(self, incident: str) -> set[str]:
@@ -83,11 +97,12 @@ class LeaseBook:
                 del self.leases[r]
             if gone:
                 self.log.append({"op": "release", "incident": incident, "resources": gone})
+                self._emit("release", {"incident": incident, "resources": gone})
             self.preempted.pop(incident, None)
             return gone
 
     def snapshot(self) -> list[dict]:
         with self._lock:
-            return [{"resource": r, "incident": l.incident, "risk": l.risk,
+            return [{"resource": r, "incident": l.incident, "risk": l.risk, "token": l.token,
                      "expires_in_s": round(l.expires - self.clock(), 1)}
                     for r in sorted(self.leases) if (l := self._live(r))]

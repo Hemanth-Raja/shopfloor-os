@@ -138,11 +138,12 @@ def incident_history(run_sql: Callable, incident: Incident) -> dict:
 
 class DynamicOrchestrator(Orchestrator):
     def __init__(self, *args, router_llm: Callable | None = None, run_sql: Callable | None = None,
-                 leases=None, risk: float = 0.0, sim_lock=None, anytime: bool = True, **kwargs):
+                 leases=None, risk: float = 0.0, sim_lock=None, anytime: bool = True, fleet=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.leases = leases  # shift mode: a LeaseBook shared by every concurrent incident
         self.risk = risk  # this incident's priority (app/autonomy/dispatcher.incident_risk)
         self.sim_lock = sim_lock  # shift mode: hops that touch the floor run under the floor's lock
+        self.fleet = fleet  # shift mode: FleetManager connector (fencing tokens, idempotency keys)
         self.anytime = anytime  # v1 by optimal assignment at once, the model's v2 swapped in only if safe and better
         self.router_llm = router_llm  # None: rule-based router only (SAMPLE_MODE, tests)
         self.run_sql = run_sql  # for the investigator; None: it is not offered
@@ -614,8 +615,10 @@ class DynamicOrchestrator(Orchestrator):
             s.done = True
             return
         plan = executable_plan(trace)
+        tokens = {}
         if self.leases:
             got = self.leases.acquire(incident.id, self.risk, plan_resources(plan))
+            tokens = got["tokens"]
             if got["refused"]:  # another incident took them since the critic ran: re-plan without them
                 self._step(trace, "arbiter", t, False, refused=got["refused"], note="resources taken by a more urgent incident")
                 s.excluded |= set(got["refused"])
@@ -627,7 +630,13 @@ class DynamicOrchestrator(Orchestrator):
         for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
             if aid in self.sim.agents and aid not in trace.dispatch:
                 trace.dispatch[aid] = list(self.sim.agents[aid].pos)
-        s.expected = execute(plan, incident, self.plant, self.sim)
+        try:
+            s.expected = execute(plan, incident, self.plant, self.sim, fleet=self.fleet, tokens=tokens,
+                                 key=f"{incident.id}:r{s.round}")
+        except PermissionError as err:  # a stale fencing token: the lease was lost in the meantime
+            self._step(trace, "arbiter", t, False, refused=[str(err)], note="fencing token refused by the fleet")
+            trace.replans += 1
+            return self._new_round(s, trace)
         s.executed = True
         self._step(trace, "executor", t, all(e["path"] for e in s.expected.values()),
                    eta_s={a: e["eta_s"] for a, e in s.expected.items()})

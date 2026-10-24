@@ -29,11 +29,17 @@ def targets(plan: Plan, incident: Incident, plant, sim) -> dict:
     return out
 
 
-def execute(plan: Plan, incident: Incident, plant, sim) -> dict:
-    """Assign every agent in the plan; returns the expected paths (None means unreachable)."""
+def execute(plan: Plan, incident: Incident, plant, sim, fleet=None, tokens: dict | None = None,
+            key: str | None = None) -> dict:
+    """Assign every agent in the plan; returns the expected paths (None means unreachable). With a `fleet`
+    (app/connectors.py) each command carries the agent's lease token and an idempotency key."""
     expected = {}
     for aid, (goal, speed, crossing, via) in sorted(targets(plan, incident, plant, sim).items()):
-        path = sim.assign(aid, goal, speed, crossing, via=via)
+        if fleet is not None:
+            path = fleet.dispatch(aid, goal, speed, crossing, via, token=(tokens or {}).get(aid),
+                                  key=f"{key}:{aid}" if key else None)
+        else:
+            path = sim.assign(aid, goal, speed, crossing, via=via)
         expected[aid] = {"path": path, "start": sim.tick,
                          "eta_s": (len(path) - 1) * TICK_S if path else None}
     return expected

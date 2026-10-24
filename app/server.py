@@ -99,6 +99,18 @@ class App:
         self.autonomy = "auto"
         self.busy = False
         self.shift = None  # an autonomous shift in progress (app/autonomy/shift.py)
+        # durable, hash-chained journal (app/journal.py); approvals get their own chain. On start, recover what a
+        # crash left open: interrupted incidents go to a person, their leases are void, fencing tokens move on.
+        from app.journal import Journal
+        self.journal = Journal(replicate=not replay and not offline)
+        self.audit = Journal(APPROVALS)
+        rec = self.journal.recover()
+        self.recovered = rec
+        if rec["interrupted"] or rec["void_leases"] or rec["shift"]:
+            self.journal.append("recovered", {"interrupted": [i["incident"] for i in rec["interrupted"]],
+                                              "void_leases": [l["resource"] for l in rec["void_leases"]],
+                                              "last_token": rec["last_token"],
+                                              "note": "process restarted: these need a person"})
         self.shift_summary: dict | None = None
         threading.Thread(target=self._ticker, daemon=True).start()
 
@@ -224,7 +236,9 @@ class App:
             self.sim.fences.clear()
             self.shift = Shift(self.plant, self.sim, make, minutes=minutes, seed=seed, workers=workers,
                                threads=not self.replay, sentinel_llm=None if self.replay else llm_json,
-                               on_event=event, sim_lock=self.lock, memory=self.memory, rate_per_min=rate)
+                               on_event=event, sim_lock=self.lock, memory=self.memory, rate_per_min=rate,
+                               journal=self.journal)
+            self.shift.begin()
         self.shift_summary = None
         original = self.shift._done
 
@@ -247,7 +261,7 @@ class App:
         except Exception as err:  # noqa: BLE001 - keep the floor running
             self.bus.publish("error", {"incident": "shift", "error": f"{type(err).__name__}: {err}"[:300]})
         if sh.finished():
-            self.shift_summary = sh.summary()
+            self.shift_summary = sh.end()
             self.bus.publish("shift_done", self.shift_summary)
         self.bus.publish("shift", self.shift_state())
 
@@ -321,9 +335,9 @@ class App:
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": approved,
                   "by": req.get("by", "supervisor"), "decision": trace.decision.decision if trace.decision else None,
                   "gate": trace.gate, "action": action}
-        APPROVALS.parent.mkdir(parents=True, exist_ok=True)
-        with APPROVALS.open("a") as fh:
-            fh.write(json.dumps(record) + "\n")
+        ev = self.audit.append("approval", record)  # hash-chained (HMAC with JOURNAL_HMAC_KEY): tamper-evident
+        record["audit_hash"] = ev["hash"][:16]
+        self.journal.append("approval", {**record})
         self.bus.publish("approval", record)
         return record
 
@@ -438,13 +452,20 @@ class App:
     def health(self) -> dict:
         if self.offline:
             from app.agents.health import check_health
+            from app.cache import stats as cache_stats
             note = "recorded Nemotron replies + rule-based planner" if self.replay else "offline plant"
-            return check_health({}, {}, self.sim) | {
+            out = check_health({}, {}, self.sim) | {
                 "mode": "offline",
                 "zetaris": {"status": "offline", "note": "not used: offline plant built from data/seed"},
-                "nightshift": {"status": "offline", "note": note}}
-        from app.runtime import health
-        return health(self.sim)
+                "nightshift": {"status": "offline", "note": note}, "caches": cache_stats()}
+        else:
+            from app.runtime import health
+            out = health(self.sim)
+        v = self.journal.verify()
+        out["journal"] = {"events": v["events"], "chain_ok": v["ok"], "signed": v.get("signed", False),
+                          "problem": v["reason"], "replicated_to_postgres": self.journal.replicated,
+                          "recovered_interrupted": [i["incident"] for i in self.recovered["interrupted"]]}
+        return out
 
 
 def make_handler(app: App):

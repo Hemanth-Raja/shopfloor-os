@@ -134,6 +134,7 @@ def follow(poll_s: float = 0.5) -> None:
                         print(paint(f"{stamp} SENTINEL     {r.get('action')}: {sig.get('type')} {sig.get('station') or ''} "
                                     f"{r.get('incident') or ''} {r.get('reason') or ''}", "human"), flush=True)
                 elif f.name == "approvals.jsonl":
+                    r = r.get("data", r)  # hash-chained records keep the approval under "data"
                     print(paint(f"{stamp} HUMAN        {'approved' if r.get('approved') else 'rejected'}: {r.get('action')}",
                                 "human"), flush=True)
                 else:

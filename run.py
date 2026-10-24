@@ -248,7 +248,8 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
         elif kind == "error":
             print(f"  ERROR    {data}")
 
-    sh = Shift(plant, sim, make, minutes=minutes, seed=seed, workers=workers, threads=not replay,
+    from app.journal import Journal
+    sh = Shift(plant, sim, make, minutes=minutes, seed=seed, workers=workers, threads=not replay, journal=Journal(),
                sentinel_llm=None if replay else chat_json, on_event=show, memory=memory, rate_per_min=rate)
     print(f"Shift: {minutes} min, seed {seed}, {len(sh.signals)} signals, {workers} concurrent incidents, "
           f"autonomy {autonomy}, {'replay' if replay else 'offline plant' if offline else 'live'}")
@@ -262,6 +263,25 @@ def shift(minutes: float, seed: int, workers: int, autonomy: str, offline: bool,
           f"escalated {len(result['escalations'])}; mean {result['mean_minutes_to_resolve']} min to resolve; "
           f"~{result['cars_saved_estimate']} cars saved; {result['preemptions']} pre-emptions; "
           f"max {result['max_concurrent']} at once; {result['wall_seconds']} s")
+
+
+def audit():
+    """Verify the hash chains of the journal and of the approvals log (HMAC with JOURNAL_HMAC_KEY if set)."""
+    from app.journal import LOGS, Journal
+    bad = 0
+    for name in ("journal.jsonl", "approvals.jsonl"):
+        path = LOGS / name
+        if not path.exists():
+            print(f"{name}: no file yet")
+            continue
+        v = Journal(path).verify()
+        bad += not v["ok"]
+        print(f"{name}: {v['events']} events, " + ("chain intact" if v["ok"] else
+              f"BROKEN at event {v['first_bad']}: {v['reason']}") + (", HMAC-signed" if v.get("signed") else ""))
+    rec = Journal().recover()
+    if rec["interrupted"]:
+        print(f"interrupted incidents from the last run: {[i['incident'] for i in rec['interrupted']]}")
+    raise SystemExit(1 if bad else 0)
 
 
 def watch():
@@ -302,6 +322,7 @@ if __name__ == "__main__":
     sh_p.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris (implied by SAMPLE_MODE=true)")
     sh_p.add_argument("--rate", type=float, default=2.0, help="incidents per sim minute (busy floor: 3+)")
     sh_p.add_argument("--json", action="store_true")
+    sub.add_parser("audit", help="verify the hash-chained journal and approvals log")
     sub.add_parser("watch", help="live, human-readable view of the agents' logs (run in a second terminal)")
     rf = sub.add_parser("run", help="JSON in, JSON out: run one request file (see input_examples/)")
     rf.add_argument("file")
@@ -334,6 +355,8 @@ if __name__ == "__main__":
         ask(args.question, args.json)
     elif args.command == "shift":
         shift(args.minutes, args.seed, args.workers, args.autonomy, args.offline, args.json, args.rate)
+    elif args.command == "audit":
+        audit()
     elif args.command == "watch":
         watch()
     elif args.command == "run":
