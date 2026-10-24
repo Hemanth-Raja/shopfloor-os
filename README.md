@@ -22,6 +22,56 @@ stops cars, and it can also put people at risk. Shift supervisors have to decide
   rejects in the web UI.
 - Lessons from every incident go into **Meterless H-MEM**, so the same mistake is not made twice.
 
+![Live floor: an incident is fenced, the critic rejects an unsafe plan with the OSHA clause, the fixed plan is dispatched](docs/screenshots/01-part-shortage-critic.png)
+
+```mermaid
+flowchart LR
+  Z[(Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops)] --> WM[Meterless World Model]
+  S[Sentinel: signals] --> R[Reflex: fence, stop AGVs]
+  R --> M[Monitor: real or noise?]
+  M --> C[Candidates]
+  WM --> C
+  C --> P[Planner: Nemotron via Nightshift]
+  H[Meterless H-MEM: lessons and OSHA clauses] --> P
+  P --> K{Safety critic: code, cites clause}
+  K -- violation --> P
+  K -- ok --> D[Dry run in the sim]
+  D --> G{Restraint and human gate}
+  G -- ACT --> E[Executor and verifier]
+  G -- ESCALATE --> U[Person approves or rejects]
+  E --> H
+  J[(Hash-chained journal)] --> MK[Meterless Markovian: shift handover]
+```
+
+**Key results** (measured; every number comes from a file you can regenerate with `python run.py eval --live`, see
+[docs/eval.md](docs/eval.md)):
+- **0 unsafe plans executed.** Live, Nemotron's first plan broke a safety rule in 8 of 27 calls (mostly crossing
+  speed); the critic sent each one back with the clause and Nemotron fixed all 8.
+- **The critic caught 216 of 216 planted unsafe plans** and wrongly rejected 0 of 54 safe ones. On 300 random plans
+  judged only by what happened when they ran, it rejected all 69 that caused a safety event.
+- **The eval found a real bug:** the rule-based fallback plan was unsafe for robot-cell and torque faults. The critic
+  had blocked it every time; the fallback is now fixed (see *What broke* below).
+- **Stable:** the same incident planned 3 times gave the same assignees in 8 of 9 scenarios.
+- **Fewer false dispatches:** the Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235
+  (Brier 0.096 vs 0.392, 600 alarms with noisy sensors).
+- Sample mode answers in well under a second; a live incident takes about 30-90 s, mostly model time.
+
+## Start here
+| | |
+|---|---|
+| **Two-minute path, no accounts** | `SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json`, or `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os` and open http://localhost:8000 |
+| **Without installing anything** | open `docs/site/index.html`: recorded runs, step by step, with the critic's clauses |
+| **Live path** | Zetaris and Nightshift running: `bash scripts/start_live.sh` (see *Setup*) |
+| **Evidence for the claims** | [docs/eval.md](docs/eval.md), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
+
+| Question | Where it is answered |
+|---|---|
+| What happens when it fails? | *Retrieval, context limits and failure handling* and *Resilience* below |
+| What does it do without being asked? | *Autopilot* (Sentinel, concurrent incidents) and *Autonomy levels* |
+| How can a person tell afterwards what it did? | per-run traces in `logs/`, the hash-chained journal (`run.py audit`), `run.py handover` |
+| Which model answered each call? | `logs/llm.jsonl` (requested and answering model) and Nightshift's signed receipts (`run.py receipts --verify`) |
+| Does the LLM add anything, and is it safe alone? | [docs/eval.md](docs/eval.md) sections 3 and 4: Nemotron alone vs the full loop |
+
 ## The plant (fictional)
 A car final-assembly hall on a 20 x 40 grid (one cell is about 2 m):
 - **10 stations:** body weld cell, hemming press, paint booth, two trim stations, powertrain marriage, three final-assembly stations and end-of-line test.
