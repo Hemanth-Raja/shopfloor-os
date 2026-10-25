@@ -148,7 +148,7 @@ SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0
 .venv/bin/python -m pytest -q                          # 310 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
-tested (174 MB) and defaults to `SAMPLE_MODE=true`.
+tested (176 MB) and defaults to `SAMPLE_MODE=true`.
 
 `SAMPLE_MODE=true` still runs the real agent loop on the offline plant: simulator, A*, critic, dry-run,
 restraint gate, executor and verifier. Recorded Nemotron replies (`logs/fixtures/`) are used where one exists
