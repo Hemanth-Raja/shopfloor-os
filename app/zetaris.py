@@ -110,8 +110,13 @@ if __name__ == "__main__":
             (register if sys.argv[1] == "register" else refresh)(db)
     elif sys.argv[1:] == ["reader-role"]:
         for sql in reader_role_sql(os.environ.get("ZETARIS_AGENT_USER")):
-            run_sql(sql, write=True)
-            print(sql)
+            try:
+                run_sql(sql, write=True)
+                print(sql)
+            except RuntimeError as err:  # re-running: earlier assignments and grants are still there
+                if "already" not in str(err).lower():
+                    raise
+                print(f"{sql}  (already done)")
     else:
         for row in run_sql(" ".join(sys.argv[1:]), write=True):
             print(row)

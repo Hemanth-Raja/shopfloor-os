@@ -51,5 +51,5 @@ def test_live_the_agent_login_cannot_write():
     if not os.environ.get("ZETARIS_AGENT_API_KEY") or os.environ.get("SF_INTEGRATION") != "1":
         pytest.skip("integration: set SF_INTEGRATION=1 with an agent login in .env")
     assert zetaris.run_sql("SELECT COUNT(*) FROM sf_ops.incidents")
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="does not have privileges"):  # refused by Zetaris, not by our guard
         zetaris.run_sql("INSERT INTO sf_ops.experiments (experiment_id) VALUES ('READONLY-PROBE')")
