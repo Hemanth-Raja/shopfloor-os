@@ -15,6 +15,7 @@ from pathlib import Path
 import json
 import os
 import re
+import sys
 
 from dotenv import load_dotenv
 
@@ -161,12 +162,21 @@ def lab(write: bool, target: str = "zetaris"):
 def run_file(path: str, out: str | None):
     from app.api import run_request
 
-    req = json.loads(Path(path).read_text())
-    result = run_request(req, echo=True)
+    try:
+        req = json.loads(Path(path).read_text())
+        if not isinstance(req, dict):
+            raise ValueError("the request must be a JSON object, as in input_examples/")
+    except (OSError, ValueError) as err:  # same error shape as run_request, no stack trace
+        result = {"run_id": None, "status": "error",
+                  "error": {"type": "InvalidInput", "message": f"cannot read {path}: {err}", "recoverable": False}}
+    else:
+        result = run_request(req, echo=True)
     text = json.dumps(result, indent=2, default=str)
     print(text)
     if out:
         Path(out).write_text(text + "\n")
+    if result.get("status") == "error":
+        sys.exit(1)
 
 
 def shift_handover(shifts: int, as_json: bool):

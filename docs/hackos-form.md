@@ -91,7 +91,7 @@ OSHA Severe Injury Reports, BLS SOII, Open-Meteo, Bosch CNC Machining, MovingAI 
 README. [YOU: also declare any data or code you prepared before 22 October, if there is any.]
 
 **How to run (for judges):**
-- `pip install -r requirements.txt && python run.py run input_examples/example_1.json`. This needs no keys
+- `pip install -r requirements.txt && SAMPLE_MODE=true python run.py run input_examples/example_1.json`. This needs no keys
   (sample mode).
 - Or `docker build -t shopfloor-os . && docker run -p 8000:8000 shopfloor-os`, then open http://localhost:8000, or
   `curl -X POST http://localhost:8000/run -H "Content-Type: application/json" -d @input_examples/example_3.json`.

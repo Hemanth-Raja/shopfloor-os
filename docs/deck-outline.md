@@ -40,19 +40,24 @@ Visual: `02-agv-fault-replan.png` (the verifier re-plans after a stall).
 - Simulation: a 20×40 grid, space-time A* with a reservation table, and a seeded incident injector.
 - Data: Postgres ×4 behind Zetaris. The synthetic plant is anchored on AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo,
   the Bosch CNC dataset and MovingAI.
-- Docker (tested). 83 offline tests. `SAMPLE_MODE` runs without keys.
+- Docker (tested). 309 offline tests. `SAMPLE_MODE` runs without keys.
 
 ## 6. How Zetaris and Meterless were used (point 5)
 - **Zetaris:**
   - the data layer;
   - one Lightning SQL `UNION ALL` across `sf_plant`, `sf_hr`, `sf_fleet` and `sf_ops` per incident;
+  - a Unified Semantic Layer (`floor`, 9 tables with keys) over the four sources, read on a read-only agent
+    login, so Zetaris itself refuses any write from an agent;
   - zone briefings and lab history;
   - lab proposals written back with `INSERT INTO sf_ops.experiments`.
 - **Meterless World Model:** grounds every plan (stable ids, provenance, facts such as `service_overdue`). The
   planner may only use ids in the world. 8 conformance checks pass.
 - **Meterless H-MEM:** incident lessons with outcome feedback, plus the OSHA and SOP clause index. 13 of 13
   official vectors pass.
-- **Meterless Nightshift:** the only model provider, with deep and fast Nemotron lanes and circuit breakers.
+- **Meterless Markovian:** the shift handover, read in bounded chunks with compressed carryover.
+- **Meterless Nightshift:** the only model provider. Three NVIDIA Nemotron models (3 Ultra 550B, 3.5 Super VL
+  120B, 3.5 Lightning 30B), each pinned to its own Nightshift app, with per-model circuit breakers and a verified
+  Ed25519 receipt for every call.
 
 Visual: `05-agents-know.png`.
 
@@ -82,11 +87,14 @@ A collage of the screenshots:
   - All of them had 0 collisions.
 - Lab example: an extra spill kit at F20 cuts mean clean-up time by 8.2% (95% CI −11.1% to −5.3%), from 82
   re-scored incidents.
-- 83 tests pass, including both engines' conformance suites.
+- 309 tests pass, including the conformance suites of all three Meterless engines.
+- 0 unsafe plans executed; the critic caught 216 of 216 planted unsafe plans; 15 of 15 chaos scenarios end in a
+  decision (`docs/eval.md`, `docs/chaos.md`).
 
 ## 10. Future enhancements (point 8)
-- Arbitration between several incidents competing for the same AGVs and people.
-- Live AGV and PLC feeds instead of the simulator (OPC UA / VDA 5050). Shift handover briefings from H-MEM.
+- A second node with a replicated journal, so a crash does not pause the floor.
+- Live AGV and PLC feeds instead of the simulator (OPC UA, and the VDA 5050 orders we already emit sent to a
+  real fleet manager).
 - The Markovian engine for long multi-step maintenance plans. Scout Intent for free-text incident reports.
 - Authentication and role-based approvals in the UI. A full CFR text index.
 

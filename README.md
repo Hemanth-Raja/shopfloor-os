@@ -92,8 +92,10 @@ No accounts, keys, Zetaris or Nightshift needed.
 1. **One incident, JSON in and out.**
    ```bash
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-   SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
+   SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json --out result.json
    ```
+   stdout shows one `[INFO]` trace line per agent step, then the JSON result; `--out` also writes the JSON alone
+   to `result.json`. A bad request returns `"status": "error"` with a message, and exit code 1.
    A part shortage at F30. The rules plan is ready at once; Nemotron's recorded plan sends AGV-5 through a
    pedestrian crossing at 1.0 m/s, the critic rejects it under 29 CFR 1910.178(n)(4), and the safe plan runs.
 2. **The whole floor in a browser.** `SAMPLE_MODE=true .venv/bin/python -m app.server`, then open
@@ -141,7 +143,7 @@ A car final-assembly hall on a 20 x 40 grid (one cell is about 2 m):
 git clone <this repo> && cd shopfloor-os
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
-.venv/bin/python run.py run input_examples/example_1.json
+SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
 .venv/bin/python -m pytest -q                          # 309 offline tests
 ```
