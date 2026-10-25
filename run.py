@@ -184,7 +184,7 @@ def shift_handover(shifts: int, as_json: bool):
     print(f"\n{out['note']}\n")
     print(f"{out['events']} journal events in {out['chunks']} chunks | prompt tokens {t['markovian_prompt_tokens']} "
           f"vs {t['standard_prompt_tokens']} re-sending history ({t['saved_percent']}% saved, chars/4 estimate) | "
-          f"run {out['run_id']} in logs/markovian.jsonl")
+          f"run {out['run_id']} in logs/markovian.jsonl" + (f" | shift log {out['shift_log']}" if out.get("shift_log") else ""))
 
 
 def evaluate(live: bool):

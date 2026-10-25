@@ -112,6 +112,9 @@ class App:
         # crash left open: interrupted incidents go to a person, their leases are void, fencing tokens move on.
         from app.journal import Journal
         self.journal = Journal(replicate=not replay and not offline)
+        self.plant_stale = None  # set when a refresh of the plant snapshot failed: decisions use the last good one
+        if not replay and not offline:  # live data changes (a certificate lapses, someone goes home): refresh it
+            threading.Thread(target=self._refresh_plant_loop, daemon=True).start()
         if not replay and not offline:  # agent steps and model calls into Postgres, queried as sf_ops.* through Zetaris
             from app.logsync import sync_loop
             threading.Thread(target=sync_loop, daemon=True).start()
@@ -152,6 +155,26 @@ class App:
             self._approval_timeouts()
             if self.shift is not None:
                 self._shift_tick()
+
+    def _refresh_plant_loop(self, every_s: float = 300.0) -> None:
+        while True:
+            time.sleep(every_s)
+            self.refresh_plant()
+
+    def refresh_plant(self) -> dict:
+        """Reload the plant snapshot from Zetaris; on failure keep the last good one and say since when."""
+        from app.engines.plant_world import load_plant_world
+        try:
+            fresh = load_plant_world(self.run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
+        except Exception as err:  # noqa: BLE001 - stale but consistent beats a half-loaded world
+            self.plant_stale = self.plant_stale or {"since": time.time(), "error": f"{type(err).__name__}: {str(err)[:120]}"}
+            return {"ok": False, **self.plant_stale}
+        changed = getattr(fresh, "version", None) != getattr(self.plant, "version", None)
+        with self.lock:  # incidents already running keep the snapshot they started with
+            self.plant, self.plant_stale = fresh, None
+        if changed:
+            self.journal.append("plant_refreshed", {"version": fresh.version})
+        return {"ok": True, "version": fresh.version, "changed": changed}
 
     def _approval_timeouts(self) -> None:
         """A person who does not answer: remind, escalate, then decide safely (app/autonomy/approval.py)."""
@@ -247,6 +270,11 @@ class App:
             except Exception:
                 self.busy = False
                 raise
+        from app.agents.textguard import screen
+        flagged = screen(req.get("note"))[1]
+        if flagged:  # the agents see a placeholder; the person reading the incident sees the original and why
+            self.bus.publish("note_flagged", {"incident": inc.id, "original": str(req.get("note"))[:300], "matched": flagged})
+            self.journal.append("note_flagged", {"incident": inc.id, "matched": flagged})
         self.bus.publish("incident", inc.model_dump(exclude={"truth_false_alarm"}))
         threading.Thread(target=self._run, args=(inc, req), daemon=True).start()
         return inc.id
@@ -566,6 +594,8 @@ class App:
             out = health(self.sim)
         if self.degraded:
             out["degraded"] = self.degraded
+        out["plant"] = {"version": getattr(self.plant, "version", None), "loaded_at": getattr(self.plant, "loaded_at", None),
+                        "stale": self.plant_stale}
         out["invariants"] = self.invariants.summary()
         try:
             from app.receipts import verify_all

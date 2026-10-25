@@ -144,6 +144,37 @@ RETRIES = {"n": 0}  # counters for Health
 SLEEP = time.sleep  # tests replace it
 
 
+class BudgetExhausted(LLMUnavailable):
+    """The hourly model-call budget is spent: the caller takes its no-model path (rules plan, person approves)."""
+
+
+class CallBudget:
+    """Sliding one-hour window over model calls (retries count). Stops a runaway loop or a thundering herd from
+    burning the endpoint: once spent, calls fail fast and the agents degrade to their rule-based paths."""
+
+    def __init__(self, per_hour: int, clock=time.monotonic):
+        self.per_hour, self.clock, self.calls, self.refused = per_hour, clock, [], 0
+        self._lock = threading.Lock()
+
+    def spend(self) -> None:
+        with self._lock:
+            now = self.clock()
+            self.calls = [t for t in self.calls if now - t < 3600]
+            if self.per_hour and len(self.calls) >= self.per_hour:
+                self.refused += 1
+                raise BudgetExhausted(f"model-call budget spent ({self.per_hour} per hour)")
+            self.calls.append(now)
+
+    def status(self) -> dict:
+        with self._lock:
+            now = self.clock()
+            used = sum(1 for t in self.calls if now - t < 3600)
+        return {"per_hour": self.per_hour, "used_last_hour": used, "refused": self.refused}
+
+
+BUDGET = CallBudget(int(os.environ.get("MODEL_CALLS_PER_HOUR") or CFG["defaults"].get("calls_per_hour", 0)))
+
+
 def limiter(model: str) -> AIMDLimiter:
     with _lock:
         if model not in LIMITERS:
@@ -167,6 +198,7 @@ def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespac
             lim = limiter(model)
             try:
                 with lim.slot(min(timeout, 5.0)):
+                    BUDGET.spend()
                     started = time.perf_counter()
                     out = call(model, spec, timeout)
                 lim.success(time.perf_counter() - started)
@@ -174,7 +206,7 @@ def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespac
                 out.retries = n
                 return out
             except (LLMUnavailable, LimiterTimeout) as err:
-                if isinstance(err, CircuitOpen):
+                if isinstance(err, (CircuitOpen, BudgetExhausted)):
                     raise
                 lim.failure()
                 last = err

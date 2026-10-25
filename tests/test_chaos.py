@@ -8,7 +8,7 @@ from app.lab import chaos
 @pytest.mark.parametrize("sc", chaos.SCENARIOS, ids=[s["name"] for s in chaos.SCENARIOS])
 def test_scenario_keeps_its_property(sc):
     fake = chaos.FakeNightshift(sc["profile"])
-    with chaos.fake_world(fake):
+    with chaos.fake_world(fake, calls_per_hour=sc.get("calls_per_hour", 0)):
         r = chaos.run_incident(sc.get("kind", "part_shortage"), sc.get("station", "F30"), run_sql=sc.get("run_sql"),
                                **sc.get("inject", {}))
     assert sc["check"](r), r

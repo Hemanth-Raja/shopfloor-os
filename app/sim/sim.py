@@ -264,10 +264,12 @@ class Sim:
                                                            "connector_not_seated"]),
                            "units_affected": self.rng.randint(1, 4)}
         zone = self.grid.label(x, y) or "FLOOR"
+        from app.agents.textguard import screen
+        note, _ = screen((note or "").strip()[:300] or None)  # a note that instructs the agents never reaches a prompt
         return Incident(id=inc_id, kind=kind, station_id=station_id, zone_id=zone, x=x, y=y, tick=self.tick,
                         severity=severity or {"part_shortage": "high", "agv_fault": "medium", "overheat": "high",
                                               "spill": "high"}.get(kind, "medium"),
-                        agv_id=agv_id, machine_id=machine_id, note=(note or "").strip()[:300] or None,
+                        agv_id=agv_id, machine_id=machine_id, note=note,
                         sensors=sensors, truth_false_alarm=false_alarm if kind in ("overheat", "torque_fault") else False)
 
     def _vibration(self, label: str) -> dict:

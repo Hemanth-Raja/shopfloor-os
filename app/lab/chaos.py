@@ -90,11 +90,12 @@ class FakeNightshift:
 
 
 @contextmanager
-def fake_world(nightshift: FakeNightshift, budget_s: float = 2.0):
+def fake_world(nightshift: FakeNightshift, budget_s: float = 2.0, calls_per_hour: int = 0):
     """Patch the model layer for one scenario: fake HTTP, short budgets, fresh breakers, limiters and latency stats."""
     from app import runtime
     saved = {"complete": models._complete, "sleep": models.SLEEP, "receipt": models.receipt_for,
-             "roles": json.loads(json.dumps(models.CFG["roles"]))}
+             "roles": json.loads(json.dumps(models.CFG["roles"])), "budget": models.BUDGET}
+    models.BUDGET = models.CallBudget(calls_per_hour)
     models._complete, models.SLEEP, models.receipt_for = nightshift, (lambda s: time.sleep(min(s, 0.05))), \
         (lambda *a, **k: None)
     for spec in models.CFG["roles"].values():
@@ -107,6 +108,7 @@ def fake_world(nightshift: FakeNightshift, budget_s: float = 2.0):
         yield
     finally:
         models._complete, models.SLEEP, models.receipt_for = saved["complete"], saved["sleep"], saved["receipt"]
+        models.BUDGET = saved["budget"]
         models.CFG["roles"] = saved["roles"]
         models.BREAKERS.clear(), models.LIMITERS.clear()
         for b in runtime.BREAKERS.values():
@@ -189,6 +191,9 @@ SCENARIOS = [
     {"name": "Nightshift serves a different model than requested", "profile": {SUPER: {"as": "meterless/other-model"}},
      "expect": "the answer is used but marked as fallen back (drift is reported in Health)",
      "check": lambda r: r["decision"] is not None and r["planner_fell_back"]},
+    {"name": "Runaway loop: the hourly model-call budget is spent", "profile": {}, "calls_per_hour": 2,
+     "expect": "calls fail fast without touching Nightshift; rules plan, and a person approves it",
+     "check": lambda r: r["decision"] is not None and r["gate"] != "auto_executed" and r["safe_mode"]},
     {"name": "Zetaris down during an overheat check", "profile": {}, "kind": "overheat", "station": "F10",
      "run_sql": zetaris_down, "inject": {"false_alarm": True},
      "expect": "the investigator's queries fail; the incident is still decided from sensors and rules",
@@ -204,7 +209,7 @@ def run_all() -> list[dict]:
     for sc in SCENARIOS:
         fake = FakeNightshift(sc["profile"])
         models.RETRIES["n"] = 0
-        with fake_world(fake):
+        with fake_world(fake, calls_per_hour=sc.get("calls_per_hour", 0)):
             try:
                 r = run_incident(sc.get("kind", "part_shortage"), sc.get("station", "F30"), run_sql=sc.get("run_sql"),
                                  **sc.get("inject", {}))

@@ -77,7 +77,8 @@ def test_handover_reads_the_last_shift_in_bounded_slices(tmp_path):
         n = seen.count("handover")
         return SimpleNamespace(text="Handover: 119 spills." if role == "handover_reflect"
                                else f"ok {n} {mk.STATE} Status: {n} slices read, 119 incidents queued")
-    out = handover(chat, events=old + events, log_path=tmp_path / "m.jsonl")
+    out = handover(chat, events=old + events, log_path=tmp_path / "m.jsonl", shift_log_dir=tmp_path)
+    assert "Handover: 119 spills." in open(out["shift_log"]).read()
     assert out["completed"] and out["chunks"] == 4 and out["note"] == "Handover: 119 spills."
     t = out["tokens"]
     assert t["markovian_prompt_tokens"] < t["standard_prompt_tokens"] and t["per_step"][0]["carryover"] == 0

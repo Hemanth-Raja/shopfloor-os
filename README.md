@@ -56,8 +56,8 @@ flowchart LR
   cache involved: 0 cache hits in the run window).
 - **Fewer false dispatches:** the Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235
   (Brier 0.096 vs 0.392, 600 alarms with noisy sensors).
-- **Chaos-tested:** 14 failure scenarios (one model down, Nightshift down, 60% of calls failing, slow or broken
-  replies, a different model answering, an illegal route, Zetaris down) plus a 19-incident shift on flaky models all
+- **Chaos-tested:** 15 failure scenarios (one model down, Nightshift down, 60% of calls failing, slow or broken
+  replies, a different model answering, an illegal route, a spent call budget, Zetaris down) plus a 19-incident shift on flaky models all
   end in a decision with nothing unsafe executed ([docs/chaos.md](docs/chaos.md)). The tests found and fixed two real
   bugs.
 - **When nobody answers:** reminder at 2 floor minutes, escalation at 4, and at 6 the agents decide, never in the
@@ -70,7 +70,7 @@ flowchart LR
 | **Two-minute path, no accounts** | `SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json`, or `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os` and open http://localhost:8000 |
 | **Without installing anything** | the replay site, https://hemanth-raja.github.io/shopfloor-os/ (or open `docs/site/index.html`): recorded runs, step by step, with the critic's clauses |
 | **Live path** | Zetaris and Nightshift running: `bash scripts/start_live.sh` (see *Setup*) |
-| **Evidence for the claims** | [docs/eval.md](docs/eval.md), [docs/chaos.md](docs/chaos.md) (14 failure scenarios), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
+| **Evidence for the claims** | [docs/eval.md](docs/eval.md), [docs/chaos.md](docs/chaos.md) (15 failure scenarios), [docs/production-readiness.md](docs/production-readiness.md), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
 
 | Question | Where it is answered |
 |---|---|

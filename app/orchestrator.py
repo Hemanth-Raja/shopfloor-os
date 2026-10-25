@@ -152,7 +152,7 @@ class Orchestrator:
 
     def _handle(self, incident: Incident, stall: tuple[int, int] | None = None) -> Trace:
         """Run the loop. `stall=(route_index, after_ticks)` stalls that planned AGV mid-execution (demo/test)."""
-        trace = Trace(incident=incident)
+        trace = Trace(incident=incident, data_version=getattr(self.plant, "version", None))
         t = time.perf_counter()
         reflex_out = reflex(self.sim, incident, self.plant)
         self._step(trace, "reflex", t, True, **reflex_out)

@@ -11,3 +11,4 @@ logs/health.json
 logs/eval-*.json
 logs/chaos-*.json
 logs/.logsync.json
+logs/shift-*.md

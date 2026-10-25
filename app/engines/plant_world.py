@@ -115,5 +115,13 @@ class PlantWorld:
 
 
 def load_plant_world(run_sql, today: date, at: str) -> PlantWorld:
-    """One federated read-only query -> PlantWorld."""
-    return PlantWorld(run_sql(PLANT_SQL), today, at)
+    """One federated read-only query -> PlantWorld, stamped with a version (hash of the rows) and its load time,
+    so every decision can say which snapshot of the plant it saw."""
+    import hashlib
+    import json
+    import time
+    rows = run_sql(PLANT_SQL)
+    world = PlantWorld(rows, today, at)
+    world.version = hashlib.sha256(json.dumps(rows, default=str, sort_keys=True).encode()).hexdigest()[:12]
+    world.loaded_at = time.time()
+    return world

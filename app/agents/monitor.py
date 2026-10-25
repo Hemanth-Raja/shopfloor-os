@@ -49,7 +49,7 @@ def assess(incident: Incident, llm_text: Callable | None = None, deadline: float
         evidence.append(f"defect {s.get('defect_code')} on {s.get('units_affected')} unit(s)")
     else:  # reported by a person, no sensor to cross-check
         p_real, agreement = 0.9, True
-        evidence.append(f"reported by a person{': ' + incident.note if incident.note else ''}")
+        evidence.append(f"reported by a person{': ' + repr(incident.note) if incident.note else ''}")  # quoted data
     verdict = "real" if p_real >= 0.5 else "likely_noise"
     summary = f"{incident.kind} at {incident.station_id or incident.zone_id}: {verdict} (p={p_real:.2f}); " + "; ".join(evidence)
     model, model_call = None, None

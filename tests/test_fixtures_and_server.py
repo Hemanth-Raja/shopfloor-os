@@ -104,3 +104,21 @@ def test_server_starts_degraded_when_zetaris_is_down_at_start(monkeypatch):
     monkeypatch.setattr(models, "self_check", lambda *a, **k: {})  # no network in tests
     app = server.App(offline=False, replay=False)
     assert app.offline and app.degraded and app.plant.entities("worker")
+
+
+def test_plant_refresh_swaps_the_snapshot_and_keeps_the_last_good_one_on_failure(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    import app.engines.plant_world as pw
+    from app.sim.offline import offline_plant
+    app = server.App(offline=True, replay=True)
+    fresh = offline_plant()
+    fresh.version = "v2"
+    monkeypatch.setattr(pw, "load_plant_world", lambda *a, **k: fresh)
+    assert app.refresh_plant() == {"ok": True, "version": "v2", "changed": True} and app.plant is fresh
+
+    def down(*a, **k):
+        raise ConnectionError("Zetaris unreachable")
+    monkeypatch.setattr(pw, "load_plant_world", down)
+    out = app.refresh_plant()
+    assert not out["ok"] and app.plant is fresh and app.health()["plant"]["stale"]

@@ -189,8 +189,11 @@ def write_zetaris(row: dict, run_sql: Callable) -> str:
     """INSERT the proposal through Zetaris into sf_ops.experiments (one statement)."""
     cols = list(row)
     values = [f"CAST({_spark_lit(row[c])} AS TIMESTAMP)" if c == "created_at" else _spark_lit(row[c]) for c in cols]
+    check = f"SELECT experiment_id FROM sf_ops.experiments WHERE experiment_id = {_spark_lit(row['experiment_id'])}"
+    if run_sql(check):  # idempotent: a retried write (the first one landed, the reply was lost) does not duplicate
+        return row["experiment_id"]
     run_sql(f"INSERT INTO sf_ops.experiments ({', '.join(cols)}) VALUES ({', '.join(values)})")
-    found = run_sql(f"SELECT experiment_id FROM sf_ops.experiments WHERE experiment_id = {_spark_lit(row['experiment_id'])}")
+    found = run_sql(check)
     if not found:
         raise RuntimeError("Zetaris accepted the INSERT but the row is not visible")
     return row["experiment_id"]

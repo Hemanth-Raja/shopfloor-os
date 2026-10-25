@@ -308,7 +308,7 @@ class DynamicOrchestrator(Orchestrator):
     def run_steps(self, incident: Incident, stall: tuple[int, int] | None = None):
         """The orchestrator as a generator: one yield per hop, so a dispatcher can interleave many incidents.
         Returns the Trace (StopIteration.value)."""
-        trace = Trace(incident=incident, mode="dynamic")
+        trace = Trace(incident=incident, mode="dynamic", data_version=getattr(self.plant, "version", None))
         self.trace = trace
         from app.models import CFG
         self.deadline_at = time.monotonic() + CFG["defaults"].get("incident_budget_s", 240)  # passed to every model call

@@ -50,4 +50,6 @@ def plant_rows() -> list[dict]:
 
 
 def offline_plant() -> PlantWorld:
-    return PlantWorld(plant_rows(), TODAY, "2026-10-16T14:00:00.000Z")
+    world = PlantWorld(plant_rows(), TODAY, "2026-10-16T14:00:00.000Z")
+    world.version, world.loaded_at = "offline-seed", None
+    return world

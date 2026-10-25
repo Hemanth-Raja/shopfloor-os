@@ -147,3 +147,23 @@ def test_half_open_lets_exactly_one_probe_through():
         b.call(lambda: "other")
     gate.set(); t.join()
     assert results == ["ok"] and b.state == "CLOSED"
+
+
+def test_the_hourly_call_budget_fails_fast_and_frees_up_after_an_hour(monkeypatch):
+    clock = [0.0]
+    budget = models.CallBudget(3, clock=lambda: clock[0])
+    monkeypatch.setattr(models, "BUDGET", budget)
+    calls = []
+
+    def complete(model, role, messages, max_tokens, timeout_s, json_mode):
+        calls.append(model)
+        return reply(model)
+    monkeypatch.setattr(models, "_complete", complete)
+    for _ in range(3):
+        models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner")
+    with pytest.raises(LLMUnavailable):
+        models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner")
+    assert len(calls) == 3 and budget.status()["refused"] >= 1
+    clock[0] = 3601.0
+    models.BREAKERS.clear()
+    assert models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner").data.ok

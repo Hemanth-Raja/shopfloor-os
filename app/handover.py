@@ -18,6 +18,7 @@ from typing import Callable
 from app.engines.markovian import ChunkConfig, MarkovianEngine, register_mode, tokens
 from app.journal import Journal
 
+LOGS_DIR = Path(__file__).resolve().parents[1] / "logs"
 SLICE = 40  # journal lines per chunk
 SYSTEM = ("You are the shift handover assistant for a car final-assembly hall. You read the agents' journal slice by "
           "slice. Be factual: use only ids and numbers that appear in the journal or the state. No markdown tables.")
@@ -86,7 +87,8 @@ def measure(run, inputs: list[str]) -> dict:
 
 
 def handover(chat: Callable, journal_path: Path | None = None, events: list[dict] | None = None, shifts: int = 1,
-             on_phase: Callable | None = None, config: ChunkConfig | None = None, log_path=None) -> dict:
+             on_phase: Callable | None = None, config: ChunkConfig | None = None, log_path=None,
+             shift_log_dir: Path | None = LOGS_DIR) -> dict:
     """chat(lane, messages, role=...) -> reply with .text (app.runtime.chat or a stub)."""
     events = last_shift(events if events is not None else Journal(journal_path).events(), shifts)
     inputs = slices(events)
@@ -104,6 +106,24 @@ def handover(chat: Callable, journal_path: Path | None = None, events: list[dict
                              **({"log_path": log_path} if log_path is not None else {}))
     run = engine.run(GOAL, inputs, mode="HANDOVER", system=SYSTEM, on_phase=on_phase, agent_id="handover",
                      reflect_prompt=reflect_prompt, early_final=False)  # every slice of the journal must be read
-    return {"events": len(events), "chunks": len(run.chunks), "completed": run.completed, "error": run.error,
-            "note": run.reflection or run.final_state, "final_state": run.final_state, "run_id": run.id,
-            "tokens": measure(run, inputs), "report": engine.report()}
+    out = {"events": len(events), "chunks": len(run.chunks), "completed": run.completed, "error": run.error,
+           "note": run.reflection or run.final_state, "final_state": run.final_state, "run_id": run.id,
+           "tokens": measure(run, inputs), "report": engine.report()}
+    if shift_log_dir is not None and out["note"]:  # the human-readable shift log, one file per day
+        out["shift_log"] = str(write_shift_log(out, shift_log_dir))
+    return out
+
+
+def write_shift_log(out: dict, folder: Path) -> Path:
+    from datetime import datetime
+    now = datetime.now().astimezone()
+    path = folder / f"shift-{now:%Y-%m-%d}.md"
+    folder.mkdir(parents=True, exist_ok=True)
+    head = "" if path.exists() else f"# Shift log {now:%Y-%m-%d}\n\nWritten by `run.py handover` (Meterless Markovian engine).\n"
+    t = out["tokens"]
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(f"{head}\n## Handover at {now:%H:%M %Z}\n\n{out['note'].strip()}\n\n"
+                 f"_{out['events']} journal events in {out['chunks']} chunks; {t['markovian_prompt_tokens']} prompt tokens "
+                 f"vs {t['standard_prompt_tokens']} re-sending history; run {out['run_id']}"
+                 f"{'; incomplete: ' + out['error'] if out['error'] else ''}._\n")
+    return path
