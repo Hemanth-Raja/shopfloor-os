@@ -508,6 +508,7 @@ class App:
                             "skills": e["attrs"]["skills"], "certs": certs, "status": self.sim.agents[e["id"]].status})
         world = self.plant.world
         out = {"engine": "Meterless World Model", "events": len(world.events()), "audit": len(world.audit()),
+               "loaded_at": getattr(self.plant, "loaded_at", None),
                "counts": {t: len(self.plant.entities(t)) for t in ("station", "machine", "worker", "agv")},
                "agvs": agvs, "workers_on_shift": workers,
                "rules": [{"id": k, "cfr_ref": v["cfr_ref"], "summary": v["summary"]} for k, v in sorted(self.plant.rules.items())],

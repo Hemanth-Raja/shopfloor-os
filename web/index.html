@@ -320,10 +320,13 @@ const COLORS = {rack:"#33383f", conveyor:"#5b4b2a", robot_cell:"#47304f", paint_
 const cv = $("floor"), ctx = cv.getContext("2d");
 let grid = null, stations = [], agents = [], fence = [], current = null, involved = [], gate = "none";
 
+let VIEW = null;
+setInterval(() => { if (VIEW === "know" && !document.hidden) knowledge(); }, 5000);  // live: robots move, lessons get learned
 function show(view) {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === view));
   if (view === "know") knowledge();
+  VIEW = view;
   if (location.hash !== "#" + view) history.replaceState(null, "", "#" + view);
 }
 for (const b of document.querySelectorAll("nav button")) b.onclick = () => show(b.dataset.view);
@@ -827,14 +830,14 @@ function showLab(r) {
 }
 
 async function knowledge() {
-  const k = await (await fetch("/api/knowledge")).json();
-  $("kagvs").innerHTML = `<p class="note">${k.engine}: ${k.counts.station} stations, ${k.counts.machine} machines, ${k.counts.worker} workers, ${k.counts.agv} AGVs · ${k.events} events, ${k.audit} audit entries</p>
+  let k; try { k = await (await fetch("/api/knowledge")).json(); } catch { return; }
+  $("kagvs").innerHTML = `<p class="note">${k.engine}: ${k.counts.station} stations, ${k.counts.machine} machines, ${k.counts.worker} workers, ${k.counts.agv} AGVs · ${k.events} events, ${k.audit} audit entries · live, updated ${new Date().toLocaleTimeString()}${k.loaded_at ? ` · plant data loaded from Zetaris at ${new Date(k.loaded_at * 1000).toLocaleTimeString()} (refreshed every 5 min)` : ""}</p>
     <table><tr><th>AGV</th><th>model</th><th>status</th><th>battery health</th><th>faults 90 d</th><th>service</th></tr>
     ${k.agvs.map(a => `<tr><td>${esc(a.id)}</td><td class="muted">${esc(a.model)}</td><td>${esc(a.status)}</td>
       <td><div class="bar"><i style="width:${a.battery_health_pct}%"></i></div>${a.battery_health_pct}%</td><td>${a.faults_90d}</td>
       <td class="${a.service_overdue ? "bad-t" : "ok-t"}">${a.service_overdue ? "overdue" : "ok"}</td></tr>`).join("")}</table>`;
-  $("kworkers").innerHTML = `<table><tr><th>worker</th><th>role</th><th>certifications</th></tr>
-    ${k.workers_on_shift.map(w => `<tr><td>${esc(w.id)} <span class="muted">${esc(w.name)}</span></td><td>${esc(w.role.replace("_", " "))}</td>
+  $("kworkers").innerHTML = `<table><tr><th>worker</th><th>role</th><th>status</th><th>certifications</th></tr>
+    ${k.workers_on_shift.map(w => `<tr><td>${esc(w.id)} <span class="muted">${esc(w.name)}</span></td><td>${esc(w.role.replace("_", " "))}</td><td>${esc(w.status)}</td>
       <td>${Object.entries(w.certs).map(([c, ok]) => `<span class="${ok ? "ok-t" : "bad-t"}">${esc(c)}${ok ? "" : " (lapsed)"}</span>`).join(", ") || '<span class="muted">none</span>'}</td></tr>`).join("")}</table>`;
   const m = k.memory;
   $("kmem").innerHTML = !m ? '<p class="note">Memory is off in replay mode, so the recorded replies stay valid. Run live to see H-MEM learn.</p>'
