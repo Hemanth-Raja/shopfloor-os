@@ -92,7 +92,7 @@
   svg.fg .nd.s rect { stroke:#f0c674; stroke-width:2; } svg.fg .nd { cursor:pointer; }
   svg.fg text { fill:#e7eaee; font:600 12px system-ui; } svg.fg text.m { fill:#8b95a1; font:10px system-ui; }
   svg.fg .nd.o rect { fill:#1d1a33; stroke:#a78bfa; stroke-width:1.5; } svg.fg .pe { stroke:#2f3a46; stroke-width:1.2; stroke-dasharray:4 4; }
-  svg.fg .ed { fill:none; stroke:#5aa9ff; stroke-width:1.6; opacity:.85; } svg.fg .ed.r { stroke:#a78bfa; }
+  svg.fg .sp { stroke:#a78bfa; stroke-width:1.2; opacity:.55; stroke-dasharray:2 3; } svg.fg .ed { fill:none; stroke:#5aa9ff; stroke-width:1.6; opacity:.85; } svg.fg .ed.r { stroke:#a78bfa; }
   svg.fg .nd.s rect.kb { stroke:none; } svg.fg rect.kb { stroke:none; }
   .legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin:4px 0 8px; font-size:12px; color:var(--muted, #8b95a1); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
@@ -519,14 +519,22 @@ function graphSVG(path, last, rejects) {
       <text class="m" x="${x+3}" y="${y+12}" text-anchor="middle">${esc(m ? m.slice(0, 26) : KINDS[kindOf(k)][0].split(" (")[0])}</text></g>`; }).join("");
   const by = {nemotron:0, rules:0, forced:0, code:0};
   path.forEach(p => { const b = String(p.by || ""); const k = b.startsWith("nemotron") ? "nemotron" : b in by ? b : "rules"; by[k]++; });
-  const orch = `<g class="nd o" data-k="orchestrator"><rect x="10" y="205" width="120" height="90" rx="10"/>
+  // the orchestrator is the hub: it dispatches every hop. Spokes to every agent when it is selected, otherwise
+  // one spoke to the agent it dispatched last (dashed when nothing has run yet)
+  const O = [70, 250], targets = flowSel === "orchestrator" ? Object.keys(NODES) : path.length ? [path[path.length - 1].agent] : [];
+  const spokes = targets.filter(k => NODES[k]).map(k => { const B = NODES[k], s1 = edgePt(B, O), dx = s1[0] - O[0], dy = s1[1] - O[1];
+    const t = Math.min(dx ? 60 / Math.abs(dx) : 1e9, dy ? 45 / Math.abs(dy) : 1e9, 1);
+    return `<line class="sp" x1="${O[0] + dx * t}" y1="${O[1] + dy * t}" x2="${s1[0]}" y2="${s1[1]}" marker-end="url(#ahp)"/>`; }).join("");
+  const orch = `<g class="nd o" data-k="orchestrator"><rect x="10" y="205" width="120" height="100" rx="10"/>
       <text x="70" y="228" text-anchor="middle">Orchestrator</text>
       <text class="m" x="70" y="244" text-anchor="middle">picks every hop</text>
       <text class="m" x="70" y="262" text-anchor="middle">${path.length ? `Nemotron ${by.nemotron} · rules ${by.rules}` : "router: Nemotron"}</text>
-      <text class="m" x="70" y="276" text-anchor="middle">${path.length ? `forced ${by.forced + by.code}` : "legal moves: code"}</text></g>`;
+      <text class="m" x="70" y="276" text-anchor="middle">${path.length ? `forced ${by.forced + by.code}` : "legal moves: code"}</text>
+      <text class="m" x="70" y="290" text-anchor="middle">click: links to every agent</text></g>`;
   return `<svg class="fg" viewBox="0 0 840 480" role="img" aria-label="Agent route graph"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
     markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/></marker><marker id="ah0" viewBox="0 0 10 10" refX="9" refY="5"
-    markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4654"/></marker></defs>${base}${edges}${nodes}${orch}${nums}
+    markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4654"/></marker><marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5"
+    markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/></marker></defs>${base}${spokes}${edges}${nodes}${orch}${nums}
     ${path.length ? "" : '<text class="m" x="420" y="470" text-anchor="middle">Dashed: every move the rules allow. Run an incident to see the route the orchestrator took.</text>'}</svg>`;
 }
 function hopsHTML(path, rejects) {
@@ -567,7 +575,7 @@ function flowShow(k) {
   flowSel = k; flowRender();
   if (k === "orchestrator") { $("flowtitle").textContent = "Orchestrator: details";
     $("flowdetail").classList.remove("muted");
-    $("flowdetail").innerHTML = "<p>The orchestrator (<code>app/dynamic.py</code>) decides the next agent at every hop. Code lists the moves that are legal right now, so the critic, the dry run and the human gate can never be skipped. When there is a real choice, the router model (Nemotron 3.5 Lightning via Nightshift) picks one and gives a reason; an illegal pick is rejected and the rule-based router decides. A forced move (one legal option) costs no model call.</p>"
+    $("flowdetail").innerHTML = "<p><b>Why it has no arrows of its own:</b> it is the hub, not a step in the chain. It is linked to every agent (the purple spokes now shown) and dispatches each hop; the numbered arrows between agents are the route it chose. When nothing is selected, one spoke points at the agent it dispatched last.</p><p>The orchestrator (<code>app/dynamic.py</code>) decides the next agent at every hop. Code lists the moves that are legal right now, so the critic, the dry run and the human gate can never be skipped. When there is a real choice, the router model (Nemotron 3.5 Lightning via Nightshift) picks one and gives a reason; an illegal pick is rejected and the rule-based router decides. A forced move (one legal option) costs no model call.</p>"
       + (flowPath.length ? `<p>Last incident: ${flowPath.length} hops, listed under the graph with who chose each one.</p>` : "<p>Run an incident to see its route.</p>");
     return; }
   const st = flowLast[k], name = NODES[k][2], kd = KINDS[kindOf(k)], hist = flowHist[k] || [];
