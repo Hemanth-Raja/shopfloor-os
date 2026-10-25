@@ -45,8 +45,12 @@ def test_run_experiment_offline_with_fake_model(grid):
                 + [None, None, "A", False] for r in SPILLS]
     hyp = Hypothesis(hypothesis="A kit at F20 shortens spill clean-up.", policy=Policy(type="move_spill_kit", station="F20"),
                      expected_effect_pct=-15)
-    result = run_experiment(fake_sql, lambda *a, **k: SimpleNamespace(data=hyp), grid)
+    steps = []
+    result = run_experiment(fake_sql, lambda *a, **k: SimpleNamespace(data=hyp, model="nvidia/x"), grid,
+                            on_step=lambda name, t, d: steps.append((name, d)))
     assert result["source"] == "nemotron" and result["significant"] and result["status"] == "proposed"
+    assert [n for n, _ in steps] == ["history", "hypothesis", "incidents", "rescore", "replays", "bootstrap"]
+    assert steps[0][1]["sql"].startswith("SELECT") and steps[1][1]["model"] == "nvidia/x" and steps[1][1]["source"] == "nemotron"
     assert result["ci_low_pct"] <= result["effect_pct"] <= result["ci_high_pct"] < 0
     row = experiment_row(result)
     assert row["status"] == "proposed" and row["experiment_id"].startswith("EXP-")

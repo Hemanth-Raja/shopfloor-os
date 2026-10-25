@@ -526,7 +526,21 @@ class App:
         return out
 
     def lab(self) -> None:
-        """Run Lab Level 2 in the background and publish the result as a 'lab' event."""
+        """Run Lab Level 2 in the background: each stage as a 'lab_step' event (and a JSONL trace line), the result as
+        a 'lab' event. One experiment at a time."""
+        if getattr(self, "lab_running", False):
+            raise RuntimeError("an experiment is already running")
+        self.lab_running = True
+        lab_id = f"lab-{int(time.time())}-{os.urandom(2).hex()}"
+        trace = Path(__file__).resolve().parents[1] / "logs" / f"trace-{lab_id}.jsonl"
+
+        def on_step(name, started, detail):
+            rec = {"lab_id": lab_id, "step": name, "ms": round((time.perf_counter() - started) * 1000, 1), "detail": detail}
+            with trace.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "run_id": lab_id, "agent": "lab",
+                                     **rec}, default=str) + "\n")
+            self.bus.publish("lab_step", json.loads(json.dumps(rec, default=str)))
+
         def work():
             try:
                 from app.fixtures import maybe_sample
@@ -537,12 +551,14 @@ class App:
                 else:
                     from app import runtime
                     sql, llm_json = self.run_sql, maybe_sample(runtime.chat_json, "json")
-                self.bus.publish("lab_status", {"status": "running"})
-                result = run_experiment(sql, llm_json, self.grid)
-                self.last_lab = result
-                self.bus.publish("lab", result)
+                self.bus.publish("lab_status", {"status": "running", "lab_id": lab_id})
+                result = run_experiment(sql, llm_json, self.grid, on_step=on_step)
+                self.last_lab = {**result, "lab_id": lab_id, "trace": f"logs/{trace.name}"}
+                self.bus.publish("lab", self.last_lab)
             except Exception as err:  # noqa: BLE001
                 self.bus.publish("lab", {"error": f"{type(err).__name__}: {err}"[:300]})
+            finally:
+                self.lab_running = False
         threading.Thread(target=work, daemon=True).start()
 
     def ask(self, req: dict) -> str:
@@ -709,7 +725,7 @@ def make_handler(app: App):
                 if self.path == "/ask":
                     return self._send(202, {"ask_id": app.ask(self._json())})
                 if self.path == "/lab/run":
-                    app.lab()
+                    app.lab()  # a second click while one runs: RuntimeError -> 409
                     return self._send(202, {"status": "running"})
                 if self.path == "/lab/write":
                     return self._send(200, app.lab_write())

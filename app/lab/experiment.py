@@ -23,6 +23,7 @@ import json
 import random
 import statistics
 import subprocess
+import time
 from datetime import datetime
 from typing import Callable, Literal
 
@@ -71,7 +72,9 @@ class Hypothesis(BaseModel):
     expected_effect_pct: float = Field(ge=-100, le=100)
 
 
-def propose(summary: list[list], llm_json: Callable | None) -> tuple[Hypothesis, str]:
+def propose(summary: list[list], llm_json: Callable | None, info: dict | None = None) -> tuple[Hypothesis, str]:
+    """info, when given, receives the model that answered (or why the rule-based hypothesis was used)."""
+    info = {} if info is None else info
     rows = [dict(zip(["kind", "station_id", "zone_id", "n", "avg_clear_s", "avg_downtime_min", "avg_kit_cells",
                       "avg_smkt_cells"], r)) for r in summary]
     if llm_json is not None:
@@ -83,9 +86,10 @@ def propose(summary: list[list], llm_json: Callable | None) -> tuple[Hypothesis,
                  f"Spill kits today: {[k[0] + '@' + str(k[1:]) for k in g.SPILL_KITS]}; the supermarket exit is "
                  "at (7, 13). Use a station id from the data."},
                 {"role": "user", "content": json.dumps(rows)}], Hypothesis, timeout_s=120, role="lab")
+            info.update({k: getattr(reply, k) for k in ("model", "latency_s", "receipt") if getattr(reply, k, None)})
             return (reply.data if hasattr(reply, "data") else reply), "nemotron"
-        except Exception:  # noqa: BLE001 - fall back to a rule-based hypothesis
-            pass
+        except Exception as err:  # noqa: BLE001 - fall back to a rule-based hypothesis
+            info["fallback_reason"] = f"{type(err).__name__}: {err}"[:200]
     top = max((r for r in rows if r["kind"] == "fluid_spill" and r["station_id"]), key=lambda r: r["n"], default=None)
     station = top["station_id"] if top else "F20"
     return Hypothesis(hypothesis=f"An extra spill kit at {station} cuts spill clean-up time there.",
@@ -142,18 +146,41 @@ def bootstrap_ci(pairs: list[tuple[float, float]], n: int = BOOTSTRAP, seed: int
     return statistics.fmean(diffs), means[int(0.025 * n)], means[int(0.975 * n) - 1]
 
 
-def run_experiment(run_sql: Callable, llm_json: Callable | None, grid: Grid | None = None) -> dict:
+def run_experiment(run_sql: Callable, llm_json: Callable | None, grid: Grid | None = None,
+                   on_step: Callable[[str, float, dict], None] | None = None) -> dict:
+    """on_step(step, started, detail) is called after each stage, so a UI can show the evidence as it is made."""
+    step = on_step or (lambda *a: None)
     grid = grid or Grid.load(run_sql)
-    hyp, source = propose(run_sql(SUMMARY_SQL), llm_json)
+    t = time.perf_counter()
+    summary = run_sql(SUMMARY_SQL)
+    step("history", t, {"sql": SUMMARY_SQL.strip(), "rows": len(summary), "preview": summary[:8],
+                        "columns": ["kind", "station_id", "zone_id", "n", "avg_clear_s", "avg_downtime_min",
+                                    "avg_kit_cells", "avg_smkt_cells"]})
+    t, info = time.perf_counter(), {}
+    hyp, source = propose(summary, llm_json, info)
+    step("hypothesis", t, {"source": source, **info, **hyp.model_dump()})
     cols = ["incident_id", "kind", "cause", "station_id", "zone_id", "x", "y", "time_to_clear_s", "spill_kit_distance",
             "supermarket_distance", "shift_code", "false_alarm"]
-    rows = [dict(zip(cols, r)) for r in run_sql(HISTORY_SQL.format(kind=KIND[hyp.policy.type]))]
+    t = time.perf_counter()
+    sql = HISTORY_SQL.format(kind=KIND[hyp.policy.type])
+    rows = [dict(zip(cols, r)) for r in run_sql(sql)]
+    step("incidents", t, {"sql": sql.strip(), "rows": len(rows), "columns": cols[:8],
+                          "preview": [[r[c] for c in cols[:8]] for r in rows[:8]]})
+    t = time.perf_counter()
     pairs = rescore(rows, hyp.policy, grid)
-    reps = replays(pairs)
-    mean_diff, lo, hi = bootstrap_ci(pairs)
     base = statistics.fmean(b for b, _ in pairs)
+    step("rescore", t, {"incidents": len(pairs), "baseline_mean_s": round(base, 1),
+                        "treatment_mean_s": round(statistics.fmean(x for _, x in pairs), 1),
+                        "changed": sum(1 for b, x in pairs if x != b), "method": "A* walking distance on the floor grid"})
+    t = time.perf_counter()
+    reps = replays(pairs)
+    step("replays", t, {"replays": len(reps), "seeds": [r["seed"] for r in reps][:3] + ["…"], "llm": "none"})
+    t = time.perf_counter()
+    mean_diff, lo, hi = bootstrap_ci(pairs)
     effect = 100 * mean_diff / base
     significant = hi < 0
+    step("bootstrap", t, {"resamples": BOOTSTRAP, "effect_pct": round(effect, 1), "ci_low_pct": round(100 * lo / base, 1),
+                          "ci_high_pct": round(100 * hi / base, 1), "significant": significant})
     return {"hypothesis": hyp.model_dump(), "source": source, "incidents": len(pairs),
             "baseline_mean_s": round(base, 1), "treatment_mean_s": round(base + mean_diff, 1),
             "effect_pct": round(effect, 1), "ci_low_s": round(lo, 1), "ci_high_s": round(hi, 1),

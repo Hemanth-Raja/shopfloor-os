@@ -297,6 +297,10 @@
     </div>
     <div class="panel"><h2>Seeded replays (mean time to clear)</h2><div id="labreps" class="muted">—</div></div>
   </div>
+  <div class="grid2">
+    <div class="panel"><h2>Experiment steps</h2><div id="labsteps" class="muted">Each stage appears here as it runs: the Zetaris queries, Nemotron's hypothesis, the re-scoring, replays and bootstrap.</div></div>
+    <div class="panel"><h2>Evidence</h2><div id="labev" class="muted">The SQL and rows the experiment used.</div></div>
+  </div>
 </section>
 
 <section class="view" id="know">
@@ -628,7 +632,7 @@ for (const b of document.querySelectorAll(".seg button")) b.onclick = async () =
 es.addEventListener("error", e => { if (!e.data) return; const d = JSON.parse(e.data);
   if (String(d.incident || "").startsWith("ask-")) askIdle();
   $(String(d.incident || "").startsWith("ask-") ? "askout" : "decision").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; });
-es.addEventListener("lab_status", () => { $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
+es.addEventListener("lab_status", () => { labBusy(true); $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
 es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
 es.addEventListener("lab_written", e => { $("labout").insertAdjacentHTML("beforeend", `<div class="ok-t" style="margin-top:8px">Saved ${esc(JSON.parse(e.data).experiment_id)} to sf_ops.experiments via Zetaris</div>`); });
 
@@ -803,9 +807,44 @@ es.addEventListener("shift_event", e => { const d = JSON.parse(e.data);
   const f = $("sfeed"); if (f) { f.innerHTML = shiftFeed.slice(-8).map(esc).join("<br>"); } });
 fetch("/api/shift").then(r => r.json()).then(showShift);
 
-$("labrun").onclick = async () => { $("labwrite").disabled = true; await fetch("/lab/run", {method:"POST"}); };
-$("labwrite").onclick = async () => { const r = await fetch("/lab/write", {method:"POST"}); if (!r.ok) alert((await r.json()).error); $("labwrite").disabled = true; };
+function labBusy(on) { $("labrun").disabled = on; $("labrun").textContent = on ? "Running…" : "Run experiment"; }
+$("labrun").onclick = async () => {
+  if ($("labrun").disabled) return;
+  labBusy(true); $("labwrite").disabled = true;
+  $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>';
+  $("labsteps").innerHTML = '<span class="muted">reading the incident history from Zetaris…</span>'; $("labsteps").classList.add("muted");
+  $("labev").innerHTML = ""; $("labev").classList.add("muted"); $("labreps").innerHTML = "—";
+  try { const r = await fetch("/lab/run", {method:"POST"}); if (!r.ok) throw new Error((await r.json()).error || r.status); }
+  catch (e) { labBusy(false); $("labout").innerHTML = `<span class="bad-t">Not started: ${esc(e.message)}</span>`; }
+};
+$("labwrite").onclick = async () => {
+  const b = $("labwrite"); if (b.disabled) return; b.disabled = true; b.textContent = "Saving…";
+  try { const r = await fetch("/lab/write", {method:"POST"}); if (!r.ok) throw new Error((await r.json()).error || r.status); }
+  catch (e) { $("labout").insertAdjacentHTML("beforeend", `<div class="bad-t">Not saved: ${esc(e.message)}</div>`); b.disabled = false; }
+  finally { b.textContent = "Save proposal to Zetaris"; }
+};
+const LAB_WHO = {history:"Zetaris: incident history", hypothesis:"Nemotron: hypothesis", incidents:"Zetaris: incidents to replay",
+                 rescore:"Re-score (A*, no LLM)", replays:"20 seeded replays", bootstrap:"Bootstrap 95% CI"};
+function labStep(st) {
+  const d = st.detail || {}; let txt = "";
+  if (st.step === "history") txt = `${d.rows} station and kind summaries`;
+  else if (st.step === "hypothesis") txt = d.source === "nemotron"
+    ? `${esc(String(d.model || "nemotron").split("/").pop())}: ${esc(d.hypothesis)} (expects ${d.expected_effect_pct}%)${d.receipt ? ` · receipt ${esc(d.receipt)}` : ""}`
+    : `rule-based: ${esc(d.hypothesis)}${d.fallback_reason ? ` <span class="bad-t">(${esc(d.fallback_reason)})</span>` : ""}`;
+  else if (st.step === "incidents") txt = `${d.rows} past incidents`;
+  else if (st.step === "rescore") txt = `${d.incidents} incidents, ${d.changed} shorter walks: ${d.baseline_mean_s} s → ${d.treatment_mean_s} s`;
+  else if (st.step === "replays") txt = `${d.replays} replays, no model calls`;
+  else if (st.step === "bootstrap") txt = `${d.resamples} resamples: ${d.effect_pct}% (${d.ci_low_pct}% to ${d.ci_high_pct}%) · ${d.significant ? "significant" : "not significant"}`;
+  if ($("labsteps").classList.contains("muted")) { $("labsteps").classList.remove("muted"); $("labsteps").innerHTML = ""; }
+  $("labsteps").insertAdjacentHTML("beforeend", `<div class="step"><span class="n ok-t">${LAB_WHO[st.step] || esc(st.step)}</span><span class="ms">${(st.ms / 1000).toFixed(1)}s</span>${txt}</div>`);
+  if (d.sql) {
+    if ($("labev").classList.contains("muted")) { $("labev").classList.remove("muted"); $("labev").innerHTML = ""; }
+    $("labev").insertAdjacentHTML("beforeend", `<div class="ev"><b>${esc(LAB_WHO[st.step])}</b> <span class="ok-t">${d.rows} rows, ${Math.round(st.ms)} ms</span><pre>${esc(d.sql)}</pre>${evTable(d)}</div>`);
+  }
+}
+es.addEventListener("lab_step", e => labStep(JSON.parse(e.data)));
 function showLab(r) {
+  labBusy(false);
   if (r.error) { $("labout").innerHTML = `<span class="bad-t">${esc(r.error)}</span>`; return; }
   const h = r.hypothesis, lo = r.ci_low_pct, hi = r.ci_high_pct, pt = r.effect_pct;
   const span = Math.max(10, Math.abs(lo), Math.abs(hi)) * 1.3, pos = v => 50 + 50 * v / span;
@@ -822,7 +861,7 @@ function showLab(r) {
       <div class="point" style="left:calc(${pos(pt)}% - 2px)"></div>
       <div class="lbl" style="left:${pos(lo)}%">${lo}%</div><div class="lbl" style="left:50%">0</div><div class="lbl" style="left:${pos(hi)}%">${hi}%</div>
     </div>
-    <div>Status <span class="pill ${r.significant ? "ACT" : "DO_NOTHING"}">${esc(r.status)}</span></div>`;
+    <div>Status <span class="pill ${r.significant ? "ACT" : "DO_NOTHING"}">${esc(r.status)}</span></div>${r.trace ? `<div class="note" style="margin-top:6px">trace ${esc(r.trace)}</div>` : ""}`;
   const reps = r.replays || [], max = Math.max(...reps.map(x => x.baseline_mean_s));
   $("labreps").innerHTML = `<div class="spark">${reps.map(x => `<i title="seed ${x.seed}: ${x.baseline_mean_s} → ${x.treatment_mean_s} s" style="height:${100 * x.treatment_mean_s / max}%"></i>`).join("")}</div>
     <div class="note" style="margin-top:6px">Each bar is one seeded replay's treatment mean, relative to the highest baseline (${max.toFixed(0)} s).</div>`;

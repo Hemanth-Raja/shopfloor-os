@@ -115,7 +115,7 @@
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 120,
-      "max_tokens": 2000,
+      "max_tokens": 6000,
       "why": "Proposes one testable policy change from history: deep reasoning.",
       "app": "shopfloor-os"
     },
