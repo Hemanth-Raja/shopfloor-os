@@ -33,3 +33,9 @@ def test_errors_are_structured_not_crashes():
     assert bad["status"] == "error" and bad["error"]["type"] == "InvalidInput" and not bad["error"]["recoverable"]
     station = run_request({"run_id": "t-st", "input": {"kind": "spill", "station": "Z99"}, "options": {"sample_mode": True}})
     assert station["status"] == "error" and "Z99" in station["error"]["message"]
+
+
+def test_sample_mode_env_applies_without_the_option(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    r = run_request({"run_id": "t-env", "input": {"kind": "spill", "station": "F30", "seed": 7}})
+    assert r["status"] == "success" and r["output"]["collisions"] == 0

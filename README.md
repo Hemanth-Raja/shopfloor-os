@@ -9,7 +9,7 @@ Code checks every plan against OSHA clauses and simulates it before anything mov
 whatever is risky.
 
 [![Track](https://img.shields.io/badge/Open%20Agent%20Hackathon%202026-Track%203%3A%20Reasoning%20Architecture-1d3550)](#the-problem)
-[![Tests](https://img.shields.io/badge/tests-309%20passing-2f6f4a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-310%20passing-2f6f4a)](tests/)
 [![Chaos](https://img.shields.io/badge/chaos%20scenarios-15%2F15-2f6f4a)](docs/chaos.md)
 [![Unsafe plans executed](https://img.shields.io/badge/unsafe%20plans%20executed-0-2f6f4a)](docs/eval.md)
 [![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C021%2F6%2C021%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
@@ -145,7 +145,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 309 offline tests
+.venv/bin/python -m pytest -q                          # 310 offline tests
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (174 MB) and defaults to `SAMPLE_MODE=true`.

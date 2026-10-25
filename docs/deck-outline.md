@@ -40,7 +40,7 @@ Visual: `02-agv-fault-replan.png` (the verifier re-plans after a stall).
 - Simulation: a 20×40 grid, space-time A* with a reservation table, and a seeded incident injector.
 - Data: Postgres ×4 behind Zetaris. The synthetic plant is anchored on AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo,
   the Bosch CNC dataset and MovingAI.
-- Docker (tested). 309 offline tests. `SAMPLE_MODE` runs without keys.
+- Docker (tested). 310 offline tests. `SAMPLE_MODE` runs without keys.
 
 ## 6. How Zetaris and Meterless were used (point 5)
 - **Zetaris:**
@@ -87,7 +87,7 @@ A collage of the screenshots:
   - All of them had 0 collisions.
 - Lab example: an extra spill kit at F20 cuts mean clean-up time by 8.2% (95% CI −11.1% to −5.3%), from 82
   re-scored incidents.
-- 309 tests pass, including the conformance suites of all three Meterless engines.
+- 310 tests pass, including the conformance suites of all three Meterless engines.
 - 0 unsafe plans executed; the critic caught 216 of 216 planted unsafe plans; 15 of 15 chaos scenarios end in a
   decision (`docs/eval.md`, `docs/chaos.md`).
 

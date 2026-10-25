@@ -11,7 +11,7 @@ Fill in the fields marked **[YOU]**. Check every claim against the final reposit
 **Team members:** Hemanth Raja Guttikonda (@Hemanth-Raja) and Poojitha Katta (@Poojitha-Katta). (Confirm the roster before creating the submission; the team locks at the first
 submission)
 
-**GitHub repository (public):** [YOU] (the repository has to be made public before the deadline)
+**GitHub repository (public):** https://github.com/Hemanth-Raja/shopfloor-os (make it public before the deadline)
 
 **Demo video (1–4 min):** [YOU] (upload link)
 

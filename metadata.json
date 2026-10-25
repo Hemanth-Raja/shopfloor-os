@@ -145,7 +145,7 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (309 offline tests: Meterless conformance, guardrails, model registry and resilience, anytime planning, journal, autopilot, detectors, caches, SQL guard, intake, Lab loop, VDA 5050, offline verification, property-based safety fuzzing)",
+  "tests": "python -m pytest  (310 offline tests: Meterless conformance, guardrails, model registry and resilience, anytime planning, journal, autopilot, detectors, caches, SQL guard, intake, Lab loop, VDA 5050, offline verification, property-based safety fuzzing)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",

@@ -9,6 +9,8 @@ Request:
                "stall_after": null, "seed": 42},
      "options": {"sample_mode": false, "memory": false, "autonomy": "auto"}}   # auto | supervised | advisory
 
+options.sample_mode defaults to the SAMPLE_MODE environment variable.
+
 Response: run_id, status, output (decision, plan, citations, ...), agents, models, trace_id, log_file,
 execution_time_seconds. Failures return status "error" with a typed, structured error instead of crashing.
 """
@@ -20,7 +22,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from app.fixtures import maybe_sample
+from app.fixtures import maybe_sample, sample_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_ROLES = {
@@ -66,7 +68,8 @@ def run_request(req: dict[str, Any], echo: bool = False) -> dict[str, Any]:
     try:
         inp = _validate(dict(req.get("input") or {}))
         opts = dict(req.get("options") or {})
-        sample = bool(opts.get("sample_mode"))
+        # options.sample_mode wins; without it, SAMPLE_MODE=true in the environment means offline too
+        sample = bool(opts["sample_mode"]) if "sample_mode" in opts else sample_mode() == "true"
         from app.engines.playbooks import PlaybookStore
         from app.orchestrator import Orchestrator
         from app.sim.grid import Grid
