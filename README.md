@@ -371,11 +371,13 @@ breakers in `app/runtime.py`.
   - Every incident starts with **one federated Lightning SQL query** across all four (`app/engines/plant_world.py`).
   - The zone briefing and the lab history queries also run through Zetaris.
   - Lab proposals are written back through Zetaris (`INSERT INTO sf_ops.experiments`).
-- **Meterless.** Two engines are implemented and used in features, each with its conformance tests:
+- **Meterless.** Three engines are implemented and used in features, each with its conformance tests:
   - The **World Model** (`app/engines/world_model.py`) grounds every plan. `tests/test_world_model.py` ports
     the spec's 8 conformance checks.
   - **H-MEM** (`app/engines/hmem.py`) holds the incident playbooks and the OSHA/SOP clause index.
     `tests/test_hmem.py` runs all 13 official vectors.
+  - **Markovian** (`app/engines/markovian.py`) runs the shift handover (`run.py handover`) in bounded chunks with
+    compressed carryover. `tests/test_markovian.py` covers it.
   - **Meterless Nightshift** is the only model provider: every call goes through `app/llm.py` to
     `MODEL_BASE_URL`.
 - **NVIDIA.** Every model is a Nemotron model reached through Nightshift; see *Models* below.
