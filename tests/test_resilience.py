@@ -105,6 +105,21 @@ def test_hedged_request_takes_the_faster_model(monkeypatch):
     assert any("hedged_after_s" in x for x in r.tried)
 
 
+def test_a_hedged_role_still_tries_the_second_model_when_the_first_fails_fast(monkeypatch):
+    """Chaos test finding: with the router's first model down, the hedge never started and the second model was
+    skipped, so the whole incident fell into safe mode."""
+    chain = models.CFG["roles"]["router"]["chain"]
+    monkeypatch.setattr(models.LATENCY, "p50", lambda key, default: 10.0)  # the hedge would start late
+
+    def complete(model, role, messages, max_tokens, timeout_s, json_mode):
+        if model == chain[0]:
+            raise LLMUnavailable("HTTP 502")
+        return reply(model)
+    monkeypatch.setattr(models, "_complete", complete)
+    r = models.chat_json("fast", [{"role": "user", "content": "x"}], Out, role="router")
+    assert r.model == chain[1] and any(x.get("after_failure_of") == chain[0] for x in r.tried)
+
+
 def test_a_spent_deadline_fails_fast(monkeypatch):
     monkeypatch.setattr(models, "_complete", lambda *a, **k: pytest.fail("must not call the model"))
     t = time.perf_counter()

@@ -79,14 +79,21 @@ class App:
         self.replay = replay  # SAMPLE_MODE=true: every run starts from the recorded scenario state
         self.lock = threading.RLock()
         self.offline = offline
+        self.degraded = None  # why the live server runs on the offline plant (Zetaris unreachable at start)
+        if not offline:
+            from app.engines.plant_world import load_plant_world
+            from app.runtime import run_sql
+            try:
+                self.plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
+                self.run_sql = run_sql
+            except Exception as err:  # noqa: BLE001 - chaos test: Zetaris down at start used to crash the server
+                self.degraded = f"Zetaris unreachable at start ({type(err).__name__}); running on the offline plant " \
+                                "built from data/seed. Nightshift is still used. Restart once Zetaris is back."
+                print(f"[WARN] {self.degraded}", flush=True)
+                offline = self.offline = True
         if offline:
             from app.sim.offline import offline_plant
             self.plant, self.run_sql = offline_plant(), None
-        else:
-            from app.engines.plant_world import load_plant_world
-            from app.runtime import run_sql
-            self.run_sql = run_sql
-            self.plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
         self.grid = Grid.load(self.run_sql)
         self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift="B")
         self._watch_invariants()
@@ -528,7 +535,7 @@ class App:
         return {"experiment_id": exp_id, "target": "zetaris sf_ops.experiments"}
 
     def health(self) -> dict:
-        if self.offline:
+        if self.offline and not self.degraded:
             from app.agents.health import check_health
             from app.cache import stats as cache_stats
             note = "recorded Nemotron replies + rule-based planner" if self.replay else "offline plant"
@@ -539,6 +546,8 @@ class App:
         else:
             from app.runtime import health
             out = health(self.sim)
+        if self.degraded:
+            out["degraded"] = self.degraded
         out["invariants"] = self.invariants.summary()
         try:
             from app.receipts import verify_all

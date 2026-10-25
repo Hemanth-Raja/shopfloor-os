@@ -397,6 +397,7 @@ if __name__ == "__main__":
                        help="write through Zetaris (default) or straight to the local Postgres container")
     ev = sub.add_parser("eval", help="evaluation: planted unsafe plans, Monitor calibration (offline) -> docs/eval.md")
     ev.add_argument("--live", action="store_true", help="also the Nemotron-only baseline and 3x stability (Nightshift)")
+    sub.add_parser("chaos", help="break Nightshift, models and Zetaris on purpose (fake Nightshift) -> docs/chaos.md")
     sub.add_parser("logsync", help="copy agent steps and model calls from logs/ into Postgres (sf_ops.agent_steps, llm_calls)")
     ho = sub.add_parser("handover", help="shift handover note from the journal (Meterless Markovian engine, Nemotron)")
     ho.add_argument("--shifts", type=int, default=1, help="hand over the last N shifts (more = a longer chain)")
@@ -435,6 +436,14 @@ if __name__ == "__main__":
         run_file(args.file, args.out)
     elif args.command == "lab":
         lab(args.write, args.target)
+    elif args.command == "chaos":
+        from app.lab.chaos import run as chaos
+        res = chaos()
+        for r in res["scenarios"]:
+            print(f"{'PASS' if r['pass'] else 'FAIL'}  {r['scenario']:<55} {r.get('decision')} / {r.get('gate')}")
+        sh = res["shift"]
+        print(f"shift under load: {sh['incidents']} incidents, unfinished {sh['unfinished'] or 'none'}, "
+              f"unsafe executed {len(sh['unsafe_executed'])}\nreport: docs/chaos.md")
     elif args.command == "logsync":
         from app.logsync import sync
         print(json.dumps(sync()))

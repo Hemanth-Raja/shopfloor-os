@@ -90,3 +90,17 @@ def test_knowledge_and_offline_lab(monkeypatch, tmp_path):
         time.sleep(0.05)
     result = next(d for k, d in got if k == "lab")
     assert "error" not in result and result["replays"] and result["ci_low_pct"] <= result["effect_pct"] <= result["ci_high_pct"]
+
+
+def test_server_starts_degraded_when_zetaris_is_down_at_start(monkeypatch):
+    """Chaos test finding: Zetaris down at start used to crash the server."""
+    from app import server
+    import app.engines.plant_world as pw
+
+    def down(*a, **k):
+        raise ConnectionError("Zetaris unreachable")
+    monkeypatch.setattr(pw, "load_plant_world", down)
+    from app import models
+    monkeypatch.setattr(models, "self_check", lambda *a, **k: {})  # no network in tests
+    app = server.App(offline=False, replay=False)
+    assert app.offline and app.degraded and app.plant.entities("worker")

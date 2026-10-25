@@ -210,6 +210,13 @@ def _race(first: str, second: str, spec: dict, call, deadline: Deadline, tried: 
                     return f.result()
                 except Exception as err:  # noqa: BLE001
                     tried.append({"model": futures[f], "error": f"{type(err).__name__}: {str(err)[:120]}"})
+            # the first model failed before the hedge started: the second is still owed its turn (chaos test found
+            # this: with Lightning down the router never tried Super VL and the whole incident fell into safe mode)
+            if not pending and second not in futures.values() and breaker(second).state != "OPEN" \
+                    and deadline.left() > 0.5:
+                futures[pool.submit(_attempt, second, spec, call, deadline)] = second
+                tried.append({"model": second, "after_failure_of": first})
+                pending = {f for f, m in futures.items() if m == second}
         return None
     finally:
         pool.shutdown(wait=False, cancel_futures=True)

@@ -56,6 +56,12 @@ flowchart LR
   cache involved: 0 cache hits in the run window).
 - **Fewer false dispatches:** the Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235
   (Brier 0.096 vs 0.392, 600 alarms with noisy sensors).
+- **Chaos-tested:** 14 failure scenarios (one model down, Nightshift down, 60% of calls failing, slow or broken
+  replies, a different model answering, an illegal route, Zetaris down) plus a 19-incident shift on flaky models all
+  end in a decision with nothing unsafe executed ([docs/chaos.md](docs/chaos.md)). The tests found and fixed two real
+  bugs.
+- **When nobody answers:** reminder at 2 floor minutes, escalation at 4, and at 6 the agents decide, never in the
+  unsafe direction (`app/autonomy/approval.py`).
 - Sample mode answers in well under a second; a live incident takes about 30-90 s, mostly model time.
 
 ## Start here
@@ -64,7 +70,7 @@ flowchart LR
 | **Two-minute path, no accounts** | `SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json`, or `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os` and open http://localhost:8000 |
 | **Without installing anything** | the replay site, https://hemanth-raja.github.io/shopfloor-os/ (or open `docs/site/index.html`): recorded runs, step by step, with the critic's clauses |
 | **Live path** | Zetaris and Nightshift running: `bash scripts/start_live.sh` (see *Setup*) |
-| **Evidence for the claims** | [docs/eval.md](docs/eval.md), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
+| **Evidence for the claims** | [docs/eval.md](docs/eval.md), [docs/chaos.md](docs/chaos.md) (14 failure scenarios), `logs/trace-<run_id>.jsonl`, `run.py receipts --verify`, `run.py audit` |
 
 | Question | Where it is answered |
 |---|---|
@@ -609,6 +615,8 @@ Things that failed during the build, found by tests, fuzzing, the runtime monito
 | The shift handover came back empty (HTTP 502 "empty_response") | Live run; a raw request showed Nightshift's error body | The model reasons before it answers: with a 1,500-2,000-token budget it spent everything thinking. The handover now runs on Super VL with 6,000 tokens and a direct per-chunk prompt; it also read only 3 of 5 slices once, because the model signalled completion early, so the engine now reads every slice |
 | Ask the floor answers recorded for the offline demo did not replay | Sample-mode check after recording | Live rows and their JSON copy differed in number formatting, so later prompts hashed differently; record mode now hands the agents the rows exactly as a replay will see them |
 | Nightshift's own answer memory was adding earlier answers to our requests (118 of the 263 receipts before 24 Oct 23:53 UTC); a bare question with no data came back naming a real incident id | Receipts (`hmem.injected`) after a suspicious answer; Sanctions Desk documented the same setting | Switched off for the whole runtime (`hmemKnowledge: false`, Nightshift admin setpoints, previous setpoints were the defaults). Every receipt since shows no added memory; the live eval was re-run afterwards and those are the numbers above. Earlier recorded runs may include such memories |
+| With the router's first model down, the second model was never tried, so one failed model put the whole incident into safe mode | Chaos test `python run.py chaos` | `models._race` now gives the second model its turn when the first fails before the hedge starts |
+| The server crashed when Zetaris was down at start | Chaos test | It starts degraded on the offline plant, says so in Health and the UI, and keeps using Nightshift |
 | Port 8000 is taken by Windows on the demo PC | First live demo | The server takes `--port`; docs use 8100 |
 
 ## Autonomy levels

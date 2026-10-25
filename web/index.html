@@ -800,6 +800,7 @@ async function health() {
     const label = {zetaris: "Zetaris (data)", nightshift: "Nightshift (Nemotron)", floor: "Floor"};
     const cls = s => s === "ok" ? "ok-t" : s === "offline" ? "muted" : "bad-t";
     $("health").innerHTML = (h.mode === "offline" ? '<div class="note" style="margin-bottom:4px">Sample mode: no network, no keys. Real agent logic on the offline plant.</div>' : "")
+      + (h.degraded ? `<div class="bad-t" style="margin-bottom:4px">Degraded: ${esc(h.degraded)}</div>` : "")
       + ["zetaris", "nightshift", "floor"].filter(k => h[k]).map(k =>
       `<div class="kv"><span>${label[k]}</span><span class="${cls(h[k].status)}">${esc(h[k].note || h[k].status)}${h[k].breaker ? " · breaker " + h[k].breaker.state : ""}${h[k].ms != null ? " · " + h[k].ms + " ms" : ""}</span></div>`).join("")
       + `<div class="kv"><span>Safe mode</span><span class="${h.safe_mode ? "bad-t" : "ok-t"}">${h.safe_mode ? "on" : "off"}</span></div>`
