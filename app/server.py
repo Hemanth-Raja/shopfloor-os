@@ -396,7 +396,10 @@ class App:
         action = "none"
         with self.lock:
             plan = executable_plan(trace)
-            if trace.gate in ("awaiting_approval", "advisory", "timeout_hold"):  # a late answer still counts
+            stale = self._stale_reason(trace, plan) if trace.gate == "timeout_hold" and approved and plan else None
+            if stale:  # a late answer after a timed-out hold: the floor may have moved on
+                action = f"late approval refused: {stale}; re-run the incident for a fresh plan"
+            elif trace.gate in ("awaiting_approval", "advisory", "timeout_hold"):  # a late answer still counts
                 if approved and plan is not None:
                     for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
                         if aid in self.sim.agents:
@@ -425,6 +428,21 @@ class App:
         self.journal.append("approval", {**record})
         self.bus.publish("approval", record)
         return record
+
+    def _stale_reason(self, trace, plan) -> str | None:
+        """Before a late approval runs: the hold released this incident's people and robots, so check again."""
+        from app.agents.safety_critic import review
+        rules = [v.rule_id for v in review(plan, trace.incident, self.plant, self.sim).violations
+                 if v.rule_id != "R-UNVERIFIED"]
+        if rules:
+            return f"the plan now breaks {', '.join(sorted(set(rules)))}"
+        if self.shift is not None:
+            ids = list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]
+            taken = [l.resource.split(":")[-1] for l in self.shift.leases.conflicts(trace.incident.id, 0.0, ids)]
+            if taken:
+                return f"{', '.join(taken)} now work on another incident"
+            self.shift.leases.acquire(trace.incident.id, 0.0, ids)
+        return None
 
     def last(self) -> dict:
         """The most recent incident's trace, so a freshly opened page shows it too."""

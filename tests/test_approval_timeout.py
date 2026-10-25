@@ -68,3 +68,18 @@ def test_server_dispatches_a_soft_wait_and_holds_a_hazard_after_the_timeout(monk
     assert hard.gate == "timeout_hold" and "hold" in hard.escalations
     rec = app.approve({"incident_id": hard.incident.id, "approve": True})  # a late answer still counts
     assert rec["gate"] == "approved"
+
+
+def test_a_late_approval_is_refused_when_the_plan_went_stale(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    from tests.test_autonomy import run
+    app = server.App(offline=True, replay=True)
+    app.bus.publish = lambda *a: None
+    hard = run(app.plant, app.sim, "spill", "F20")
+    hard.gate = "timeout_hold"
+    hard.plan = Plan(**{**hard.plan.model_dump(), "agv_routes": [{"agv_id": "agv:plant:AGV-1", "to_station": "F20",
+                                                                  "speed_mps": 2.0, "crossing_speed_mps": 0.5}]})
+    app.traces = {hard.incident.id: hard}
+    rec = app.approve({"incident_id": hard.incident.id, "approve": True})
+    assert rec["gate"] == "timeout_hold" and "late approval refused" in rec["action"] and "R-SAFE-SPEED" in rec["action"]
