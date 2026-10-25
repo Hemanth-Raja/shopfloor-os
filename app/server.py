@@ -414,7 +414,11 @@ class App:
             raise KeyError("unknown incident")
         return {"incident": trace.incident.model_dump(exclude={"truth_false_alarm"}),
                 "steps": [st.model_dump() for st in trace.steps], "path": trace.path, "gate": trace.gate,
-                "decision": trace.decision.model_dump() if trace.decision else None}
+                "decision": trace.decision.model_dump() if trace.decision else None,
+                "plan": trace.plan.model_dump() if trace.plan else None, "gate_reasons": trace.gate_reasons,
+                "safe_mode": trace.safe_mode, "critic_rejections": trace.critic_rejections, "replans": trace.replans,
+                "mode": trace.mode, "from_shift": self.shift is not None and any(
+                    r["incident"] == incident_id for r in self.shift.dispatcher.done)}
 
     def approve(self, req: dict) -> dict:
         """The human gate. Waiting/advisory plans run only on Approve; an auto-executed plan can be rejected,

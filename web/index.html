@@ -107,6 +107,8 @@
   svg.fg.pg text { font-size:14px; } svg.fg.pg text.m { font-size:11px; }
   @media (max-width: 820px) { dialog.pipe .cols { grid-template-columns: 1fr; } }
   dialog.pipe .side { max-height:70vh; overflow:auto; }
+  #shift .inc { cursor:pointer; } #shift .inc.sel { background:#16263a; outline:1px solid #5aa9ff; border-radius:6px; }
+  .panel.flash { box-shadow:0 0 0 2px #5aa9ff; transition:box-shadow .3s; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
   .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
   .node { position:relative; width:170px; min-height:96px; padding:9px 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); cursor:pointer; transition:all .25s; }
@@ -233,7 +235,7 @@
     </div>
     <div>
       <div class="panel">
-        <h2>Decision</h2>
+        <h2 id="dectitle">Decision</h2>
         <div class="seg" role="radiogroup" aria-label="Autonomy">
           <button data-mode="auto" class="on" title="Routine, safe ACT decisions run by themselves; you can override">Auto</button>
           <button data-mode="supervised" title="Nothing moves until you approve">Supervised</button>
@@ -750,11 +752,16 @@ function addStep(st) {
 
 const es = new EventSource("/events");
 es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
-es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; $("trace").innerHTML = ""; flowReset(`${i.id}: ${i.kind.replace("_", " ")} at ${i.station_id || i.zone_id}`); $("trace").classList.remove("muted");
+es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; decTitle(i.id, i.kind, i.station_id || i.zone_id, false); $("trace").innerHTML = ""; flowReset(`${i.id}: ${i.kind.replace("_", " ")} at ${i.station_id || i.zone_id}`); $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
 es.addEventListener("step", e => addStep(JSON.parse(e.data)));
 es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
+function decTitle(id, kind, where, fromShift) {
+  $("dectitle").innerHTML = `Decision · ${esc(id)} <span class="muted" style="text-transform:none;letter-spacing:0">${esc((kind || "").replace("_", " "))} at ${esc(where || "")} · ${fromShift ? "from the autopilot shift" : "you ran it"}</span>`;
+  for (const r of document.querySelectorAll("#shift .inc")) r.classList.toggle("sel", r.dataset.inc === id);
+}
 function showDecision(d) { const dec = d.decision ? d.decision.decision : "none";
+  if (d.incident) { current = d.incident; if (d.kind) decTitle(d.incident, d.kind, d.where, d.from_shift); }
   $("decision").innerHTML = `<span class="pill ${dec}">${dec}</span> · critic rejections <b>${d.critic_rejections}</b> · re-plans <b>${d.replans}</b>${d.safe_mode ? ' · <span class="bad-t">SAFE MODE</span>' : ""}`
     + (d.plan ? `<div class="muted" style="margin-top:6px">${esc(d.plan.rationale)}</div>` : "")
     + (d.path && d.path.length ? `<div class="note" style="margin-top:4px">route (${d.mode}, ${d.path.length} hops): ${d.path.map(p => esc(p.agent)).join(" → ")}</div>` : "")
@@ -779,6 +786,8 @@ async function restoreLast() {
   r.steps.forEach(addStep); showDecision(r.decision);
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
+  fetch("/api/shift").then(r => r.json()).then(showShift);  // the autopilot list shows the new state at once
+  if (a.incident !== current) { load(); return; }  // another incident was judged: only the list changes
   addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (${esc(a.by)})`;
   gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(false); load(); });
 es.addEventListener("approval_timeout", e => { const a = JSON.parse(e.data);
@@ -941,27 +950,28 @@ function showShift(st) {
   const wait = x => x.gate === "awaiting_approval" || x.gate === "advisory";
   $("shift").innerHTML = `<div class="note">${st.running ? "running" : "finished"} · ${st.elapsed_min} of ${st.minutes} min · ${st.signals_seen}/${st.signals} signals ·
       Sentinel raised ${st.sentinel.raised} (${st.sentinel.early_warnings || 0} early warnings from drift and trends), merged ${st.sentinel.deduped + st.sentinel.correlated}, triaged ${st.sentinel.triaged} · ${st.sentinel.telemetry || 0} sensor readings watched</div>
+    <div class="note" style="margin-top:4px">Click any incident, or <b>Review ↑</b> on one waiting for you, to open it in the Decision panel above: approve or reject there.</div>
     <div class="shiftbar"><i style="width:${pct}%"></i></div>
     <div class="sfeed" id="sfeed">${shiftFeed.slice(-8).map(esc).join("<br>") || "Sentinel is watching…"}</div>
     <h2 style="margin-top:10px">Active (${st.active.length})</h2>${st.active.map(x => row(x, `<span class="muted">→ ${esc(x.at)} · hop ${x.hops}</span>`)).join("") || '<div class="note">none</div>'}
     <h2 style="margin-top:10px">Queue (${st.queue.length})</h2>${st.queue.map(x => row(x, "")).join("") || '<div class="note">empty</div>'}
     <h2 style="margin-top:10px">Leases</h2><div class="note">${st.leases.map(l => `${esc(short(l.resource))} → ${esc(l.incident)}`).join(" · ") || "none"}</div>
     <h2 style="margin-top:10px">Handled (${st.done.length})</h2>${st.done.slice().reverse().map(x => row(x, `<span class="pill ${x.decision}" style="font-size:11px">${esc(x.decision || "-")}</span>
-      <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? (PENDING.has(x.incident) ? '<span class="note">sending…</span>' : `<button class="act ok" data-ok="${esc(x.incident)}">Approve</button><button class="act bad" data-no="${esc(x.incident)}">Reject</button>`) : ""}`)).join("")}
+      <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? (PENDING.has(x.incident) ? '<span class="note">sending…</span>' : `<button class="act ok" data-review="${esc(x.incident)}">Review ↑</button>`) : ""}`)).join("")}
     ${st.summary ? `<div class="gate done" style="margin-top:8px"><b>Shift summary:</b> ${st.summary.incidents} incidents from ${st.summary.signals} signals ·
       ${st.summary.auto_resolved} resolved on their own · ${st.summary.waiting_for_a_person.length} waited for a person · ${st.summary.escalations.length} escalated ·
       mean ${st.summary.mean_minutes_to_resolve ?? "-"} min to resolve · ~${st.summary.cars_saved_estimate} cars saved (95% CI ${(st.summary.cars_saved_ci95 || []).join("–")}, bootstrap over history) · ${st.summary.preemptions} pre-emptions · up to ${st.summary.max_concurrent} at once</div>` : ""}`;
-  for (const b of $("shift").querySelectorAll("[data-ok],[data-no]")) b.onclick = async ev => { ev.stopPropagation();
-    const row = b.parentElement; row.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "sending…";
-    await sendJudgement(b.dataset.ok || b.dataset.no, !!b.dataset.ok); };
-  for (const r of $("shift").querySelectorAll(".inc")) r.onclick = () => openIncident(r.dataset.inc);
+  for (const b of $("shift").querySelectorAll("[data-review]")) b.onclick = ev => { ev.stopPropagation(); openIncident(b.dataset.review); };
+  for (const r of $("shift").querySelectorAll(".inc")) { r.onclick = () => openIncident(r.dataset.inc); r.classList.toggle("sel", r.dataset.inc === current); }
 }
-async function openIncident(id) {
+async function openIncident(id) {  // one place to judge any incident: the Decision panel
   const r = await fetch("/api/trace/" + encodeURIComponent(id)); if (!r.ok) return;
   const t = await r.json(); current = id; $("trace").innerHTML = "";
   flowReset(`${id}: ${t.incident.kind.replace("_", " ")} at ${t.incident.station_id || t.incident.zone_id}`);
   t.steps.forEach(addStep);
-  $("decision").innerHTML = `<b>${esc(id)}</b> · <span class="pill ${t.decision ? t.decision.decision : ""}">${t.decision ? t.decision.decision : "-"}</span> · ${esc(GATEWORD[t.gate] || t.gate)}`;
+  showDecision({...t, incident: id, kind: t.incident.kind, where: t.incident.station_id || t.incident.zone_id});
+  const p = $("dectitle").closest(".panel"); p.scrollIntoView({behavior: "smooth", block: "start"});
+  p.classList.add("flash"); setTimeout(() => p.classList.remove("flash"), 1200);
 }
 es.addEventListener("shift", e => showShift(JSON.parse(e.data)));
 es.addEventListener("shift_done", () => fetch("/api/shift").then(r => r.json()).then(showShift));
