@@ -562,6 +562,7 @@ class App:
             try:
                 runner = sql_runner("true") if self.offline and not self.replay else sql_runner(sample_mode(), self.run_sql)
                 inv = Investigator(runner, maybe_sample(runtime.chat_json, "json"), ask_id=ask_id, memory=self.memory, sample=sample_mode(),
+                                   plant=self.plant, sim=self.sim,
                                    on_step=lambda aid, st: self.bus.publish("ask_step", {"ask_id": aid, **st}))
                 self.last_ask = inv.run(question)
                 self.bus.publish("ask_result", self.last_ask)

@@ -1,0 +1,35 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"verdicts\": [{\"index\": 0, \"supported\": true, \"reason\": \"E1/E6 show AGV-3 faults_90d=84, next highest AGV-6=25; battery_health_pct=62 is the lowest; last_service_date=2026-05-21 matches.\"}, {\"index\": 1, \"supported\": true, \"reason\": \"E2 shows AGV-3 shift A aborted_tasks=86 and shift B=72; all other AGV-shift aborted_tasks values are 22 or below.\"}, {\"index\": 2, \"supported\": true, \"reason\": \"E3 lists AGV-3 shift A on 2026-08-17 with incident_count=9, the maximum in the listed incidents, with AGV-3 rows spanning multiple dates.\"}, {\"index\": 3, \"supported\": true, \"reason\": \"E4 shows AGV-3 E52_NAV_LOST=49 on 2026-10-14 and AGV-3 E40_BATTERY_LOW=46 on 2026-10-12, with AGV-3 events clustered in October 2026 dates.\"}, {\"index\": 4, \"supported\": true, \"reason\": \"E6 shows AGV-3 status=idle, service overdue=true, battery health=62%, below all other AGVs (77\u201396).\"}]}",
+ "data": {
+  "verdicts": [
+   {
+    "index": 0,
+    "supported": true,
+    "reason": "E1/E6 show AGV-3 faults_90d=84, next highest AGV-6=25; battery_health_pct=62 is the lowest; last_service_date=2026-05-21 matches."
+   },
+   {
+    "index": 1,
+    "supported": true,
+    "reason": "E2 shows AGV-3 shift A aborted_tasks=86 and shift B=72; all other AGV-shift aborted_tasks values are 22 or below."
+   },
+   {
+    "index": 2,
+    "supported": true,
+    "reason": "E3 lists AGV-3 shift A on 2026-08-17 with incident_count=9, the maximum in the listed incidents, with AGV-3 rows spanning multiple dates."
+   },
+   {
+    "index": 3,
+    "supported": true,
+    "reason": "E4 shows AGV-3 E52_NAV_LOST=49 on 2026-10-14 and AGV-3 E40_BATTERY_LOW=46 on 2026-10-12, with AGV-3 events clustered in October 2026 dates."
+   },
+   {
+    "index": 4,
+    "supported": true,
+    "reason": "E6 shows AGV-3 status=idle, service overdue=true, battery health=62%, below all other AGVs (77\u201396)."
+   }
+  ]
+ }
+}

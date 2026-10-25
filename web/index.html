@@ -281,7 +281,7 @@
     </div>
     <div>
       <div class="panel"><h2>Investigation steps</h2><div id="asksteps" class="muted">—</div></div>
-      <div class="panel"><h2>Evidence</h2><div id="askev" class="muted">SQL, row counts and log references appear here.</div></div>
+      <div class="panel"><h2>Evidence</h2><div id="askev" class="muted">Zetaris SQL results, the agents' own history and H-MEM lessons, and World Model facts about the floor appear here.</div></div>
     </div>
   </div>
 </section>
@@ -623,6 +623,7 @@ function markMode(m) { document.querySelectorAll(".seg button").forEach(b => b.c
 for (const b of document.querySelectorAll(".seg button")) b.onclick = async () => {
   await fetch("/autonomy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode: b.dataset.mode})}); markMode(b.dataset.mode); };
 es.addEventListener("error", e => { if (!e.data) return; const d = JSON.parse(e.data);
+  if (String(d.incident || "").startsWith("ask-")) askIdle();
   $(String(d.incident || "").startsWith("ask-") ? "askout" : "decision").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; });
 es.addEventListener("lab_status", () => { $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
 es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
@@ -682,38 +683,68 @@ $("custom").onsubmit = async e => { e.preventDefault(); const f = e.target;
   if (!r.ok) alert((await r.json()).error);
 };
 
-const ASK_WHO = {coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", analyst:"Analyst", critic:"Critic"};
+const ASK_WHO = {coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", floor:"Floor agent", analyst:"Analyst", critic:"Critic"};
+let ASKING = null;  // the investigation on its way: one at a time, and only its own events update the panels
 function askStep(st) {
   const d = st.detail || {}; let txt = "";
   if (st.step === "coordinator") txt = `${d.model}: ${(d.tasks || []).map(t => `[${t.kind}] ${t.ask}`).join(" · ")}`;
   else if (st.step === "sql") txt = st.ok ? `${d.rows} rows from Zetaris (attempt ${d.attempt}): ${d.purpose || ""}` : `failed: ${d.error}`;
   else if (st.step === "logs") txt = `${d.summary.incidents_matched_in_traces} traced incidents, ${d.summary.nemotron_calls_recent} recent Nemotron calls, ${d.summary.h_mem_lessons.length} H-MEM lessons`;
+  else if (st.step === "floor") txt = `${d.rows} facts from the World Model and the live floor`;
   else if (st.step === "analyst") txt = `${d.model}: ${d.findings} findings`;
   else if (st.step === "critic") txt = `kept ${d.kept}, dropped ${(d.dropped || []).length}`;
+  if (ASKING && ASKING !== "pending" && st.ask_id && st.ask_id !== ASKING) return;
   if ($("asksteps").classList.contains("muted")) { $("asksteps").classList.remove("muted"); $("asksteps").innerHTML = ""; }
+  if (["sql", "logs", "floor"].includes(st.step)) {  // evidence shows as each agent returns, before the analyst reads it
+    if ($("askev").classList.contains("muted")) { $("askev").classList.remove("muted"); $("askev").innerHTML = ""; }
+    $("askev").insertAdjacentHTML("beforeend", evCard({...d, ok: st.ok, query_ms: d.query_ms ?? Math.round(st.ms)}));
+  }
   $("asksteps").insertAdjacentHTML("beforeend", `<div class="step"><span class="n ${st.ok ? "ok-t" : "bad-t"}">${ASK_WHO[st.step] || esc(st.step)}</span><span class="ms">${(st.ms / 1000).toFixed(1)}s</span>${esc(txt)}</div>`);
 }
 function evTable(e) {
   if (!e.preview || !e.preview.length) return "";
   return `<table><tr>${(e.columns || []).map(c => `<th>${esc(c)}</th>`).join("")}</tr>${e.preview.slice(0, 8).map(r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</table>`;
 }
+function evCard(e) {
+  if (e.type === "sql")
+    return `<div class="ev"><b>${esc(e.id)} · SQL agent · Zetaris</b> <span class="note">${esc(e.task)}</span>${e.ok ? ` <span class="ok-t">${e.rows} rows, ${e.query_ms} ms</span>` : ` <span class="bad-t">${esc(e.error)}</span>`}<pre>${esc(e.sql || "")}</pre>${evTable(e)}</div>`;
+  if (e.type === "floor")
+    return `<div class="ev"><b>${esc(e.id)} · Floor agent · World Model</b> <span class="note">${esc(e.task)}${e.data_version ? ` · plant data ${esc(e.data_version)}` : ""}</span>${evTable({...e, preview: e.preview})}</div>`;
+  const s = e.summary || {};
+  return `<div class="ev"><b>${esc(e.id)} · Log agent · traces and H-MEM</b> <span class="note">${esc(e.task)}</span>
+    <div class="note">${s.incidents_matched_in_traces ?? 0} earlier incidents in the agents' traces${Object.keys(s.decisions || {}).length ? ` (${Object.entries(s.decisions).map(([k, v]) => `${esc(k)} ${v}`).join(", ")})` : ""}
+    · critic rejections ${Object.entries(s.critic_rejections_by_rule || {}).map(([k, v]) => `${esc(k)} ${v}`).join(", ") || "none"}
+    · ${s.verifier_replans ?? 0} re-plans · ${s.nemotron_calls_recent ?? 0} recent Nemotron calls (avg ${s.avg_latency_s ?? "-"} s)</div>
+    ${(s.h_mem_lessons || []).length ? `<div class="note" style="margin-top:4px"><b>H-MEM lessons</b></div>` + s.h_mem_lessons.map(x => `<div class="note">• ${esc(x)}</div>`).join("") : '<div class="note">No H-MEM lesson matches this question.</div>'}
+    ${(e.refs || []).map(x => `<div class="note">${esc(x)}</div>`).join("")}</div>`;
+}
+function askIdle() { ASKING = null; for (const b of document.querySelectorAll("#askform button, [data-ask]")) b.disabled = false;
+  const b = $("askform").querySelector("button"); b.textContent = "Ask"; }
 function showAsk(r) {
   if (!r || !r.question) return;
+  if (ASKING && ASKING !== "pending" && r.ask_id && r.ask_id !== ASKING) return;
+  askIdle();
   $("askout").classList.remove("muted");
   $("askout").innerHTML = `<div class="muted">Q: ${esc(r.question)}</div><p style="font-size:15px">${esc(r.summary)}</p>`
     + r.findings.map(f => `<div class="find">• ${esc(f.claim)} <span class="eid">[${f.evidence.map(esc).join(", ")}]</span></div>`).join("")
     + (r.dropped.length ? `<div class="note" style="margin-top:8px">Dropped by the critic (not backed by the evidence):</div>` + r.dropped.map(f => `<div class="find"><span class="dropped">${esc(f.claim)}</span> <span class="note">${esc(f.reason)}</span></div>`).join("") : "")
     + `<p><b>Recommendation:</b> ${esc(r.recommendation)}</p><div class="note">models ${esc(r.models.join(", "))} · ${r.execution_time_seconds}s · trace ${esc(r.log_file)}</div>`;
   $("askev").classList.remove("muted");
-  $("askev").innerHTML = r.evidence.map(e => e.type === "sql"
-    ? `<div class="ev"><b>${esc(e.id)} · SQL agent</b> <span class="note">${esc(e.task)}</span>${e.ok ? ` <span class="ok-t">${e.rows} rows, ${e.query_ms} ms</span>` : ` <span class="bad-t">${esc(e.error)}</span>`}<pre>${esc(e.sql || "")}</pre>${evTable(e)}</div>`
-    : `<div class="ev"><b>${esc(e.id)} · Log agent</b> <span class="note">${esc(e.task)}</span><pre>${esc(JSON.stringify(e.summary, null, 1))}</pre>${(e.refs || []).map(x => `<div class="note">${esc(x)}</div>`).join("")}</div>`).join("");
+  $("askev").innerHTML = r.evidence.map(evCard).join("");
 }
 async function ask(q) {
+  if (ASKING) return;  // one investigation at a time: a second click used to wipe the first one's steps
+  ASKING = "pending"; for (const b of document.querySelectorAll("#askform button, [data-ask]")) b.disabled = true;
+  $("askform").querySelector("button").textContent = "Investigating…";
   $("askq").value = q; $("asksteps").innerHTML = '<span class="muted">coordinator is splitting the question…</span>'; $("asksteps").classList.add("muted");
+  $("askev").innerHTML = 'Evidence appears here as each agent returns.'; $("askev").classList.add("muted");
   $("askout").innerHTML = '<span class="muted">investigating… (Nemotron calls can take up to a minute each)</span>';
-  const r = await fetch("/ask", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({question:q})});
-  if (!r.ok) alert((await r.json()).error);
+  try {
+    const r = await fetch("/ask", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({question:q})});
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || r.status);
+    if (ASKING === "pending") ASKING = out.ask_id || null;
+  } catch (e) { askIdle(); $("askout").innerHTML = `<span class="bad-t">Not started: ${esc(e.message)}</span>`; }
 }
 $("askform").onsubmit = e => { e.preventDefault(); if ($("askq").value.trim()) ask($("askq").value.trim()); };
 for (const b of document.querySelectorAll("[data-ask]")) b.onclick = () => ask(b.dataset.ask);

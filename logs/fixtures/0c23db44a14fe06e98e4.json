@@ -1,16 +1,16 @@
 {
  "kind": "json",
  "lane": "fast",
- "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
- "text": "{\"sql\":\"SELECT agv_id, CAST(ts AS DATE) AS incident_date, fault_code, COUNT(*) AS fault_event_count FROM sf_fleet.agv_telemetry WHERE fault_code IS NOT NULL GROUP BY agv_id, CAST(ts AS DATE), fault_code ORDER BY fault_event_count DESC LIMIT 20\",\"columns\":[\"agv_id\",\"incident_date\",\"fault_code\",\"fault_event_count\"],\"purpose\":\"Pinpoint when each AGV recorded telemetry faults by grouping fault events per AGV per date and fault code, ordered by frequency.\"}",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"sql\": \"SELECT agv_id, CAST(ts AS DATE) AS fault_date, fault_code, COUNT(*) AS fault_event_count FROM sf_fleet.agv_telemetry WHERE fault_code IS NOT NULL GROUP BY agv_id, CAST(ts AS DATE), fault_code ORDER BY fault_event_count DESC\", \"columns\": [\"agv_id\", \"fault_date\", \"fault_code\", \"fault_event_count\"], \"purpose\": \"Count AGV telemetry fault events by AGV, date, and fault code, ordered by highest frequency to pinpoint when faults occurred.\"}",
  "data": {
-  "sql": "SELECT agv_id, CAST(ts AS DATE) AS incident_date, fault_code, COUNT(*) AS fault_event_count FROM sf_fleet.agv_telemetry WHERE fault_code IS NOT NULL GROUP BY agv_id, CAST(ts AS DATE), fault_code ORDER BY fault_event_count DESC LIMIT 20",
+  "sql": "SELECT agv_id, CAST(ts AS DATE) AS fault_date, fault_code, COUNT(*) AS fault_event_count FROM sf_fleet.agv_telemetry WHERE fault_code IS NOT NULL GROUP BY agv_id, CAST(ts AS DATE), fault_code ORDER BY fault_event_count DESC",
   "columns": [
    "agv_id",
-   "incident_date",
+   "fault_date",
    "fault_code",
    "fault_event_count"
   ],
-  "purpose": "Pinpoint when each AGV recorded telemetry faults by grouping fault events per AGV per date and fault code, ordered by frequency."
+  "purpose": "Count AGV telemetry fault events by AGV, date, and fault code, ordered by highest frequency to pinpoint when faults occurred."
  }
 }

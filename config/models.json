@@ -95,7 +95,7 @@
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
       "budget_s": 180,
-      "max_tokens": 2000,
+      "max_tokens": 6000,
       "why": "Correlates evidence into cited findings: deep reasoning.",
       "app": "shopfloor-os"
     },
@@ -105,7 +105,7 @@
         "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "budget_s": 120,
-      "max_tokens": 1500,
+      "max_tokens": 4000,
       "why": "Checks the analyst's claims against the rows: Nemotron 3.5 Lightning, a different model from the analyst (Super VL), for an independent check. It can only drop claims, after the rule-based number check.",
       "app": "shopfloor-os-fast"
     },

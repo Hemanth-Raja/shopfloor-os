@@ -123,6 +123,12 @@ def rule_tasks(question: str) -> list[dict]:
     return tasks[:MAX_TASKS - 1] + [{"logs": True}]
 
 
+def question_keys(question: str) -> set[str]:
+    """Station, AGV, worker and machine ids named in the question, plus incident kinds."""
+    keys = {k.upper() for k in re.findall(r"\b(?:[btpmfe]\d0|agv-\d|w-\d\d|m-0\d)\b", question.lower())}
+    return keys | {w for w in ("part_shortage", "agv_fault", "overheat", "spill") if w.split("_")[0] in question.lower()}
+
+
 def tidy(v):
     """Round long floats (Zetaris returns some as strings) so the analyst copies short numbers."""
     if isinstance(v, str) and re.fullmatch(r"-?\d+\.\d{3,}", v):
@@ -148,8 +154,9 @@ def supported_numbers(evidence: list[dict]) -> list[float]:
 
 class Investigator:
     def __init__(self, run_sql: Callable, llm_json: Callable | None, on_step: Callable | None = None,
-                 ask_id: str | None = None, memory=None, sample: str = "false"):
+                 ask_id: str | None = None, memory=None, sample: str = "false", plant=None, sim=None):
         self.run_sql, self.llm_json, self.on_step = run_sql, llm_json, on_step
+        self.plant, self.sim = plant, sim  # the Meterless World Model of the plant, and the live floor
         self.question = ""
         self.ask_id = ask_id or f"ask-{int(time.time())}-{os.urandom(2).hex()}"
         self.memory = memory
@@ -266,8 +273,7 @@ class Investigator:
         return ev
 
     def _search_logs(self, question: str, n: int) -> dict:
-        keys = {k.upper() for k in re.findall(r"\b(?:[btpmfe]\d0|agv-\d|w-\d\d|m-0\d)\b", question.lower())}
-        keys |= {w for w in ("part_shortage", "agv_fault", "overheat", "spill") if w.split("_")[0] in question.lower()}
+        keys = question_keys(question)
         traces = sorted(LOGS.glob("trace-*.jsonl"), key=lambda p: p.stat().st_mtime)[-60:]
         decisions, rejections, replans, hits = {}, {}, 0, []
         for path in traces:
@@ -302,15 +308,70 @@ class Investigator:
                 latency += float(r.get("latency_s") or 0)
                 models.add(str(r.get("answering_model")))
         lessons = []
-        if self.memory is not None:
-            for m in sorted(self.memory.hmem.store.all(), key=lambda m: -m["confidence"])[:5]:
-                lessons.append(f"{m['content'][:120]} (confidence {m['confidence']:.2f}, source {m['source']})")
+        if self.memory is not None:  # H-MEM's hybrid retrieval: lessons about what was asked, not the most confident ones
+            hits_ = self.memory.hmem.query(question, top_n=5, threshold=0.05)["memories"]
+            for h in hits_:
+                m = h["memory"]
+                lessons.append(f"{m['content'][:120]} (relevance {h['relevance']:.2f}, confidence {m['confidence']:.2f}, "
+                               f"source {m['source']})")
         summary = {"incidents_matched_in_traces": sum(decisions.values()), "decisions": decisions,
                    "critic_rejections_by_rule": rejections, "verifier_replans": replans,
                    "nemotron_calls_recent": calls, "avg_latency_s": round(latency / calls, 1) if calls else None,
                    "models": sorted(models), "h_mem_lessons": lessons}
         return {"id": f"E{n}", "type": "logs", "task": "agent traces, model calls and H-MEM lessons",
                 "ok": True, "keys": sorted(keys), "summary": summary, "refs": hits}
+
+    # -- floor agent (no model): the Meterless World Model of the plant and the live simulation
+    def floor_task(self, question: str, n: int) -> dict | None:
+        fixture = FIXTURES / f"floor-{hashlib.sha256(question.strip().lower().encode()).hexdigest()[:20]}.json"
+        if self.sample == "true" and fixture.exists():
+            return {**json.loads(fixture.read_text()), "id": f"E{n}"}
+        ev = self._floor_facts(question, n)
+        if ev is not None and self.sample == "record":
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            fixture.write_text(json.dumps(ev, indent=1, default=str))
+        return ev
+
+    def _floor_facts(self, question: str, n: int) -> dict | None:
+        if self.plant is None:
+            return None
+        keys, q = question_keys(question), question.lower()
+        rows = []
+        for st in [k for k in keys if re.fullmatch(r"[BTPMFE]\d0", k)]:
+            e = self.plant.entity(f"station:plant:{st}")
+            if e is None:
+                continue
+            a = e["attrs"]
+            rows += [[st, "name", e.get("name")], [st, "zone", a.get("zone_id")], [st, "kitted", a.get("kitted")],
+                     [st, "line-side buffer (min)", a.get("buffer_min")]]
+            for m in self.plant.entities("machine"):
+                if m["attrs"].get("station_id") == st:
+                    rows.append([st, f"machine {m['id'].split(':')[-1]}", m["attrs"].get("kind")])
+            crew = [w for w in self.plant.entities("worker") if st in str(w["attrs"].get("stations", "")).split(",")]
+            for shift in sorted({w["attrs"].get("shift") for w in crew}):
+                rows.append([st, f"workers on shift {shift}", sum(w["attrs"].get("shift") == shift for w in crew)])
+            lapsed = [w["id"].split(":")[-1] for w in crew if any(not self.plant.cert_valid(w, c)
+                                                                 for c in w["attrs"].get("cert_expiry", {}))]
+            rows.append([st, "workers with a lapsed certificate", ", ".join(lapsed) or "none"])
+        agvs = [k for k in keys if k.startswith("AGV-")] or (
+            [a["id"].split(":")[-1] for a in self.plant.entities("agv")] if "agv" in q else [])
+        for agv in agvs:
+            e = self.plant.entity(f"agv:plant:{agv}")
+            if e is None:
+                continue
+            a = e["attrs"]
+            rows += [[agv, "faults in the last 90 days", a.get("faults_90d")],
+                     [agv, "battery health (%)", a.get("battery_health_pct")],
+                     [agv, "last service", a.get("last_service")], [agv, "service overdue", a.get("service_overdue")]]
+            live = self.sim.agents.get(f"agv:plant:{agv}") if self.sim is not None else None
+            if live is not None:
+                rows.append([agv, "status on the floor now", live.status])
+        if not rows:
+            return None
+        return {"id": f"E{n}", "type": "floor", "ok": True,
+                "task": "World Model and live floor: the stations and AGVs the question names",
+                "columns": ["entity", "fact", "value"], "preview": [[tidy(v) for v in r] for r in rows[:40]],
+                "rows": len(rows), "data_version": getattr(self.plant, "version", None)}
 
     # -- analyst
     def analyse(self, question: str, evidence: list[dict]) -> tuple[AnswerDraft, str]:
@@ -388,10 +449,16 @@ class Investigator:
             if task["kind"] == "sql":
                 ev = self.sql_task(task, n, [results[d] for d in sorted(deps[n]) if d in results])
                 self._step("sql", t, bool(ev.get("ok")), **{k: v for k, v in ev.items() if k != "ok"})
+            elif task["kind"] == "floor":
+                ev = task["ev"]
+                self._step("floor", t, True, **{k: v for k, v in ev.items() if k != "ok"})
             else:
                 ev = self.logs_task(question, n)
                 self._step("logs", t, True, **{k: v for k, v in ev.items() if k != "ok"})
             return ev
+        floor = self.floor_task(question, len(tasks) + 1)
+        if floor is not None:  # added by code, not by the coordinator: no model decides whether the floor is looked at
+            tasks = tasks + [{"kind": "floor", "ask": floor["task"], "ev": floor}]
         numbered = list(enumerate(tasks, 1))
         deps = {n: {int(d) for d in re.findall(r"\btasks?\s*#?(\d)", t["ask"], re.I) if 0 < int(d) < n}
                 for n, t in numbered}

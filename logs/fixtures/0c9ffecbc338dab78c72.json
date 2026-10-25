@@ -1,0 +1,42 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"F10 keeps stopping mainly because missing parts/AGV issues and nutrunner torque faults create repeated downtime, and andon missing-part events repeatedly stop the line.\", \"findings\": [{\"claim\": \"F10's largest incident downtime comes from part shortages: supplier_short (high severity) has 22 incidents, 459.0 downtime_min, 366 cars lost, and agv_down (medium) has 58 incidents, 171.9 downtime_min, 138 cars lost.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Torque faults are the next major cause: controller_fault (medium) has 36 incidents and 451.7 downtime_min, and torque_out_of_range (medium) has 37 incidents and 186.5 downtime_min.\", \"evidence\": [\"E1\"]}, {\"claim\": \"Andon data show missing_part causes the most stopped_line events, with 97 on shift A and 60 on shift B, while equipment has 66 stopped_line events on shift B.\", \"evidence\": [\"E2\"]}, {\"claim\": \"Machine telemetry for F10's M-06 nutrunner shows repeated failure=1 rows, including overstrain_failure=1 with torque as high as 76.6 Nm, indicating machine-driven stops.\", \"evidence\": [\"E3\"]}, {\"claim\": \"Floor context shows F10 is kitted with only a 9-minute line-side buffer and one worker per shift, with no lapsed certificates, so thin buffering rather than certification gaps exposes the line.\", \"evidence\": [\"E5\"]}], \"recommendation\": \"Prioritize supplier-short and AGV-down parts for F10 kitting so the 9-minute line-side buffer does not deplete, and immediately inspect/repair the M-06 torque controller and worn socket, re-auditing joints since the last good torque.\"}",
+ "data": {
+  "summary": "F10 keeps stopping mainly because missing parts/AGV issues and nutrunner torque faults create repeated downtime, and andon missing-part events repeatedly stop the line.",
+  "findings": [
+   {
+    "claim": "F10's largest incident downtime comes from part shortages: supplier_short (high severity) has 22 incidents, 459.0 downtime_min, 366 cars lost, and agv_down (medium) has 58 incidents, 171.9 downtime_min, 138 cars lost.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Torque faults are the next major cause: controller_fault (medium) has 36 incidents and 451.7 downtime_min, and torque_out_of_range (medium) has 37 incidents and 186.5 downtime_min.",
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "claim": "Andon data show missing_part causes the most stopped_line events, with 97 on shift A and 60 on shift B, while equipment has 66 stopped_line events on shift B.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "Machine telemetry for F10's M-06 nutrunner shows repeated failure=1 rows, including overstrain_failure=1 with torque as high as 76.6 Nm, indicating machine-driven stops.",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "Floor context shows F10 is kitted with only a 9-minute line-side buffer and one worker per shift, with no lapsed certificates, so thin buffering rather than certification gaps exposes the line.",
+    "evidence": [
+     "E5"
+    ]
+   }
+  ],
+  "recommendation": "Prioritize supplier-short and AGV-down parts for F10 kitting so the 9-minute line-side buffer does not deplete, and immediately inspect/repair the M-06 torque controller and worn socket, re-auditing joints since the last good torque."
+ }
+}

@@ -1,0 +1,55 @@
+{
+ "id": "E5",
+ "type": "floor",
+ "ok": true,
+ "task": "World Model and live floor: the stations and AGVs the question names",
+ "columns": [
+  "entity",
+  "fact",
+  "value"
+ ],
+ "preview": [
+  [
+   "F10",
+   "name",
+   "Wheels and tyres"
+  ],
+  [
+   "F10",
+   "zone",
+   "FINAL"
+  ],
+  [
+   "F10",
+   "kitted",
+   true
+  ],
+  [
+   "F10",
+   "line-side buffer (min)",
+   9
+  ],
+  [
+   "F10",
+   "machine M-06",
+   "nutrunner"
+  ],
+  [
+   "F10",
+   "workers on shift A",
+   1
+  ],
+  [
+   "F10",
+   "workers on shift B",
+   1
+  ],
+  [
+   "F10",
+   "workers with a lapsed certificate",
+   "none"
+  ]
+ ],
+ "rows": 8,
+ "data_version": "2ba0572a31b6"
+}

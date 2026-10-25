@@ -1,0 +1,43 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "text": "{\"summary\": \"AGV-3 is the least reliable AGV based on the highest fault count, aborted tasks, incident counts, telemetry faults, lowest battery health, and overdue service.\", \"findings\": [{\"claim\": \"AGV-3 is the least reliable AGV with 84 faults_90d, far above the next highest AGV-6 at 25, and it has the lowest battery_health_pct at 62 with last_service_date 2026-05-21.\", \"evidence\": [\"E1\", \"E6\"]}, {\"claim\": \"AGV-3 records the highest aborted_tasks, with 86 in shift A and 72 in shift B, more than any other AGV-shift combination.\", \"evidence\": [\"E2\"]}, {\"claim\": \"AGV-3 has the highest single-day incident_count of 9 on 2026-08-17 in shift A and dominates the incident list across multiple dates.\", \"evidence\": [\"E3\"]}, {\"claim\": \"AGV-3 telemetry faults concentrate in October 2026, including 49 E52_NAV_LOST events on 2026-10-14 and 46 E40_BATTERY_LOW events on 2026-10-12.\", \"evidence\": [\"E4\"]}, {\"claim\": \"AGV-3 is currently idle with service overdue true and the worst battery health of 62% among all AGVs.\", \"evidence\": [\"E6\"]}], \"recommendation\": \"Immediately pull AGV-3 from rotation for overdue service and battery and navigation fault repair, then revalidate it in shift A and B before returning it to production.\"}",
+ "data": {
+  "summary": "AGV-3 is the least reliable AGV based on the highest fault count, aborted tasks, incident counts, telemetry faults, lowest battery health, and overdue service.",
+  "findings": [
+   {
+    "claim": "AGV-3 is the least reliable AGV with 84 faults_90d, far above the next highest AGV-6 at 25, and it has the lowest battery_health_pct at 62 with last_service_date 2026-05-21.",
+    "evidence": [
+     "E1",
+     "E6"
+    ]
+   },
+   {
+    "claim": "AGV-3 records the highest aborted_tasks, with 86 in shift A and 72 in shift B, more than any other AGV-shift combination.",
+    "evidence": [
+     "E2"
+    ]
+   },
+   {
+    "claim": "AGV-3 has the highest single-day incident_count of 9 on 2026-08-17 in shift A and dominates the incident list across multiple dates.",
+    "evidence": [
+     "E3"
+    ]
+   },
+   {
+    "claim": "AGV-3 telemetry faults concentrate in October 2026, including 49 E52_NAV_LOST events on 2026-10-14 and 46 E40_BATTERY_LOW events on 2026-10-12.",
+    "evidence": [
+     "E4"
+    ]
+   },
+   {
+    "claim": "AGV-3 is currently idle with service overdue true and the worst battery health of 62% among all AGVs.",
+    "evidence": [
+     "E6"
+    ]
+   }
+  ],
+  "recommendation": "Immediately pull AGV-3 from rotation for overdue service and battery and navigation fault repair, then revalidate it in shift A and B before returning it to production."
+ }
+}

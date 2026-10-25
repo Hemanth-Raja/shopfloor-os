@@ -187,3 +187,27 @@ def test_evidence_critic_model_can_only_drop_claims():
     r = Investigator(lambda sql: [["F10", 2205.5], ["F30", 900.0]], llm, ask_id="ask-c").run("Why does F10 stop?")
     assert [f["claim"] for f in r["findings"]] == ["F10 lost 2205.5 minutes."]
     assert r["dropped"][0]["reason"].startswith("evidence critic model")
+
+
+# ---------------------------------------------------------------- more than SQL: the floor and H-MEM
+
+def test_floor_agent_adds_world_model_facts_for_what_the_question_names(tmp_logs):
+    from app.sim.offline import offline_plant
+    plant = offline_plant()
+    result = Investigator(offline_run_sql, None, ask_id="ask-f", plant=plant).run("Why does F10 keep stopping?")
+    floor = [e for e in result["evidence"] if e["type"] == "floor"]
+    assert len(floor) == 1 and floor[0]["ok"] and floor[0]["columns"] == ["entity", "fact", "value"]
+    facts = {(r[0], r[1]) for r in floor[0]["preview"]}
+    assert ("F10", "name") in facts and ("F10", "line-side buffer (min)") in facts
+    assert Investigator(offline_run_sql, None, plant=plant).floor_task("How many incidents last week?", 9) is None
+    agvs = Investigator(offline_run_sql, None, plant=plant).floor_task("Which AGV is least reliable?", 3)
+    assert {r[1] for r in agvs["preview"]} >= {"faults in the last 90 days", "battery health (%)"}
+
+
+def test_log_agent_ranks_h_mem_lessons_by_the_question(tmp_logs):
+    from app.engines.playbooks import PlaybookStore
+    store = PlaybookStore(path=None)
+    store.hmem.add("overheat at F20: robot cell entry needs lockout before anyone goes in", "SIM-1")
+    store.hmem.add("part_shortage at F10: the kit cart was late twice on shift B", "SIM-2")
+    ev = Investigator(offline_run_sql, None, memory=store).logs_task("Why does F10 run short of parts?", 1)
+    assert ev["summary"]["h_mem_lessons"] and "F10" in ev["summary"]["h_mem_lessons"][0]

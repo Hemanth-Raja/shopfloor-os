@@ -1,0 +1,215 @@
+{
+ "id": "E6",
+ "type": "floor",
+ "ok": true,
+ "task": "World Model and live floor: the stations and AGVs the question names",
+ "columns": [
+  "entity",
+  "fact",
+  "value"
+ ],
+ "preview": [
+  [
+   "AGV-1",
+   "faults in the last 90 days",
+   17
+  ],
+  [
+   "AGV-1",
+   "battery health (%)",
+   96
+  ],
+  [
+   "AGV-1",
+   "last service",
+   "2026-10-08"
+  ],
+  [
+   "AGV-1",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-1",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-2",
+   "faults in the last 90 days",
+   19
+  ],
+  [
+   "AGV-2",
+   "battery health (%)",
+   91
+  ],
+  [
+   "AGV-2",
+   "last service",
+   "2026-10-09"
+  ],
+  [
+   "AGV-2",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-2",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-3",
+   "faults in the last 90 days",
+   84
+  ],
+  [
+   "AGV-3",
+   "battery health (%)",
+   62
+  ],
+  [
+   "AGV-3",
+   "last service",
+   "2026-05-21"
+  ],
+  [
+   "AGV-3",
+   "service overdue",
+   true
+  ],
+  [
+   "AGV-3",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-4",
+   "faults in the last 90 days",
+   18
+  ],
+  [
+   "AGV-4",
+   "battery health (%)",
+   91
+  ],
+  [
+   "AGV-4",
+   "last service",
+   "2026-09-28"
+  ],
+  [
+   "AGV-4",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-4",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-5",
+   "faults in the last 90 days",
+   14
+  ],
+  [
+   "AGV-5",
+   "battery health (%)",
+   88
+  ],
+  [
+   "AGV-5",
+   "last service",
+   "2026-09-29"
+  ],
+  [
+   "AGV-5",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-5",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-6",
+   "faults in the last 90 days",
+   25
+  ],
+  [
+   "AGV-6",
+   "battery health (%)",
+   84
+  ],
+  [
+   "AGV-6",
+   "last service",
+   "2026-09-29"
+  ],
+  [
+   "AGV-6",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-6",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-7",
+   "faults in the last 90 days",
+   11
+  ],
+  [
+   "AGV-7",
+   "battery health (%)",
+   90
+  ],
+  [
+   "AGV-7",
+   "last service",
+   "2026-10-12"
+  ],
+  [
+   "AGV-7",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-7",
+   "status on the floor now",
+   "idle"
+  ],
+  [
+   "AGV-8",
+   "faults in the last 90 days",
+   12
+  ],
+  [
+   "AGV-8",
+   "battery health (%)",
+   91
+  ],
+  [
+   "AGV-8",
+   "last service",
+   "2026-09-28"
+  ],
+  [
+   "AGV-8",
+   "service overdue",
+   false
+  ],
+  [
+   "AGV-8",
+   "status on the floor now",
+   "idle"
+  ]
+ ],
+ "rows": 40,
+ "data_version": "2ba0572a31b6"
+}
