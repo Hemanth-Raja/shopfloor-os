@@ -8,3 +8,6 @@ logs/*.jsonl
 data/cache/
 data/memory/
 logs/health.json
+logs/eval-*.json
+logs/chaos-*.json
+logs/.logsync.json
