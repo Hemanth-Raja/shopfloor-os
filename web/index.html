@@ -93,6 +93,20 @@
   svg.fg text { fill:#e7eaee; font:600 12px system-ui; } svg.fg text.m { fill:#8b95a1; font:10px system-ui; }
   svg.fg .nd.o rect { fill:#1d1a33; stroke:#a78bfa; stroke-width:1.5; } svg.fg .pe { stroke:#2f3a46; stroke-width:1.2; stroke-dasharray:4 4; }
   svg.fg .ed { fill:none; stroke:#5aa9ff; stroke-width:1.6; opacity:.85; } svg.fg .ed.r { stroke:#a78bfa; }
+  svg.fg .nd.s rect.kb { stroke:none; } svg.fg rect.kb { stroke:none; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin:4px 0 8px; font-size:12px; color:var(--muted, #8b95a1); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .kchip { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:#0b0e12; }
+  .chips span { display:inline-block; margin:2px 4px 2px 0; padding:1px 7px; border:1px solid #2c3642; border-radius:9px; font-size:12px; cursor:pointer; }
+  .chips span.on { border-color:#5aa9ff; color:#cfe4ff; }
+  table.kvt td:first-child { color:#8b95a1; white-space:nowrap; vertical-align:top; padding-right:10px; }
+  table.kvt td { font-size:12px; word-break:break-word; } table.kvt pre { margin:0; max-height:160px; overflow:auto; }
+  dialog.pipe { width:min(1100px, 96vw); max-height:92vh; background:#0f1318; color:#e7eaee; border:1px solid #2c3642; border-radius:12px; padding:16px; }
+  dialog.pipe::backdrop { background:rgba(0,0,0,.6); }
+  dialog.pipe .cols { display:grid; grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); gap:14px; align-items:start; }
+  svg.fg.pg text { font-size:14px; } svg.fg.pg text.m { font-size:11px; }
+  @media (max-width: 820px) { dialog.pipe .cols { grid-template-columns: 1fr; } }
+  dialog.pipe .side { max-height:70vh; overflow:auto; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
   .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
   .node { position:relative; width:170px; min-height:96px; padding:9px 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); cursor:pointer; transition:all .25s; }
@@ -243,7 +257,10 @@
         <p class="note">An orchestrator agent picks the next agent at every hop. Arrows are numbered in the order taken; the
           list underneath gives the reason for each hop and who chose it: <b>Nemotron</b> (the router model), <b>rules</b>
           (the rule-based router) or <b>forced</b> (only one legal move). Code decides what is legal, so the critic, the dry run
-          and the human gate cannot be skipped. Click a node for everything it received and produced.</p>
+          and the human gate cannot be skipped. Click a node: where it can come from, its state, and its log for this incident.
+          Ask the floor and the Lab are separate teams; open their flows with the buttons.</p>
+        <div class="legend" id="flowlegend"></div>
+        <div class="row" style="margin-top:0"><button class="act" data-pipe="ask">Ask the floor: agent flow</button><button class="act" data-pipe="lab">Lab: agent flow</button></div>
         <div class="row" style="margin-top:0"><label class="note"><input type="checkbox" id="cmp"> compare with the previous incident</label>
           <span class="note" id="flowmode"></span></div>
         <div id="flowgraph"></div>
@@ -271,6 +288,7 @@
           <b>log agent</b> searches the agents' own traces, Nemotron calls and H-MEM lessons, the <b>analyst</b> correlates,
           and the <b>critic</b> drops any claim the returned rows don't back up.</p>
         <form class="ask" id="askform"><input id="askq" maxlength="400" placeholder="e.g. Which shift has the most part shortages at F30?" aria-label="Question"><button class="act primary" type="submit">Ask</button></form>
+        <div class="row" style="margin-top:6px"><button class="act" type="button" data-pipe="ask">How this works: agent flow</button></div>
         <div class="row">
           <button class="act" data-ask="Why does F10 keep stopping?">Why does F10 keep stopping?</button>
           <button class="act" data-ask="Which AGV is least reliable and when?">Which AGV is least reliable and when?</button>
@@ -292,7 +310,7 @@
       <h2>Lab level 2: test a policy on history</h2>
       <p class="note">Nemotron proposes one policy change. The incident history is re-scored with A* walking distances.
         20 seeded replays and a 2,000-sample bootstrap decide, with no LLM inside the replays.</p>
-      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button></div>
+      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button><button class="act" data-pipe="lab">How this works: agent flow</button></div>
       <div id="labout" class="muted">Not run yet.</div>
     </div>
     <div class="panel"><h2>Seeded replays (mean time to clear)</h2><div id="labreps" class="muted">—</div></div>
@@ -302,6 +320,12 @@
     <div class="panel"><h2>Evidence</h2><div id="labev" class="muted">The SQL and rows the experiment used.</div></div>
   </div>
 </section>
+
+<dialog class="pipe" id="pipedlg" aria-labelledby="pipetitle">
+  <div class="row" style="justify-content:space-between;margin:0 0 6px"><h2 id="pipetitle" style="margin:0">Agent flow</h2><button class="act" id="pipeclose">Close</button></div>
+  <p class="note" id="pipenote"></p><div class="legend" id="pipelegend"></div>
+  <div class="cols"><div id="pipegraph"></div><div class="side"><h2 id="pipedtitle">Details</h2><div id="pipedetail" class="muted">Click an agent.</div></div></div>
+</dialog>
 
 <section class="view" id="know">
   <div class="grid2">
@@ -421,6 +445,36 @@ const NODES = {reflex:[70,90,"Reflex"], monitor:[210,90,"Monitor"], investigator
   planner:[630,250,"Planner"], critic:[770,250,"Safety critic"], verifier:[210,410,"Verifier"], executor:[350,410,"Executor"],
   gate:[490,410,"Human gate"], restraint:[630,410,"Restraint"], dryrun:[770,410,"Dry run"], arbiter:[70,410,"Arbiter (leases)"]};
 const MODELLED = {monitor:1, planner:1};
+// what kind of agent each node is: one colour per kind, everywhere
+const KINDS = {nemo:["Nemotron via Nightshift", "#76b900"], engine:["Meterless engine", "#f0c674"], data:["Zetaris data", "#38bdf8"],
+  rules:["Rules / code (no model)", "#8b95a1"], person:["Person", "#f472b6"], orch:["Orchestrator", "#a78bfa"]};
+const KIND = {monitor:"nemo", planner:"nemo", refine:"nemo", memory:"engine", candidates:"engine", playbook:"engine",
+  investigator:"data", gate:"person", orchestrator:"orch"};
+const kindOf = k => KIND[k] || "rules";
+const legendHTML = kinds => kinds.map(k => `<span><i style="background:${KINDS[k][1]}"></i>${KINDS[k][0]}</span>`).join("")
+  + '<span><i style="background:#16241e;border:1px solid #2b6e50"></i>ran</span><span><i style="background:#2a1a1b;border:1px solid #7a3430"></i>failed</span><span><i style="background:#16263a;border:1px solid #5aa9ff"></i>running now</span>';
+const ROLE = {reflex:"stop the AGV at once when a person is at risk (no model, milliseconds)",
+  monitor:"classify the alarm: real or sensor noise (thresholds, Bosch vibration evidence; Nemotron writes the summary)",
+  memory:"recall H-MEM lessons and the playbook for this incident kind and station",
+  investigator:"look up history through Zetaris (guarded, read-only SQL) and the agents' own traces",
+  candidates:"rank qualified people and healthy AGVs from the Meterless World Model",
+  playbook:"build the plan from a proven H-MEM playbook (no model call)",
+  verify_plan:"the alarm is in doubt: send one qualified person to check first, no AGVs (no model call)",
+  planner:"anytime planner: an optimal-assignment plan at once (v1); Nemotron's plan (v2) in the background",
+  refine:"check Nemotron's plan (v2) with the critic and the dry run; swap it in only if it is safe and better",
+  critic:"deterministic OSHA/SOP rule check of the latest plan", dryrun:"60 s headless simulation of the latest plan",
+  restraint:"ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING from confidence, sensors and cost",
+  gate:"the human gate for the autonomy level", executor:"dispatch the people and AGVs",
+  verifier:"check the world changed as predicted", safe_mode:"Nightshift is down: rule-based plan and ESCALATE",
+  arbiter:"resource leases between incidents: who gets which person or AGV when two incidents want them",
+  orchestrator:"picks the next agent at every hop: code lists the legal moves, the Nemotron router chooses"};
+const flowHist = {};  // every visit of every agent this incident, for the log table
+function kvTable(d, skip = []) {
+  const rows = Object.entries(d || {}).filter(([k]) => !skip.includes(k));
+  if (!rows.length) return '<div class="note">nothing recorded</div>';
+  return `<table class="kvt">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v !== null && typeof v === "object"
+    ? `<pre>${esc(JSON.stringify(v, null, 1))}</pre>` : esc(String(v))}</td></tr>`).join("")}</table>`;
+}
 // every move the orchestrator's legality rules allow (app/dynamic.py legal()); drawn faintly, the route taken on top
 const POSSIBLE = [["reflex","monitor"],["monitor","memory"],["monitor","investigator"],["monitor","candidates"],
   ["memory","investigator"],["memory","candidates"],["investigator","candidates"],["candidates","planner"],
@@ -458,10 +512,11 @@ function graphSVG(path, last, rejects) {
   const nodes = Object.entries(NODES).map(([k, [x, y, name]]) => { const st = (last || {})[k];
     const cls = !visits[k] ? "" : st && !st.ok ? " f" : " v";
     const act = path.length && path[path.length - 1].agent === k ? " a" : "", sel = flowSel === k ? " s" : "";
-    const m = st ? modelOf(st) : "";
-    return `<g class="nd${cls}${act}${sel}" data-k="${k}"><rect x="${x-60}" y="${y-21}" width="120" height="42" rx="9"/>
-      <text x="${x}" y="${y-3}" text-anchor="middle">${esc(name)}${visits[k] > 1 ? " ×" + visits[k] : ""}</text>
-      <text class="m" x="${x}" y="${y+12}" text-anchor="middle">${esc(m ? m.slice(0, 26) : visits[k] ? "rules / code" : "")}</text></g>`; }).join("");
+    const m = st ? modelOf({detail: {...st.detail, route: undefined}}) : "";  // the agent's own model, not the router's
+    return `<g class="nd${cls}${act}${sel}" data-k="${k}"><title>${esc(KINDS[kindOf(k)][0])}: ${esc(ROLE[k] || "")}</title><rect x="${x-60}" y="${y-21}" width="120" height="42" rx="9"/>
+      <rect class="kb" x="${x-60}" y="${y-21}" width="6" height="42" rx="3" fill="${KINDS[kindOf(k)][1]}"/>
+      <text x="${x+3}" y="${y-3}" text-anchor="middle">${esc(name)}${visits[k] > 1 ? " ×" + visits[k] : ""}</text>
+      <text class="m" x="${x+3}" y="${y+12}" text-anchor="middle">${esc(m ? m.slice(0, 26) : KINDS[kindOf(k)][0].split(" (")[0])}</text></g>`; }).join("");
   const by = {nemotron:0, rules:0, forced:0, code:0};
   path.forEach(p => { const b = String(p.by || ""); const k = b.startsWith("nemotron") ? "nemotron" : b in by ? b : "rules"; by[k]++; });
   const orch = `<g class="nd o" data-k="orchestrator"><rect x="10" y="205" width="120" height="90" rx="10"/>
@@ -489,9 +544,10 @@ function flowRender() {
     $("hops2").innerHTML = hopsHTML(flowPrev.path, flowPrev.rejects); }
 }
 $("cmp").onchange = flowRender;
+$("flowlegend").innerHTML = legendHTML(["orch", "nemo", "engine", "data", "rules", "person"]);
 function flowReset(meta) {
   if (flowPath.length) flowPrev = {path: flowPath, last: {...flowLast}, rejects: flowRejects, meta: flowMeta};
-  for (const k in flowLast) delete flowLast[k]; flowSel = null; flowPath = []; flowRejects = []; flowMeta = meta || "";
+  for (const k in flowLast) delete flowLast[k]; for (const k in flowHist) delete flowHist[k]; flowSel = null; flowPath = []; flowRejects = []; flowMeta = meta || "";
   $("flowdetail").innerHTML = "Click an agent node."; $("flowdetail").classList.add("muted"); $("flowtitle").textContent = "Details";
   flowRender();
 }
@@ -500,6 +556,8 @@ function flowStep(st) {
   if (st.step === "router") { flowRejects.push({...d, hop: flowPath.length}); flowRender(); return; }
   if (!NODES[st.step]) return;
   flowLast[st.step] = st;
+  (flowHist[st.step] = flowHist[st.step] || []).push({...st, at: new Date().toLocaleTimeString(),
+    from: flowPath.length ? flowPath[flowPath.length - 1].agent : "(start)"});
   if (d.hop !== undefined) flowPath.push({hop: d.hop, agent: st.step, by: (d.route || {}).by || "", reason: (d.route || {}).reason || ""});
   else flowPath.push({hop: flowPath.length, agent: st.step, by: "linear", reason: "fixed pipeline order"});
   flowRender();
@@ -512,19 +570,113 @@ function flowShow(k) {
     $("flowdetail").innerHTML = "<p>The orchestrator (<code>app/dynamic.py</code>) decides the next agent at every hop. Code lists the moves that are legal right now, so the critic, the dry run and the human gate can never be skipped. When there is a real choice, the router model (Nemotron 3.5 Lightning via Nightshift) picks one and gives a reason; an illegal pick is rejected and the rule-based router decides. A forced move (one legal option) costs no model call.</p>"
       + (flowPath.length ? `<p>Last incident: ${flowPath.length} hops, listed under the graph with who chose each one.</p>` : "<p>Run an incident to see its route.</p>");
     return; }
-  const st = flowLast[k], name = NODES[k][2];
-  $("flowtitle").textContent = `${name}: details`;
-  if (!st) { $("flowdetail").innerHTML = "This agent did not run for this incident: the orchestrator chose another route."; return; }
-  const d = st.detail || {}, call = d.model_call;
-  const head = (call ? `<p><b>Model:</b> asked ${esc(call.requested || "-")}, answered by <b>${esc(call.answering || "-")}</b> · ${call.latency_s ?? "-"} s`
-      + (call.receipt ? ` · Nightshift receipt <code>${esc(call.receipt)}</code>` : "") + `</p>` : "")
-    + (d.route ? `<p><b>Why this agent:</b> ${esc(d.route.reason)} <span class="muted">(${esc(d.route.by)}, hop ${d.hop})</span></p>` : "")
-    + (k === "planner" ? `<p><b>What was sent to Nemotron:</b></p><pre>${esc(JSON.stringify(d.prompt || {}, null, 2))}</pre><p><b>What came back:</b></p>`
-       : `<p><b>${st.ok ? "ok" : "failed"}</b> · ${st.ms.toFixed(1)} ms · ${esc(narrate(st)[1])}</p>`);
-  const rest = Object.fromEntries(Object.entries(d).filter(([key]) => !["prompt", "route", "model_call"].includes(key)));
+  const st = flowLast[k], name = NODES[k][2], kd = KINDS[kindOf(k)], hist = flowHist[k] || [];
+  $("flowtitle").textContent = name;
+  const chip = x => `<span data-go="${x}" class="${(flowHist[x] || []).length ? "on" : ""}">${esc((NODES[x] || [0, 0, x])[2])}</span>`;
+  const ins = POSSIBLE.filter(([, b]) => b === k).map(([a]) => a), outs = POSSIBLE.filter(([a]) => a === k).map(([, b]) => b);
+  const d = st ? st.detail || {} : {}, call = d.model_call;
+  const state = !st ? '<span class="muted">not run for this incident: the orchestrator chose another route</span>'
+    : `<b class="${st.ok ? "ok-t" : "bad-t"}">${st.ok ? "ran ok" : "failed"}</b>${hist.length > 1 ? ` · ${hist.length} visits` : ""} · last took ${st.ms.toFixed(1)} ms`
+      + (flowPath.length && flowPath[flowPath.length - 1].agent === k ? ' · <span style="color:#5aa9ff">running now / last step</span>' : "")
+      + (call ? `<br>Model: asked ${esc(shortModel(call.requested) || "-")}, answered by <b>${esc(shortModel(call.answering) || "-")}</b> · ${call.latency_s ?? "-"} s${call.receipt ? ` · receipt <code>${esc(call.receipt)}</code>` : ""}` : "")
+      + `<br>${esc(narrate(st)[1])}`;
+  const log = hist.length ? `<table><tr><th>hop</th><th>time</th><th>came from</th><th>result</th><th>ms</th><th>chosen by</th><th>why</th></tr>${hist.map(h => {
+      const r = (h.detail || {}).route || {};
+      return `<tr><td>${h.detail && h.detail.hop !== undefined ? h.detail.hop : "-"}</td><td>${esc(h.at)}</td><td>${esc((NODES[h.from] || [0, 0, h.from])[2])}</td>
+        <td class="${h.ok ? "ok-t" : "bad-t"}">${h.ok ? "ok" : "failed"}</td><td>${h.ms.toFixed(0)}</td><td>${esc(r.by || "-")}</td><td>${esc(r.reason || "")}</td></tr>`; }).join("")}</table>`
+    : '<div class="note">No log lines for this agent yet.</div>';
   $("flowdetail").classList.remove("muted");
-  $("flowdetail").innerHTML = head + `<pre>${esc(JSON.stringify(rest, null, 2))}</pre>`;
+  $("flowdetail").innerHTML = `<p><span class="kchip" style="background:${kd[1]}">${esc(kd[0])}</span> ${esc(ROLE[k] || "")}</p>
+    <p><b>Can come from:</b> <span class="chips">${ins.map(chip).join("") || '<span class="muted">start of the incident</span>'}</span><br>
+       <b>Can go to:</b> <span class="chips">${outs.map(chip).join("") || '<span class="muted">end</span>'}</span>
+       <br><span class="note">Highlighted: ran for this incident. Click one to jump to it.</span></p>
+    <p><b>State:</b> ${state}</p>
+    <h2 style="margin-top:10px">Log for this incident</h2>${log}
+    ${st ? `<h2 style="margin-top:10px">Last output</h2>${k === "planner" && d.prompt ? `<p class="note">Sent to Nemotron:</p><pre>${esc(JSON.stringify(d.prompt, null, 2))}</pre>` : ""}${kvTable(d, ["prompt", "route", "model_call"])}` : ""}`;
+  for (const c of $("flowdetail").querySelectorAll("[data-go]")) c.onclick = () => flowShow(c.dataset.go);
 }
+// ---------------------------------------------------------------- Ask the floor and Lab: their own agent flows, in a pop-up
+const PIPES = {
+  ask: {title: "Ask the floor: agent flow",
+    note: "A fixed pipeline, no router: the coordinator splits the question, three kinds of agents gather evidence in parallel, the analyst answers and the critic drops any claim the evidence does not back. Read-only: nothing on the floor moves.",
+    nodes: {you:[70,60,"You ask","person","your question, 5 to 400 characters"],
+      coordinator:[230,60,"Coordinator","nemo","Nemotron splits the question into 1-4 sub-tasks over the table catalogue"],
+      sql:[390,20,"SQL agents","nemo","Nemotron writes one read-only SELECT per sub-task (one retry with the error)"],
+      guard:[550,20,"SQL guard","rules","code refuses anything but one whitelisted SELECT on sf_* tables, caps the rows"],
+      zetaris:[710,20,"Zetaris","data","runs the query across fleet, HR, plant and ops, on the agents' read-only login"],
+      logs:[390,100,"Log agent","engine","the agents' own traces and Nemotron calls, and H-MEM lessons ranked by the question"],
+      floor:[390,170,"Floor agent","engine","Meterless World Model facts and the live floor for the stations and AGVs named"],
+      analyst:[710,120,"Analyst","nemo","Nemotron correlates the evidence into at most 5 cited findings and one recommendation"],
+      critic:[710,200,"Critic","rules","code checks every number against the cited rows, then a second Nemotron model can only drop claims"],
+      answer:[550,200,"Answer","person","what you read: findings with evidence ids, dropped claims, the recommendation"]},
+    edges: [["you","coordinator"],["coordinator","sql"],["sql","guard"],["guard","zetaris"],["coordinator","logs"],["coordinator","floor"],
+      ["zetaris","analyst"],["logs","analyst"],["floor","analyst"],["analyst","critic"],["critic","answer"]],
+    steps: {coordinator:["coordinator"], sql:["sql"], guard:["sql"], zetaris:["sql"], logs:["logs"], floor:["floor"], analyst:["analyst"], critic:["critic"], answer:["result"]}},
+  lab: {title: "Lab: agent flow",
+    note: "One model call; everything after it is deterministic and seeded, so the result can be reproduced. A proposal is only saved when you press Save.",
+    nodes: {you:[70,60,"You run it","person","Run experiment"],
+      history:[230,60,"Incident history","data","one Zetaris query: incidents per kind and station, with clear times and walking distances"],
+      hypothesis:[390,60,"Hypothesis","nemo","Nemotron proposes one testable policy: an extra spill kit, or a pre-staged AGV (rule-based if the model is unavailable)"],
+      incidents:[550,60,"Past incidents","data","one Zetaris query: every real incident of that kind"],
+      rescore:[710,60,"Re-score","rules","A* walking distances on the floor grid, baseline vs policy, per incident (no model)"],
+      replays:[710,160,"20 replays","rules","seeded resamples with the same jitter in both arms (no model)"],
+      bootstrap:[550,160,"Bootstrap CI","rules","2,000 seeded resamples give the 95% confidence interval of the change"],
+      proposal:[390,160,"Proposal","person","significant results can be saved to sf_ops.experiments through Zetaris, status proposed"]},
+    edges: [["you","history"],["history","hypothesis"],["hypothesis","incidents"],["incidents","rescore"],["rescore","replays"],["replays","bootstrap"],["bootstrap","proposal"]],
+    steps: {history:["history"], hypothesis:["hypothesis"], incidents:["incidents"], rescore:["rescore"], replays:["replays"], bootstrap:["bootstrap"], proposal:["result"]}}};
+const pipeHist = {ask: [], lab: []}; let pipeOpen = null, pipeSel = null;
+function pipeRecord(which, step, rec) { pipeHist[which].push({step, at: new Date().toLocaleTimeString(), ...rec}); if (pipeOpen === which) pipeRender(); }
+function pipeRuns(which, k) { const want = PIPES[which].steps[k] || []; return pipeHist[which].filter(h => want.includes(h.step)); }
+function pipeRender() {
+  const P = PIPES[pipeOpen]; if (!P) return;
+  const W = 66, H = 22, pt = (A, B) => { const dx = B[0] - A[0], dy = B[1] - A[1]; const t = Math.min(dx ? W / Math.abs(dx) : 1e9, dy ? H / Math.abs(dy) : 1e9, 1); return [A[0] + dx * t, A[1] + dy * t]; };
+  const edges = P.edges.map(([a, b]) => { const A = P.nodes[a], B = P.nodes[b], s0 = pt(A, B), s1 = pt(B, A), ran = pipeRuns(pipeOpen, b).length;
+    return `<line class="${ran ? "ed" : "pe"}" x1="${s0[0]}" y1="${s0[1]}" x2="${s1[0]}" y2="${s1[1]}" marker-end="url(#${ran ? "pah" : "pah0"})"/>`; }).join("");
+  const nodes = Object.entries(P.nodes).map(([k, [x, y, name, kind]]) => { const runs = pipeRuns(pipeOpen, k), last = runs[runs.length - 1];
+    const cls = !runs.length ? "" : last.ok === false ? " f" : " v", sel = pipeSel === k ? " s" : "";
+    return `<g class="nd${cls}${sel}" data-k="${k}"><title>${esc(KINDS[kind][0])}</title><rect x="${x-66}" y="${y-22}" width="132" height="44" rx="9"/>
+      <rect class="kb" x="${x-66}" y="${y-22}" width="6" height="44" rx="3" fill="${KINDS[kind][1]}"/>
+      <text x="${x+3}" y="${y-3}" text-anchor="middle">${esc(name)}${runs.length > 1 ? " ×" + runs.length : ""}</text>
+      <text class="m" x="${x+3}" y="${y+12}" text-anchor="middle">${esc(runs.length ? (last.ok === false ? "failed" : "done") : KINDS[kind][0].split(" (")[0])}</text></g>`; }).join("");
+  $("pipegraph").innerHTML = `<svg class="fg pg" viewBox="0 -12 790 238" role="img" aria-label="${esc(P.title)}"><defs>
+    <marker id="pah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/></marker>
+    <marker id="pah0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4654"/></marker></defs>${edges}${nodes}</svg>`;
+  for (const n of $("pipegraph").querySelectorAll(".nd")) n.onclick = () => { pipeSel = n.dataset.k; pipeRender(); };
+  pipeDetail();
+}
+function pipeDetail() {
+  const P = PIPES[pipeOpen], k = pipeSel;
+  if (!k) { $("pipedtitle").textContent = "Details"; $("pipedetail").innerHTML = '<span class="muted">Click an agent: where its input comes from, its state, and its log for the last run.</span>'; return; }
+  const [, , name, kind, role] = P.nodes[k], runs = pipeRuns(pipeOpen, k), last = runs[runs.length - 1];
+  const chip = x => `<span data-go="${x}" class="${pipeRuns(pipeOpen, x).length ? "on" : ""}">${esc(P.nodes[x][2])}</span>`;
+  const ins = P.edges.filter(([, b]) => b === k).map(([a]) => a), outs = P.edges.filter(([a]) => a === k).map(([, b]) => b);
+  const summary = h => { const d = h.detail || {};
+    return h.step === "sql" ? `${d.id || ""} ${d.rows ?? "-"} rows${d.error ? " · " + d.error : ""}` : h.step === "result" ? (d.summary || d.status || "") 
+      : d.hypothesis || d.summary || (d.findings !== undefined ? d.findings + " findings" : "") || (d.kept !== undefined ? `kept ${d.kept}, dropped ${(d.dropped || []).length}` : "")
+      || (d.rows !== undefined ? d.rows + " rows" : "") || (d.effect_pct !== undefined ? `${d.effect_pct}% (${d.ci_low_pct}% to ${d.ci_high_pct}%)` : ""); };
+  const shown = k === "guard" ? (d => ({sql: d.sql, verdict: d.ok === false ? "refused or failed" : "allowed"}))
+    : k === "zetaris" ? (d => ({task: d.task, rows: d.rows, query_ms: d.query_ms, columns: d.columns, preview: (d.preview || []).slice(0, 5)}))
+    : (d => d);
+  $("pipedtitle").textContent = name;
+  $("pipedetail").classList.remove("muted");
+  $("pipedetail").innerHTML = `<p><span class="kchip" style="background:${KINDS[kind][1]}">${esc(KINDS[kind][0])}</span> ${esc(role)}</p>
+    <p><b>Input from:</b> <span class="chips">${ins.map(chip).join("") || '<span class="muted">you</span>'}</span><br>
+       <b>Output to:</b> <span class="chips">${outs.map(chip).join("") || '<span class="muted">end</span>'}</span></p>
+    <p><b>State:</b> ${!runs.length ? '<span class="muted">not run yet in this session: run one to fill the log</span>'
+      : `<b class="${last.ok === false ? "bad-t" : "ok-t"}">${last.ok === false ? "failed" : "done"}</b>${runs.length > 1 ? ` · ${runs.length} runs` : ""}${last.ms !== undefined ? ` · ${(last.ms / 1000).toFixed(1)} s` : ""}`}</p>
+    <h2 style="margin-top:10px">Log for the last run</h2>${runs.length ? `<table><tr><th>time</th><th>result</th><th>s</th><th>what</th></tr>${runs.map(h =>
+      `<tr><td>${esc(h.at)}</td><td class="${h.ok === false ? "bad-t" : "ok-t"}">${h.ok === false ? "failed" : "ok"}</td><td>${h.ms !== undefined ? (h.ms / 1000).toFixed(1) : "-"}</td><td>${esc(String(summary(h)).slice(0, 160))}</td></tr>`).join("")}</table>` : '<div class="note">No log lines yet.</div>'}
+    ${last ? `<h2 style="margin-top:10px">Last output</h2>${kvTable(shown(last.detail || {}), ["model_call"])}${(last.detail || {}).model_call ? `<p class="note">Model: ${esc(shortModel(last.detail.model_call.answering))} · ${last.detail.model_call.latency_s ?? "-"} s${last.detail.model_call.receipt ? " · receipt " + esc(last.detail.model_call.receipt) : ""}</p>` : ""}` : ""}`;
+  for (const c of $("pipedetail").querySelectorAll("[data-go]")) c.onclick = () => { pipeSel = c.dataset.go; pipeRender(); };
+}
+function openPipe(which) {
+  pipeOpen = which; pipeSel = null; $("pipetitle").textContent = PIPES[which].title; $("pipenote").textContent = PIPES[which].note;
+  $("pipelegend").innerHTML = legendHTML(["nemo", "engine", "data", "rules", "person"]); pipeRender();
+  if (!$("pipedlg").open) $("pipedlg").showModal();
+}
+for (const b of document.querySelectorAll("[data-pipe]")) b.onclick = () => openPipe(b.dataset.pipe);
+$("pipeclose").onclick = () => { $("pipedlg").close(); pipeOpen = null; };
+$("pipedlg").addEventListener("close", () => { pipeOpen = null; });
 async function modelsPanel() {
   try {
     const rows = await (await fetch("/api/models")).json();
@@ -701,6 +853,7 @@ function askStep(st) {
   else if (st.step === "analyst") txt = `${d.model}: ${d.findings} findings`;
   else if (st.step === "critic") txt = `kept ${d.kept}, dropped ${(d.dropped || []).length}`;
   if (ASKING && ASKING !== "pending" && st.ask_id && st.ask_id !== ASKING) return;
+  pipeRecord("ask", st.step, {ok: st.ok, ms: st.ms, detail: st.detail});
   if ($("asksteps").classList.contains("muted")) { $("asksteps").classList.remove("muted"); $("asksteps").innerHTML = ""; }
   if (["sql", "logs", "floor"].includes(st.step)) {  // evidence shows as each agent returns, before the analyst reads it
     if ($("askev").classList.contains("muted")) { $("askev").classList.remove("muted"); $("askev").innerHTML = ""; }
@@ -731,6 +884,8 @@ function showAsk(r) {
   if (!r || !r.question) return;
   if (ASKING && ASKING !== "pending" && r.ask_id && r.ask_id !== ASKING) return;
   askIdle();
+  if (pipeHist.ask.length && !pipeHist.ask.some(h => h.step === "result"))
+    pipeRecord("ask", "result", {ok: true, detail: {summary: r.summary, findings: r.findings.length, dropped: r.dropped.length, recommendation: r.recommendation, trace: r.log_file}});
   $("askout").classList.remove("muted");
   $("askout").innerHTML = `<div class="muted">Q: ${esc(r.question)}</div><p style="font-size:15px">${esc(r.summary)}</p>`
     + r.findings.map(f => `<div class="find">• ${esc(f.claim)} <span class="eid">[${f.evidence.map(esc).join(", ")}]</span></div>`).join("")
@@ -741,6 +896,7 @@ function showAsk(r) {
 }
 async function ask(q) {
   if (ASKING) return;  // one investigation at a time: a second click used to wipe the first one's steps
+  pipeHist.ask = []; if (pipeOpen === "ask") pipeRender();
   ASKING = "pending"; for (const b of document.querySelectorAll("#askform button, [data-ask]")) b.disabled = true;
   $("askform").querySelector("button").textContent = "Investigating…";
   $("askq").value = q; $("asksteps").innerHTML = '<span class="muted">coordinator is splitting the question…</span>'; $("asksteps").classList.add("muted");
@@ -810,7 +966,7 @@ fetch("/api/shift").then(r => r.json()).then(showShift);
 function labBusy(on) { $("labrun").disabled = on; $("labrun").textContent = on ? "Running…" : "Run experiment"; }
 $("labrun").onclick = async () => {
   if ($("labrun").disabled) return;
-  labBusy(true); $("labwrite").disabled = true;
+  labBusy(true); $("labwrite").disabled = true; pipeHist.lab = []; if (pipeOpen === "lab") pipeRender();
   $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>';
   $("labsteps").innerHTML = '<span class="muted">reading the incident history from Zetaris…</span>'; $("labsteps").classList.add("muted");
   $("labev").innerHTML = ""; $("labev").classList.add("muted"); $("labreps").innerHTML = "—";
@@ -827,6 +983,7 @@ const LAB_WHO = {history:"Zetaris: incident history", hypothesis:"Nemotron: hypo
                  rescore:"Re-score (A*, no LLM)", replays:"20 seeded replays", bootstrap:"Bootstrap 95% CI"};
 function labStep(st) {
   const d = st.detail || {}; let txt = "";
+  pipeRecord("lab", st.step, {ok: true, ms: st.ms, detail: d});
   if (st.step === "history") txt = `${d.rows} station and kind summaries`;
   else if (st.step === "hypothesis") txt = d.source === "nemotron"
     ? `${esc(String(d.model || "nemotron").split("/").pop())}: ${esc(d.hypothesis)} (expects ${d.expected_effect_pct}%)${d.receipt ? ` · receipt ${esc(d.receipt)}` : ""}`
@@ -846,6 +1003,8 @@ es.addEventListener("lab_step", e => labStep(JSON.parse(e.data)));
 function showLab(r) {
   labBusy(false);
   if (r.error) { $("labout").innerHTML = `<span class="bad-t">${esc(r.error)}</span>`; return; }
+  if (pipeHist.lab.length && !pipeHist.lab.some(h => h.step === "result"))
+    pipeRecord("lab", "result", {ok: true, detail: {status: r.status, significant: r.significant, effect_pct: r.effect_pct, trace: r.trace}});
   const h = r.hypothesis, lo = r.ci_low_pct, hi = r.ci_high_pct, pt = r.effect_pct;
   const span = Math.max(10, Math.abs(lo), Math.abs(hi)) * 1.3, pos = v => 50 + 50 * v / span;
   $("labout").innerHTML = `
