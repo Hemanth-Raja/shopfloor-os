@@ -28,6 +28,7 @@ from app.engines.world_model import WorldModel, canonical_json, iso, sha256_hex
 LOG_PATH = Path(__file__).resolve().parents[2] / "logs" / "world_model.jsonl"
 SYSTEM = "plant"
 AGV_SERVICE_DAYS = 28
+LAST_SOURCE = "sources"  # "usl" when the last zone query ran on the Unified Semantic Layer
 
 ZONE_SQL = """
 SELECT i.incident_id, i.ts, i.shift_code, i.kind, i.cause, i.zone_id, i.station_id, s.name AS station_name,
@@ -55,8 +56,17 @@ ZONE_COLUMNS = ["incident_id", "ts", "shift_code", "kind", "cause", "zone_id", "
 REPAIR_KINDS = ("robot_cell_fault", "machine_overheat")
 
 
-def zone_query(zone: str, limit: int = 8) -> str:
-    return ZONE_SQL.format(zone=zone, limit=int(limit))
+def zone_query(zone: str, limit: int = 8, semantic: bool = False) -> str:
+    """semantic=True reads the same rows through the Unified Semantic Layer (app/usl.py) instead of the raw sources."""
+    sql = ZONE_SQL.format(zone=zone, limit=int(limit))
+    if semantic:
+        from app.usl import PREFIX
+        for raw, table in (("sf_ops.incidents", "incident"), ("sf_plant.stations", "station"),
+                           ("sf_plant.machines", "machine"), ("sf_hr.workers", "worker"),
+                           ("sf_hr.certifications", "certification"), ("sf_fleet.agvs", "agv"),
+                           ("sf_plant.vibration_samples", "vibration_sample")):
+            sql = sql.replace(f"{raw} ", f"{PREFIX}.{table} ")
+    return sql
 
 
 def rows_to_dicts(rows: list[list[Any]]) -> list[dict]:
@@ -207,7 +217,7 @@ def log_step(step: str, zone: str, world: WorldModel, payload: dict, latency_s: 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     record = {"ts": datetime.now().astimezone().isoformat(), "agent": "world-model", "step": step, "zone": zone,
               "entities": payload.get("counts"), "events": len(world.events()), "audit": len(world.audit()),
-              "state_hash": sha256_hex(world.state_shape_canonical())[:16],
+              "state_hash": sha256_hex(world.state_shape_canonical())[:16], "data_layer": LAST_SOURCE,
               "latency_s": round(latency_s, 4)}
     with LOG_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record) + "\n")
@@ -215,8 +225,12 @@ def log_step(step: str, zone: str, world: WorldModel, payload: dict, latency_s: 
 
 def zone_world(zone: str, run_sql, limit: int = 8) -> tuple[WorldModel, dict, list[dict], float]:
     """The feature entry point: one Zetaris query -> world model -> context payload."""
+    global LAST_SOURCE
     started = time.perf_counter()
-    rows = rows_to_dicts(run_sql(zone_query(zone, limit)))
+    try:  # the semantic layer first; the raw federated query if it is not deployed or not reachable
+        rows, LAST_SOURCE = rows_to_dicts(run_sql(zone_query(zone, limit, semantic=True))), "usl"
+    except Exception:  # noqa: BLE001
+        rows, LAST_SOURCE = rows_to_dicts(run_sql(zone_query(zone, limit))), "sources"
     query_s = time.perf_counter() - started
     world = build_world(rows, zone)
     payload = build_context(world, zone)
