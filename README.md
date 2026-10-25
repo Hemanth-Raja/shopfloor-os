@@ -16,6 +16,7 @@ whatever is risky.
 [![Meterless](https://img.shields.io/badge/Meterless%20engines-World%20Model%20%C2%B7%20H--MEM%20%C2%B7%20Markovian-5b3fa8)](#sponsor-technology)
 [![Zetaris](https://img.shields.io/badge/data-Zetaris%20USL-2b4c7e)](#zetaris-the-data-layer)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
+[![Data](https://img.shields.io/badge/data-CC%20BY%204.0%20%C2%B7%20ODC--By%20%C2%B7%20public%20domain-555)](DATA_LICENSE.md)
 
 **[Replay site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Evaluation](docs/eval.md)** ·
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
@@ -598,7 +599,7 @@ The shift handover ([`app/handover.py`](app/handover.py)) runs on a Python port 
 
 No open dataset of car-plant operations (AGVs, andon, downtime) was found under an open licence, so these parts are simulated. Each one is shaped by the real data below.
 
-**Real data used.** The summaries are stored in [`data/seed/`](data/seed) and committed. If a file is missing, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which source was used.
+**Real data used.** The summaries are stored in [`data/seed/`](data/seed) and committed; licences per file are in [DATA_LICENSE.md](DATA_LICENSE.md). If a file is missing, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which source was used.
 
 | Source | Used for | Licence and credit |
 |---|---|---|
@@ -797,5 +798,7 @@ documentation only), and the public datasets listed above.
 | Poojitha Katta | [@Poojitha-Katta](https://github.com/Poojitha-Katta) |
 
 ## License
-Apache-2.0, see [LICENSE](LICENSE). The Meterless engine ports follow the Apache-2.0 Meterless specs, and the data
-sources keep their own licences (see *What is real and what is synthetic*).
+- **Code:** Apache-2.0, see [LICENSE](LICENSE). The Meterless engine ports follow the Apache-2.0 Meterless specs.
+- **Data:** see [DATA_LICENSE.md](DATA_LICENSE.md). The synthetic plant data is ours and Apache-2.0; the public
+  sources in [`data/seed/`](data/seed) keep their own licences (CC BY 4.0, ODC-By or U.S. public domain), with the
+  attribution each one requires.
