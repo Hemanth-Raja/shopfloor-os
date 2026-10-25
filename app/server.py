@@ -32,6 +32,7 @@ import os
 import queue
 import threading
 import time
+import urllib.parse
 from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -102,6 +103,7 @@ class App:
         self.memory = PlaybookStore(path=None) if replay else PlaybookStore()
         self.mode = "dynamic"  # or "linear" (POST /run {"mode": "linear"}) for comparison
         self.traces: dict[str, object] = {}
+        self.trace_meta: dict[str, dict] = {}  # incident id -> {source, finished_at}, for the Incidents table
         self.last_lab: dict | None = None
         self.last_ask: dict | None = None
         self.asking = False
@@ -299,6 +301,7 @@ class App:
             with whole_run:
                 trace = orch.handle(inc, stall=stall)
             self.traces[inc.id] = trace
+            self.trace_meta[inc.id] = {"source": "you ran it", "finished_at": datetime.now().astimezone().isoformat()}
             self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
                                           "plan": trace.plan.model_dump() if trace.plan else None,
                                           "critic_rejections": trace.critic_rejections, "replans": trace.replans,
@@ -351,6 +354,8 @@ class App:
             original(trace, result)
             if trace is not None:
                 self.traces[trace.incident.id] = trace
+                self.trace_meta[trace.incident.id] = {"source": "autopilot shift",
+                                                      "finished_at": datetime.now().astimezone().isoformat()}
 
         self.shift.dispatcher.on_done = done
         self.bus.publish("shift_event", {"kind": "shift_started", "minutes": minutes, "seed": seed,
@@ -419,6 +424,32 @@ class App:
                 "safe_mode": trace.safe_mode, "critic_rejections": trace.critic_rejections, "replans": trace.replans,
                 "mode": trace.mode, "from_shift": self.shift is not None and any(
                     r["incident"] == incident_id for r in self.shift.dispatcher.done)}
+
+    def incidents(self) -> list[dict]:
+        """Every incident this server has handled, newest first: one row each for the Incidents table."""
+        out = []
+        for iid, t in self.traces.items():
+            calls = [st.detail.get("model_call") for st in t.steps if isinstance(st.detail.get("model_call"), dict)]
+            calls += [st.detail.get("route", {}).get("model_call") for st in t.steps
+                      if isinstance(st.detail.get("route", {}).get("model_call"), dict)]
+            meta = self.trace_meta.get(iid, {})
+            out.append({"incident": iid, "kind": t.incident.kind, "station": t.incident.station_id or t.incident.zone_id,
+                        "severity": t.incident.severity, "source": meta.get("source", "-"),
+                        "finished_at": meta.get("finished_at"), "decision": t.decision.decision if t.decision else None,
+                        "gate": t.gate, "steps": len(t.steps), "hops": len(t.path), "model_calls": len(calls),
+                        "ms": round(sum(st.ms for st in t.steps)), "safe_mode": t.safe_mode,
+                        "critic_rejections": t.critic_rejections})
+        return sorted(out, key=lambda r: r["finished_at"] or "", reverse=True)
+
+    def incident_history(self, incident_id: str) -> dict:
+        """Everything that happened in one incident: the trace (every agent step with who chose it, its model call and
+        output), the decision and gate, and every human or timeout action on it from the audit trail."""
+        out = self.trace_of(incident_id)
+        since = self.trace_meta.get(incident_id, {}).get("finished_at", "")
+        since = since[:19] if since else ""
+        actions = [ev["data"] for ev in self.audit.events() if ev.get("kind") == "approval"
+                   and (ev.get("data") or {}).get("incident") == incident_id and ev.get("ts", "")[:19] >= since[:17]]
+        return {**out, "meta": self.trace_meta.get(incident_id, {}), "human_actions": actions}
 
     def approve(self, req: dict) -> dict:
         """The human gate. Waiting/advisory plans run only on Approve; an auto-executed plan can be rejected,
@@ -664,6 +695,13 @@ def make_handler(app: App):
                 return self._send(200, powered(sample_mode=app.replay))
             if self.path == "/api/shift":
                 return self._send(200, app.shift_state())
+            if self.path == "/api/incidents":
+                return self._send(200, app.incidents())
+            if self.path.startswith("/api/incident/"):
+                try:
+                    return self._send(200, app.incident_history(urllib.parse.unquote(self.path.split("/api/incident/", 1)[1])))
+                except KeyError:
+                    return self._send(404, {"error": "unknown incident"})
             if self.path.startswith("/api/trace/"):
                 try:
                     return self._send(200, app.trace_of(self.path.rsplit("/", 1)[-1]))
