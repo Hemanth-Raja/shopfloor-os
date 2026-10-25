@@ -122,3 +122,21 @@ def test_plant_refresh_swaps_the_snapshot_and_keeps_the_last_good_one_on_failure
     monkeypatch.setattr(pw, "load_plant_world", down)
     out = app.refresh_plant()
     assert not out["ok"] and app.plant is fresh and app.health()["plant"]["stale"]
+
+
+def test_replay_runs_with_a_repeated_id_are_all_listed_and_each_has_a_history(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    import time
+    from app import server
+    app = server.App(offline=True, replay=True)
+    for kind, station in (("part_shortage", "F30"), ("spill", "F20")):
+        iid = app.run({"kind": kind, "station": station})
+        for _ in range(200):
+            if not app.busy and iid in app.traces and app.traces[iid].incident.kind == kind:
+                break
+            time.sleep(0.05)
+    rows = app.incidents()
+    assert sorted(r["kind"] for r in rows) == ["part_shortage", "spill"]
+    assert {r["incident"] for r in rows} == {iid, f"{iid} (run 1)"}
+    old = app.incident_history(f"{iid} (run 1)")
+    assert old["incident"]["kind"] == "part_shortage" and old["steps"] and old["human_actions"] == []

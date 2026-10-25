@@ -300,6 +300,10 @@ class App:
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
             with whole_run:
                 trace = orch.handle(inc, stall=stall)
+            if inc.id in self.traces:  # replay rebuilds the sim, so ids repeat: keep the earlier run under its own key
+                n = 1 + sum(k.startswith(inc.id + " (run ") for k in self.traces)
+                self.traces[f"{inc.id} (run {n})"] = self.traces.pop(inc.id)
+                self.trace_meta[f"{inc.id} (run {n})"] = self.trace_meta.pop(inc.id, {})
             self.traces[inc.id] = trace
             self.trace_meta[inc.id] = {"source": "you ran it", "finished_at": datetime.now().astimezone().isoformat()}
             self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
@@ -704,7 +708,7 @@ def make_handler(app: App):
                     return self._send(404, {"error": "unknown incident"})
             if self.path.startswith("/api/trace/"):
                 try:
-                    return self._send(200, app.trace_of(self.path.rsplit("/", 1)[-1]))
+                    return self._send(200, app.trace_of(urllib.parse.unquote(self.path.split("/api/trace/", 1)[1])))
                 except KeyError as err:
                     return self._send(404, {"error": str(err)})
             if self.path == "/api/models":

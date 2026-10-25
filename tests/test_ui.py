@@ -42,3 +42,16 @@ def test_watch_describes_steps_in_plain_english():
     line = describe_step({"step": "critic", "ok": False, "detail": {"violations": [
         {"rule_id": "R-CROSSING", "detail": "AGV-5 too fast", "cfr_ref": "x", "citations": [{"ref": "29 CFR 1910.178(n)(4)"}]}]}})
     assert line.startswith("REJECTED") and "29 CFR 1910.178(n)(4)" in line
+
+
+def test_incidents_tab_lists_incidents_and_shows_one_history():
+    assert 'data-view="incs"' in HTML and 'id="incrows"' in HTML and 'id="incdetail"' in HTML
+    assert "/api/incidents" in HTML and '"/api/incident/"' in HTML and "async function incShow(" in HTML
+    body = HTML.split("async function incShow(")[1].split("es.addEventListener")[0]
+    assert 'innerHTML = "loading…"' in body.split("await fetch")[0]  # the click shows at once, before the fetch
+    assert "human_actions" in body and "openIncident(id)" in body
+
+
+def test_flow_compare_is_hidden_until_a_previous_incident_exists():
+    assert 'id="cmplabel" style="display:none"' in HTML
+    assert '$("cmplabel").style.display = flowPrev ?' in HTML
