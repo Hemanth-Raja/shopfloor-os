@@ -144,3 +144,12 @@ def test_self_check_builds_the_effective_registry_and_flags_drift(monkeypatch):
     for _ in range(4):
         models.note_answer(svl, svl)
     assert models.pin_report()["pins"][svl]["live_drift_rate"] == 0.0
+
+
+def test_reasoning_level_per_role_maps_to_nemotron_chat_template_kwargs():
+    from app.models import reasoning_kwargs
+    lightning, superv = "nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3.5-super-vl-120b-a12b"
+    assert reasoning_kwargs(lightning, "off") == {"enable_thinking": False}
+    assert reasoning_kwargs(superv, "medium") == {"enable_thinking": True, "medium_effort": True}
+    assert reasoning_kwargs(lightning, "medium") is None  # Lightning has no medium level: Nightshift answered 502
+    assert reasoning_kwargs(superv, None) is None and reasoning_kwargs(superv, "on") is None

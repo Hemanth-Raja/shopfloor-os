@@ -97,7 +97,7 @@ def test_sql_agent_retries_once_with_the_error_and_the_critic_checks_numbers(tmp
     assert [f["claim"] for f in result["findings"]] == ["F10 lost 2205.5 minutes of downtime."]
     assert {d["claim"] for d in result["dropped"]} == {"F10 lost 9999 minutes.", "Shortages caused it."}
     steps = [json.loads(x)["step"] for x in (tmp_logs / "trace-ask-t.jsonl").read_text().splitlines()]
-    assert steps[0] == "coordinator" and sorted(steps[1:3]) == ["logs", "sql"] and steps[3:] == ["analyst", "critic"]
+    assert steps[:2] == ["intake", "coordinator"] and sorted(steps[2:4]) == ["logs", "sql"] and steps[4:] == ["analyst", "critic"]
 
 
 def test_zetaris_error_is_fed_back_for_one_retry():
@@ -132,9 +132,10 @@ def test_unsupported_kind_is_fenced_and_escalated(monkeypatch):
     assert out["output"]["decision"] == "ESCALATE"
 
 
-def test_server_ask_and_custom_run(monkeypatch):
+def test_server_ask_and_custom_run(monkeypatch, tmp_path):
     monkeypatch.setenv("SAMPLE_MODE", "true")
     from app import server
+    monkeypatch.setattr(server, "LOGS", tmp_path)  # the ask history file goes here, not into logs/
     app = server.App(offline=True, replay=True)
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(app))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -153,6 +154,9 @@ def test_server_ask_and_custom_run(monkeypatch):
                 break
             time.sleep(0.05)
         assert app.last_ask["evidence"] and json.load(urllib.request.urlopen(base + "/api/ask_last"))["question"]
+        asks = json.load(urllib.request.urlopen(base + "/api/asks"))
+        assert asks[0]["question"] == "Are overheat alarms real?" and asks[0]["asked_at"]
+        assert json.load(urllib.request.urlopen(base + "/api/ask/" + asks[0]["ask_id"]))["evidence"]
     finally:
         httpd.shutdown()
 

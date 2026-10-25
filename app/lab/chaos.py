@@ -27,6 +27,7 @@ from app.llm import LLMUnavailable
 
 ROOT = Path(__file__).resolve().parents[2]
 SUPER, LIGHT = "nvidia/nemotron-3.5-super-vl-120b-a12b", "nvidia/nemotron-3.5-lightning-30b-a3b"
+ULTRA = "nvidia/nemotron-3-ultra-550b-a55b"
 
 
 class FakeNightshift:
@@ -101,18 +102,22 @@ def fake_world(nightshift: FakeNightshift, budget_s: float = 2.0, calls_per_hour
     for spec in models.CFG["roles"].values():
         spec["budget_s"] = budget_s
     models.BREAKERS.clear(), models.LIMITERS.clear(), models.EFFECTIVE.clear()
+    if ULTRA not in nightshift.profile:  # as live: no Nightshift lane for shopfloor-os-ultra, so the self-check skips it
+        models.EFFECTIVE[ULTRA] = {"ok": False, "answers_as": None, "error": "not served (chaos default)"}
     models.LATENCY.__init__()
     for b in runtime.BREAKERS.values():
         b.failures, b.opened_at, b._probing = 0, None, False
+    runtime.ROLE_BREAKERS.clear()
     try:
         yield
     finally:
         models._complete, models.SLEEP, models.receipt_for = saved["complete"], saved["sleep"], saved["receipt"]
         models.BUDGET = saved["budget"]
         models.CFG["roles"] = saved["roles"]
-        models.BREAKERS.clear(), models.LIMITERS.clear()
+        models.BREAKERS.clear(), models.LIMITERS.clear(), models.EFFECTIVE.clear()
         for b in runtime.BREAKERS.values():
             b.failures, b.opened_at, b._probing = 0, None, False
+        runtime.ROLE_BREAKERS.clear()
 
 
 def run_incident(kind="part_shortage", station="F30", run_sql=None, seed=5, autonomy="auto", **inject):

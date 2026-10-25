@@ -165,3 +165,46 @@ def test_the_call_budget_paces_sheds_low_value_calls_first_and_refills(monkeypat
     clock[0] = 900.0  # a quarter hour later the bucket is full again
     budget.admit("monitor")
     assert getattr(models.BudgetExhausted("x"), "not_a_failure", False)  # breakers do not count pacing
+
+
+def test_one_role_failing_does_not_cut_off_the_others(monkeypatch):
+    """Two failed planner calls used to open one Nightshift-wide breaker: router, Ask and Lab then all fell to rules."""
+    from app import runtime
+    from app.llm import LLMUnavailable
+    runtime.ROLE_BREAKERS.clear()
+    calls = []
+
+    def fake(lane, messages, schema=None, role=None, **kw):
+        calls.append(role)
+        if role == "planner":
+            raise LLMUnavailable("every model for role planner failed")
+        return "ok"
+    guarded = runtime._per_role(fake)
+    for _ in range(3):
+        try:
+            guarded("deep", [], None, role="planner")
+        except LLMUnavailable:
+            pass
+    assert runtime.ROLE_BREAKERS["planner"].state == "OPEN"
+    assert guarded("fast", [], None, role="router") == "ok" and guarded("deep", [], None, role="lab") == "ok"
+    runtime.ROLE_BREAKERS.clear()
+
+
+def test_waiting_for_our_own_slot_does_not_trip_breakers_or_shrink_the_limit():
+    """Under autopilot load the Super limiter fell to 1, every queued call timed out after 5 s, each timeout counted
+    as a model failure and shrank the limit again: both Nemotron lanes ended up open and incidents ran in safe mode."""
+    from app.agents.health import CircuitBreaker
+    from app.resilience import AIMDLimiter, LimiterTimeout
+    lim = AIMDLimiter(start=1)
+    b = CircuitBreaker("model x", threshold=1)
+
+    def queued():
+        with lim.slot(0):  # nothing free
+            pass
+    with lim.slot(1):
+        for _ in range(3):
+            try:
+                b.call(queued)
+            except LimiterTimeout:
+                pass
+    assert b.state == "CLOSED" and lim.limit == 1

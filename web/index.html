@@ -107,10 +107,18 @@
   svg.fg.pg text { font-size:14px; } svg.fg.pg text.m { font-size:11px; }
   @media (max-width: 820px) { dialog.pipe .cols { grid-template-columns: 1fr; } }
   dialog.pipe .side { max-height:70vh; overflow:auto; }
-  #incrows tr.r { cursor:pointer; } #incrows tr.r:hover { background:#141b22; } #incrows tr.r.sel { background:#16263a; outline:1px solid #5aa9ff; }
+  #incrows tr.r, #askhist tr.r { cursor:pointer; } #incrows tr.r:hover, #askhist tr.r:hover { background:#141b22; } #incrows tr.r.sel, #askhist tr.r.sel { background:#16263a; outline:1px solid #5aa9ff; }
   #incdetail td { vertical-align:top; } #incdetail table.hist { table-layout:fixed; } #incdetail td { overflow-wrap:anywhere; }
   #incdetail table.kvt.io td { padding:1px 4px; font-size:11.5px; } #incdetail table.kvt.io td:first-child { width:38%; white-space:normal; }
-  .incflow { max-width:640px; } .incflow svg { width:100%; height:auto; } #incdetail details summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-top:8px; }
+  .tile { border:1px solid #26303b; border-radius:8px; padding:10px 12px; } .tile .v { font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .tile .l { font-size:12.5px; color:#cfd6de; }
+  .meter { height:8px; background:#1b232c; border-radius:4px; margin:2px 0 8px; } .meter i { display:block; height:100%; border-radius:4px; }
+  .meter i.nemo { background:#7cc94f; } .meter i.code { background:#8a96a3; } .meter i.rule { background:#f0c674; }
+  .loopbar.p { background:#5aa9ff; } .loopbar.m { background:#7cc94f; }
+  .src { display:inline-block; padding:0 7px; border-radius:9px; font-size:11.5px; border:1px solid #3a4654; color:var(--muted); white-space:nowrap; }
+  .src.live { border-color:#5aa9ff; color:#cfe4ff; background:#16263a; } .src.auto { border-color:#a78bfa; color:#e4dcff; background:#251d3a; }
+  #incdetail details summary { cursor:pointer; color:var(--muted); font-size:12px; }
   #shift .inc, #floorlist .inc { cursor:pointer; } #floorlist .inc.sel, #shift .inc.sel { background:#16263a; outline:1px solid #5aa9ff; border-radius:6px; }
   .panel.flash { box-shadow:0 0 0 2px #5aa9ff; transition:box-shadow .3s; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
@@ -124,7 +132,7 @@
   .loop { font-size:12px; padding:3px 9px; border-radius:10px; background:#2a2236; color:#cbbdfd; border:1px solid #4a3a6a; display:inline-block; margin:8px 8px 0 0; }
   .loop.flash { animation:flashloop 1.2s ease-in-out 2; }
   @keyframes flashloop { 50% { background:#5b3fa0; color:#fff; } }
-  #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
+  #kvda pre, #flowdetail pre { white-space:pre-wrap; word-break:break-word; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; max-height:420px; overflow:auto; margin:0; }
   #powered { max-width:1432px; margin:12px max(24px, calc((100% - 1432px) / 2)) 0; padding:7px 12px; border-radius:8px; background:#121a22; border:1px solid var(--line); font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 16px; }
   #powered b { color:var(--ink); font-weight:600; } #powered .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
   .shiftbar { height:6px; background:var(--panel2); border-radius:3px; overflow:hidden; margin:4px 0 8px; } .shiftbar i { display:block; height:100%; background:var(--accent); }
@@ -166,11 +174,11 @@
 </header>
 <nav>
   <button class="on" data-view="live">Live floor</button>
-  <button data-view="flow">Flow</button>
+  <button data-view="incs">Incidents</button>
   <button data-view="ask">Ask the floor</button>
   <button data-view="lab">Lab</button>
+  <button data-view="nemo">Nemotron at work</button>
   <button data-view="know">What the agents know</button>
-  <button data-view="incs">Incidents</button>
 </nav>
 
 <div id="powered" aria-live="polite" style="display:none"></div>
@@ -181,7 +189,7 @@
       <li><b>Pick an incident</b> next to the map; start with <i>Part shortage · F30</i>.</li>
       <li><b>Watch the agents</b> in the trace: one line per agent, explained in plain English at the top.</li>
       <li><b>Judge the decision</b>. In <i>Auto</i> routine safe actions run and you can roll them back; anything risky waits for you.</li>
-      <li>Then try <b>Flow</b>, <b>Ask the floor</b>, the <b>Lab</b> and <b>What the agents know</b>.</li>
+      <li>Then open <b>Incidents</b> for any incident's agent flow, and try <b>Ask the floor</b>, the <b>Lab</b> and <b>What the agents know</b>.</li>
     </ol>
   </div>
   <button id="howto-close" aria-label="Hide how to read this">Got it</button>
@@ -197,6 +205,7 @@
           <span><i class="sw" style="background:#e5534b"></i>fault / geofence</span><span><i class="sw" style="background:#4a4630"></i>pedestrian crossing</span>
           <span><i class="sw" style="background:#5b4b2a"></i>conveyor</span><span><i class="sw" style="background:#22302a"></i>supermarket</span>
           <span><i class="sw" style="background:none;border:2px solid #f0c674;border-radius:5px"></i>dispatched for this incident</span>
+          <span><i class="sw" style="background:none;border:2px solid #7cc94f"></i>change applied from the Lab</span>
         </div>
         <div class="note">Robots and people without a yellow ring are normal shift activity: parked AGVs, operators at their stations.</div>
       </div>
@@ -223,7 +232,7 @@
           <button class="act primary" type="submit">Run</button>
         </form>
         <div class="note">Any kind the agents have no playbook for is fenced and escalated to a supervisor, with the reason.</div>
-        <h2 style="margin-top:16px">Your incidents now <span class="note" id="floorcount" style="text-transform:none;letter-spacing:0"></span></h2>
+        <h2 style="margin-top:16px">Open now on the floor <span class="note" id="floorcount" style="text-transform:none;letter-spacing:0"></span></h2>
         <div id="floorlist" class="note">Nothing running. Start one above; start another while it works and both run at once.</div>
       </div>
       <div class="panel">
@@ -252,36 +261,8 @@
         <div class="row"><button class="act ok" id="approve" disabled>Approve</button><button class="act bad" id="reject" disabled>Reject</button></div>
       </div>
       <div class="panel" id="shiftpanel" style="display:none"><h2>Shift on autopilot</h2><div id="shift"></div></div>
-      <div class="panel"><h2>Agent trace</h2><div id="narration" class="muted">Pick an incident under the map. Each agent's step is explained here.</div><div id="trace" class="muted">—</div></div>
+      <div class="panel"><div class="sub"><h2>Agent trace</h2><button class="act" id="toflow" type="button">Agent flow ↗</button></div><div id="narration" class="muted">Pick an incident under the map. Each agent's step is explained here.</div><div id="trace" class="muted">—</div></div>
       <div class="panel"><h2>Health</h2><div id="health" class="muted">checking…</div></div>
-    </div>
-  </div>
-</section>
-
-<section class="view" id="flow">
-  <div class="grid2">
-    <div>
-      <div class="panel">
-        <h2>Which agents ran, in what order, and why</h2>
-        <p class="note">An orchestrator agent picks the next agent at every hop. Arrows are numbered in the order taken; the
-          list underneath gives the reason for each hop and who chose it: <b>Nemotron</b> (the router model), <b>rules</b>
-          (the rule-based router) or <b>forced</b> (only one legal move). Code decides what is legal, so the critic, the dry run
-          and the human gate cannot be skipped. Click a node: where it can come from, its state, and its log for this incident.
-          Ask the floor and the Lab are separate teams: their flows are on their own pages.</p>
-        <div class="legend" id="flowlegend"></div>
-        <div class="row" style="margin-top:0"><label class="note" id="cmplabel" style="display:none"><input type="checkbox" id="cmp"> compare with the previous incident</label>
-          <span class="note" id="flowmode"></span></div>
-        <div id="flowgraph"></div>
-        <ol id="hops" class="hops"></ol>
-        <div id="flowprev" style="display:none"><h2 style="margin-top:14px" id="prevtitle">Previous incident</h2><div id="flowgraph2"></div><ol id="hops2" class="hops"></ol></div>
-      </div>
-    </div>
-    <div>
-      <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent node.</div></div>
-      <div class="panel"><h2>Models: which model serves which agent</h2>
-        <p class="note">From <code>config/models.json</code>; all through Meterless Nightshift. A role tries its chain in order; a failing
-          model's circuit breaker opens and the next one answers. "answered by" is what Nightshift really served.</p>
-        <div id="models" class="muted">loading…</div></div>
     </div>
   </div>
 </section>
@@ -303,6 +284,10 @@
         </div>
       </div>
       <div class="panel"><h2>Answer</h2><div id="askout" class="muted">Ask a question.</div></div>
+      <div class="panel"><h2>Asked earlier <span class="note" id="askcount" style="text-transform:none;letter-spacing:0"></span></h2>
+        <p class="note">Every answer is a snapshot of the data when it was asked: new incidents keep arriving and the models are not fully
+          deterministic. Ask the same question again and the new answer is compared with the last one. Click a row to read it again.</p>
+        <div id="askhist" class="muted" style="max-height:300px;overflow:auto">No questions yet.</div></div>
     </div>
     <div>
       <div class="panel"><h2>Investigation steps</h2><div id="asksteps" class="muted">—</div></div>
@@ -315,9 +300,12 @@
   <div class="grid2">
     <div class="panel">
       <div class="sub"><h2>Lab level 2: test a policy on history</h2><button class="act" data-pipe="lab">How this works: agent flow ↗</button></div>
-      <p class="note">Nemotron proposes one policy change. The incident history is re-scored with A* walking distances.
-        20 seeded replays and a 2,000-sample bootstrap decide, with no LLM inside the replays.</p>
-      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button></div>
+      <p class="note">Nemotron reads the incident history and proposes one change to the floor: that call takes several seconds.
+        Everything after it is arithmetic with fixed seeds: re-scoring every past incident with A* walking distances, 20 replays and a
+        2,000-sample bootstrap. That part takes well under a second and gives the same answer every time, which is the point.
+        Run it again and Nemotron may propose something else: earlier runs are listed below.</p>
+      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button>
+        <button class="act ok" id="labapply" disabled title="put this change on the floor and measure the incidents that follow">Apply to the floor</button></div>
       <div id="labout" class="muted">Not run yet.</div>
     </div>
     <div class="panel"><h2>Seeded replays (mean time to clear)</h2><div id="labreps" class="muted">—</div></div>
@@ -325,6 +313,12 @@
   <div class="grid2">
     <div class="panel"><h2>Experiment steps</h2><div id="labsteps" class="muted">Each stage appears here as it runs: the Zetaris queries, Nemotron's hypothesis, the re-scoring, replays and bootstrap.</div></div>
     <div class="panel"><h2>Evidence</h2><div id="labev" class="muted">The SQL and rows the experiment used.</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="sub"><h2>Lab in the loop: predicted vs measured</h2><button class="act" id="labundo" style="display:none">Remove the change</button></div>
+      <div id="labloop" class="muted">Nothing applied yet. Run an experiment; when the result is significant, press <b>Apply to the floor</b>.
+        The change appears on the Live floor map, and every incident of that kind that follows is measured on the floor against the Lab's prediction.</div></div>
+    <div class="panel"><h2>Earlier runs</h2><div id="labruns" class="muted">No runs yet in this session.</div></div>
   </div>
 </section>
 
@@ -335,12 +329,57 @@
 </dialog>
 
 <section class="view" id="incs">
-  <div>
-    <div class="panel"><h2>Every incident handled <span class="note" id="inccount" style="text-transform:none;letter-spacing:0"></span></h2>
-      <p class="note">Newest first: the ones you ran and the autopilot shift incidents. <i>took</i> is wall-clock time from start to decision (waiting for models included). Click a row for its whole history.</p>
-      <div id="incrows" class="muted" style="max-height:320px;overflow:auto">loading…</div></div>
-    <div class="panel"><h2 id="inctitle">History</h2><div id="incdetail" class="muted">Click an incident above.</div></div>
+  <div class="panel"><h2>Every incident handled <span class="note" id="inccount" style="text-transform:none;letter-spacing:0"></span></h2>
+    <p class="note">Newest first. <span class="src live">Live floor</span> incidents are the ones you ran by hand; <span class="src auto">Autopilot</span>
+      ones were raised by the Sentinel during a shift. <i>took</i> is wall-clock time from start to decision (waiting for models included).
+      Click a row for its agent flow and whole history.</p>
+    <div class="seg" role="radiogroup" aria-label="Show incidents from" id="incfilter" style="margin:0 0 8px">
+      <button data-src="" class="on">All</button><button data-src="live">Live floor</button><button data-src="auto">Autopilot</button></div>
+    <div id="incrows" class="muted" style="max-height:320px;overflow:auto">loading…</div></div>
+  <div class="grid2">
+    <div>
+      <div class="panel">
+        <h2 id="flowhead">Agent flow</h2>
+        <p class="note">For the incident selected above. An orchestrator agent picks the next agent at every hop. Arrows are numbered in
+          the order taken; the list underneath gives the reason for each hop and who chose it: <b>Nemotron</b> (the router model),
+          <b>rules</b> (the rule-based router) or <b>forced</b> (only one legal move). Code decides what is legal, so the critic, the dry
+          run and the human gate cannot be skipped. Click a node: where it can come from, its state, and its log for this incident.</p>
+        <div class="legend" id="flowlegend"></div>
+        <div class="row" style="margin-top:0"><label class="note" id="cmplabel" style="display:none"><input type="checkbox" id="cmp"> compare with the incident you looked at before</label>
+          <span class="note" id="flowmode"></span></div>
+        <div id="flowgraph"></div>
+        <ol id="hops" class="hops"></ol>
+        <div id="flowprev" style="display:none"><h2 style="margin-top:14px" id="prevtitle">Previous incident</h2><div id="flowgraph2"></div><ol id="hops2" class="hops"></ol></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel"><h2 id="flowtitle">Details</h2><div id="flowdetail" class="muted">Click an agent node.</div></div>
+    </div>
   </div>
+  <div class="panel"><h2 id="inctitle">History</h2><div id="incdetail" class="muted">Click an incident above.</div></div>
+</section>
+
+<section class="view" id="nemo">
+  <div class="panel"><div class="sub"><h2>Nemotron at work <span class="note" id="nemowin" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div class="seg" role="radiogroup" aria-label="Period" id="nemohours"><button data-h="1">1 h</button><button data-h="24" class="on">24 h</button><button data-h="0">all</button></div></div>
+    <p class="note">Counted from the logs, not claimed: <code>logs/llm.jsonl</code> has one line per Nemotron answer, the incident traces say what each answer decided,
+      and every call carries a Meterless Nightshift receipt signed with Ed25519. Nemotron reasons and proposes; code checks every plan against OSHA rules
+      before anything moves, and a person approves anything risky. Every model is NVIDIA Nemotron, served through one Nightshift endpoint.</p>
+    <div id="nemotiles" class="tiles"></div></div>
+  <div class="grid2">
+    <div class="panel"><h2>What Nemotron decided</h2><div id="nemodec" class="muted">loading…</div></div>
+    <div class="panel"><h2>Why two Nemotron models</h2>
+      <p class="note"><b>Nemotron 3.5 Super VL 120B (12B active)</b> does the reasoning that needs depth: plans with clause citations, SQL over four databases,
+        the analysis of evidence, Lab hypotheses and the shift handover. <b>Nemotron 3.5 Lightning 30B (3B active)</b> takes the many small, fast decisions:
+        the orchestrator's next hop and the monitor's one-line read. Each role has a chain: when its first model fails or is too slow, the second answers,
+        and a breaker per model and per role keeps one slow model from stalling the rest. Nightshift pins each app name to one model lane, so the model
+        that answered is checked against the one asked for on every call.</p></div>
+  </div>
+  <div class="panel"><h2>Every role that calls Nemotron</h2><div id="nemoroles" class="muted">loading…</div></div>
+  <div class="panel"><h2>Models: which model serves which agent</h2>
+        <p class="note">From <code>config/models.json</code>; all through Meterless Nightshift. A role tries its chain in order; a failing
+          model's circuit breaker opens and the next one answers. "answered by" is what Nightshift really served.</p>
+        <div id="models" class="muted">loading…</div></div>
 </section>
 
 <section class="view" id="know">
@@ -352,8 +391,14 @@
     <div>
       <div class="panel"><h2>H-MEM: learned lessons</h2><div id="kmem"></div></div>
       <div class="panel"><h2>Safety rules</h2><div id="krules"></div></div>
+      <div class="panel"><h2>Fleet interface: VDA 5050</h2>
+        <p class="note">Every AGV dispatch is also sent as a VDA 5050 v2.0 <i>order</i> (nodes and edges in metres, the crossing speed on
+          edges over a pedestrian lane, pick and drop actions), and each AGV reports a VDA 5050 <i>state</i>. That is the interface real
+          AGV fleets speak: a plant swaps the simulator for an MQTT link on <code>uagv/v2/&lt;manufacturer&gt;/&lt;serial&gt;/order</code>.</p>
+        <div id="kvda" class="muted">loading…</div></div>
     </div>
   </div>
+  
 </section>
 
 <script>
@@ -371,6 +416,7 @@ function show(view) {
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === view));
   if (view === "know") knowledge();
   if (view === "incs") incList();
+  if (view === "nemo") nemoPanel();
   VIEW = view;
   if (location.hash !== "#" + view) history.replaceState(null, "", "#" + view);
 }
@@ -392,6 +438,9 @@ function draw() {
       if (a.id) { ctx.fillStyle = "#e7eaee"; ctx.font = "9px system-ui"; ctx.fillText(a.id.split(":").pop().replace("AGV-", ""), a.x*c+7, a.y*c+14); } }
     else { ctx.beginPath(); ctx.arc(a.x*c+c/2, a.y*c+c/2, c/3, 0, 7); ctx.fill(); }
   }
+  if (LOOP && LOOP.applied) { const [x, y] = LOOP.applied.cell;  // the change the Lab applied: a kit or a waiting AGV
+    ctx.strokeStyle = "#7cc94f"; ctx.lineWidth = 2; ctx.strokeRect(x*c-1, y*c-1, c+1, c+1);
+    ctx.fillStyle = "#7cc94f"; ctx.font = "600 9px system-ui"; ctx.fillText(LOOP.applied.policy.type === "move_spill_kit" ? "kit" : "AGV", x*c+1, y*c+c+9); }
   ctx.font = "600 10px system-ui";  // station labels on top, on a dark tab above the station cell
   for (const s of stations) { const w = ctx.measureText(s.id).width + 4;
     ctx.fillStyle = "rgba(10,13,17,.85)"; ctx.fillRect(s.x*c, s.y*c-11, w, 11);
@@ -561,7 +610,7 @@ function hopsHTML(path, rejects) {
 function flowRender() {
   $("flowgraph").innerHTML = graphSVG(flowPath, flowLast, flowRejects);
   $("hops").innerHTML = hopsHTML(flowPath, flowRejects);
-  $("flowmode").textContent = flowMeta;
+  $("flowhead").textContent = flowMeta ? "Agent flow: " + flowMeta : "Agent flow";
   for (const n of document.querySelectorAll("#flowgraph .nd")) n.onclick = () => flowShow(n.dataset.k);
   $("cmplabel").style.display = flowPrev ? "" : "none";  // nothing to compare with until a second incident runs
   const show = $("cmp").checked && flowPrev;
@@ -582,7 +631,7 @@ function flowStep(st) {
   if (st.step === "router") { flowRejects.push({...d, hop: flowPath.length}); flowRender(); return; }
   if (!NODES[st.step]) return;
   flowLast[st.step] = st;
-  (flowHist[st.step] = flowHist[st.step] || []).push({...st, at: new Date().toLocaleTimeString(),
+  (flowHist[st.step] = flowHist[st.step] || []).push({...st, at: st.ts ? new Date(st.ts).toLocaleTimeString() : new Date().toLocaleTimeString(),
     from: flowPath.length ? flowPath[flowPath.length - 1].agent : "(start)"});
   if (d.hop !== undefined) flowPath.push({hop: d.hop, agent: st.step, by: (d.route || {}).by || "", reason: (d.route || {}).reason || ""});
   else flowPath.push({hop: flowPath.length, agent: st.step, by: "linear", reason: "fixed pipeline order"});
@@ -594,7 +643,7 @@ function flowShow(k) {
   if (k === "orchestrator") { $("flowtitle").textContent = "Orchestrator: details";
     $("flowdetail").classList.remove("muted");
     $("flowdetail").innerHTML = "<p><b>Why it has no arrows of its own:</b> it is the hub, not a step in the chain. It is linked to every agent (the purple spokes now shown) and dispatches each hop; the numbered arrows between agents are the route it chose. When nothing is selected, one spoke points at the agent it dispatched last.</p><p>The orchestrator (<code>app/dynamic.py</code>) decides the next agent at every hop. Code lists the moves that are legal right now, so the critic, the dry run and the human gate can never be skipped. When there is a real choice, the router model (Nemotron 3.5 Lightning via Nightshift) picks one and gives a reason; an illegal pick is rejected and the rule-based router decides. A forced move (one legal option) costs no model call.</p>"
-      + (flowPath.length ? `<p>Last incident: ${flowPath.length} hops, listed under the graph with who chose each one.</p>` : "<p>Run an incident to see its route.</p>");
+      + (flowPath.length ? `<p>This incident: ${flowPath.length} hops, listed under the graph with who chose each one.</p>` : "<p>Run an incident to see its route.</p>");
     return; }
   const st = flowLast[k], name = NODES[k][2], kd = KINDS[kindOf(k)], hist = flowHist[k] || [];
   $("flowtitle").textContent = name;
@@ -626,7 +675,7 @@ const PIPES = {
   ask: {title: "Ask the floor: agent flow",
     note: "A fixed pipeline, no router: the coordinator splits the question, three kinds of agents gather evidence in parallel, the analyst answers and the critic drops any claim the evidence does not back. Read-only: nothing on the floor moves.",
     nodes: {you:[70,60,"You ask","person","your question, 5 to 400 characters"],
-      coordinator:[230,60,"Coordinator","nemo","Nemotron splits the question into 1-4 sub-tasks over the table catalogue"],
+      coordinator:[230,60,"Coordinator","nemo","first understands the message (greeting, report, follow-up, off-topic: code first, Nemotron for the rest; the live floor comes from the orchestrator), then Nemotron splits a real question into 1-4 sub-tasks"],
       sql:[390,20,"SQL agents","nemo","Nemotron writes one read-only SELECT per sub-task (one retry with the error)"],
       guard:[550,20,"SQL guard","rules","code refuses anything but one whitelisted SELECT on sf_* tables, caps the rows"],
       zetaris:[710,20,"Zetaris","data","runs the query across fleet, HR, plant and ops, on the agents' read-only login"],
@@ -637,7 +686,7 @@ const PIPES = {
       answer:[550,200,"Answer","person","what you read: findings with evidence ids, dropped claims, the recommendation"]},
     edges: [["you","coordinator"],["coordinator","sql"],["sql","guard"],["guard","zetaris"],["coordinator","logs"],["coordinator","floor"],
       ["zetaris","analyst"],["logs","analyst"],["floor","analyst"],["analyst","critic"],["critic","answer"]],
-    steps: {coordinator:["coordinator"], sql:["sql"], guard:["sql"], zetaris:["sql"], logs:["logs"], floor:["floor"], analyst:["analyst"], critic:["critic"], answer:["result"]}},
+    steps: {coordinator:["intake", "coordinator"], sql:["sql"], guard:["sql"], zetaris:["sql"], logs:["logs"], floor:["floor"], analyst:["analyst"], critic:["critic"], answer:["result"]}},
   lab: {title: "Lab: agent flow",
     note: "One model call; everything after it is deterministic and seeded, so the result can be reproduced. A proposal is only saved when you press Save.",
     nodes: {you:[70,60,"You run it","person","Run experiment"],
@@ -703,6 +752,49 @@ function openPipe(which) {
 for (const b of document.querySelectorAll("[data-pipe]")) b.onclick = () => openPipe(b.dataset.pipe);
 $("pipeclose").onclick = () => { $("pipedlg").close(); pipeOpen = null; };
 $("pipedlg").addEventListener("close", () => { pipeOpen = null; });
+let NEMO_H = 24;
+for (const b of document.querySelectorAll("#nemohours button")) b.onclick = () => { NEMO_H = +b.dataset.h;
+  document.querySelectorAll("#nemohours button").forEach(x => x.classList.toggle("on", x === b)); nemoPanel(); };
+async function nemoPanel() {
+  let d; try { d = await (await fetch("/api/nemotron?hours=" + NEMO_H)).json(); } catch { return; }
+  if (!d || !d.roles) return;
+  const n = x => (x ?? 0).toLocaleString(), dec = d.decisions || {}, rc = d.receipts || {}, h = dec.hops || {};
+  const hopsAll = Object.values(h).reduce((a, b) => a + b, 0) || 1, nemoHops = h.nemotron || 0;
+  const share = {}; for (const r of d.roles) for (const [m, c] of Object.entries(r.models)) share[m] = (share[m] || 0) + c;
+  $("nemowin").textContent = d.hours ? `· last ${d.hours} h` : "· everything logged";
+  const tile = (v, l, sub) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="note">${sub}</div>` : ""}</div>`;
+  $("nemotiles").innerHTML = tile(n(d.calls), "Nemotron answers", `${n(d.tokens)} tokens`) + tile(d.roles.length, "agent roles on Nemotron", "planner, router, SQL, analyst…")
+    + tile(rc.total ? `${n(rc.verified)}/${n(rc.total)}` : "-", "receipts verified", `Ed25519, Nightshift-signed${(dec.receipts_at_call || {}).checked ? ` · ${n(dec.receipts_at_call.verified)}/${n(dec.receipts_at_call.checked)} checked at call time` : ""}`)
+    + tile(n(dec.critic_rejected), "plans the critic sent back", `Nemotron fixed ${n(dec.fixed_by_nemotron)}; otherwise a checked plan ran`)
+    + tile(n(dec.unsafe_executed), "unsafe plans executed", `of ${n(dec.incidents)} incidents: the critic gates every plan`);
+  $("nemodec").classList.remove("muted");
+  const bar = (k, label, cls) => `<div class="kv"><span>${label}</span><span>${n(h[k] || 0)}</span></div><div class="meter"><i class="${cls}" style="width:${100 * (h[k] || 0) / hopsAll}%"></i></div>`;
+  $("nemodec").innerHTML = `<p class="note">Across the ${n(dec.incidents)} incidents this server has handled.</p>
+    <h2 style="margin-top:6px">Orchestrator hops: who chose the next agent</h2>
+    ${bar("nemotron", "Nemotron chose (a real choice between legal moves)", "nemo")}${bar("forced", "forced by code (only one legal move: no model call)", "code")}${bar("rules", "rule router (Nemotron unavailable or its pick was illegal)", "rule")}
+    <h2 style="margin-top:12px">Plans</h2>
+    <p class="note">Anytime planning: an optimal rules plan (v1) is ready at once; Nemotron then writes v2 with the people, routes and the OSHA clauses, and v2 runs only if the critic passes it and it scores better.</p>
+    <div class="kv"><span>first plan (v1) from optimal assignment or a learned playbook: instant, by design</span><span>${n((dec.plans || {})["rules or playbook"])}</span></div>
+    <div class="kv"><span>plans Nemotron wrote directly (re-plans after the critic)</span><span>${n((dec.plans || {}).nemotron)}</span></div>
+    <div class="kv"><span>Nemotron plans (v2) written alongside v1</span><span>${n((dec.refine || {}).nemotron_v2)}</span></div>
+    <div class="kv"><span>… v2 was better and ran</span><span>${n((dec.refine || {}).v2_ran)}</span></div>
+    <div class="kv"><span>… Nemotron reached the same team on its own (agrees with the optimum)</span><span>${n((dec.refine || {}).v2_agreed)}</span></div>
+    <div class="kv"><span>… a different team with the same score (v1 kept, already checked)</span><span>${n((dec.refine || {}).v2_same_score)}</span></div>
+    <div class="kv"><span>… v1 scored better</span><span>${n((dec.refine || {}).v1_better)}</span></div>
+    <div class="kv"><span>… v2 broke a safety rule or failed the dry run (critic caught it)</span><span>${n((dec.refine || {}).v2_rejected)}</span></div>
+    <div class="kv"><span>refinement skipped: no model answer</span><span>${n((dec.refine || {}).no_model)}</span></div>
+    <div class="kv"><span>incidents where the safety critic sent a plan back</span><span>${n(dec.critic_rejected)}</span></div>
+    <div class="kv"><span>of them, a Nemotron plan the critic caught (the checked plan ran instead)</span><span>${n(dec.nemotron_plans_caught)}</span></div>
+    <div class="kv"><span>then fixed by Nemotron</span><span>${n(dec.fixed_by_nemotron)}</span></div>
+    <div class="kv"><span>safe mode (no model answered: rules plan, a person decides)</span><span>${n(dec.safe_mode)}</span></div>
+    <h2 style="margin-top:12px">Answers by model</h2>${Object.entries(share).map(([m, c]) => `<div class="kv"><span>${esc(m)}</span><span>${n(c)} (${Math.round(100 * c / (d.calls || 1))}%)</span></div>`).join("")}`;
+  $("nemoroles").classList.remove("muted");
+  $("nemoroles").innerHTML = `<table><tr><th>role</th><th>what it does</th><th>answers</th><th>answered by</th><th>median</th><th>p95</th><th title="the role's second model answered: the first failed, was too slow, or lost a hedged race">2nd model</th></tr>${d.roles.map(r =>
+    `<tr><td><b>${esc(r.role)}</b></td><td class="note">${esc(String(r.why || "").slice(0, 110))}</td><td>${n(r.calls)}</td>
+      <td>${Object.entries(r.models).map(([m, c]) => `${esc(m.replace("nemotron-3.5-", "").replace("-30b-a3b", "").replace("-120b-a12b", ""))} ${c}`).join("<br>")}</td>
+      <td>${r.p50_s ?? "-"} s</td><td>${r.p95_s ?? "-"} s</td><td>${r.fallback}</td></tr>`).join("")}</table>`;
+}
+setInterval(() => { if (VIEW === "nemo" && !document.hidden) nemoPanel(); }, 10000);
 async function modelsPanel() {
   try {
     const rows = await (await fetch("/api/models")).json();
@@ -760,7 +852,6 @@ function addStep(st) {
   div.innerHTML = `<span class="n ${st.ok ? "ok-t" : "bad-t"}">${hop !== undefined ? hop + " " : ""}${esc(st.step)}</span><span class="ms">${st.ms.toFixed(0)} ms</span>${note(st)}`
     + ((st.detail || {}).route && hop ? `<div class="muted" style="margin-left:92px;font-size:11.5px">↳ ${esc(st.detail.route.by)}: ${esc(st.detail.route.reason)}</div>` : "");
   t.appendChild(div); t.scrollTop = t.scrollHeight;
-  flowStep(st);
   const [who, text] = narrate(st);
   $("narration").classList.remove("muted");
   $("narration").innerHTML = `<span class="who">${esc(who)}:</span> ${esc(text)}`;
@@ -768,9 +859,11 @@ function addStep(st) {
 
 const es = new EventSource("/events");
 es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
-es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; decTitle(i.id, i.kind, i.station_id || i.zone_id, false); $("trace").innerHTML = ""; flowReset(`${i.id}: ${i.kind.replace("_", " ")} at ${i.station_id || i.zone_id}`); $("trace").classList.remove("muted");
+es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; decTitle(i.id, i.kind, i.station_id || i.zone_id, false); $("trace").innerHTML = ""; $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
-es.addEventListener("step", e => { const st = JSON.parse(e.data); if (st.incident === current) addStep(st); else floorSoon(); });
+es.addEventListener("step", e => { const st = JSON.parse(e.data); if (st.incident === incSel) flowStep(st);
+  if (st.incident === current) addStep(st); else floorSoon(); });
+$("toflow").onclick = () => { if (!current) return; show("incs"); incShow(current); };
 es.addEventListener("decision", e => { const d = JSON.parse(e.data); floorList();
   if (d.incident === current) showDecision(d); else load(); });
 es.addEventListener("floor", () => floorSoon());
@@ -825,7 +918,7 @@ function gateBox(g, reasons) {
 async function restoreLast() {
   const r = await (await fetch("/api/last")).json();
   if (!r.incident) return;
-  current = r.incident.id; $("trace").innerHTML = ""; flowReset(`${r.incident.id}: ${r.incident.kind.replace("_", " ")} at ${r.incident.station_id || r.incident.zone_id}`);
+  current = r.incident.id; $("trace").innerHTML = "";
   r.steps.forEach(addStep); showDecision(r.decision);
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
@@ -912,11 +1005,14 @@ $("custom").onsubmit = async e => { e.preventDefault(); const f = e.target;
   startRun(f.querySelector('button[type="submit"]'), JSON.stringify(body));
 };
 
-const ASK_WHO = {coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", floor:"Floor agent", analyst:"Analyst", critic:"Critic"};
+const ASK_WHO = {intake:"Coordinator", result:"Answer", coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", floor:"Floor agent", analyst:"Analyst", critic:"Critic"};
 let ASKING = null;  // the investigation on its way: one at a time, and only its own events update the panels
 function askStep(st) {
   const d = st.detail || {}; let txt = "";
-  if (st.step === "coordinator") txt = `${d.model}: ${(d.tasks || []).map(t => `[${t.kind}] ${t.ask}`).join(" · ")}`;
+  if (st.step === "intake") txt = `understood as ${String(d.intent).replace("_", " ")} (${d.model})${d.understood_as ? `: “${d.understood_as}”` : ""}`
+    + (["floor_question", "follow_up"].includes(d.intent) ? "" : " · answered from the live floor, nothing sent to SQL");
+  else if (st.step === "result") txt = d.summary || "";
+  else if (st.step === "coordinator") txt = `${d.model}: ${(d.tasks || []).map(t => `[${t.kind}] ${t.ask}`).join(" · ")}`;
   else if (st.step === "sql") txt = st.ok ? `${d.rows} rows from Zetaris (attempt ${d.attempt}): ${d.purpose || ""}` : `failed: ${d.error}`;
   else if (st.step === "logs") txt = `${d.summary.incidents_matched_in_traces} traced incidents, ${d.summary.nemotron_calls_recent} recent Nemotron calls, ${d.summary.h_mem_lessons.length} H-MEM lessons`;
   else if (st.step === "floor") txt = `${d.rows} facts from the World Model and the live floor`;
@@ -939,7 +1035,7 @@ function evCard(e) {
   if (e.type === "sql")
     return `<div class="ev"><b>${esc(e.id)} · SQL agent · Zetaris</b> <span class="note">${esc(e.task)}</span>${e.ok ? ` <span class="ok-t">${e.rows} rows, ${e.query_ms} ms</span>` : ` <span class="bad-t">${esc(e.error)}</span>`}<pre>${esc(e.sql || "")}</pre>${evTable(e)}</div>`;
   if (e.type === "floor")
-    return `<div class="ev"><b>${esc(e.id)} · Floor agent · World Model</b> <span class="note">${esc(e.task)}${e.data_version ? ` · plant data ${esc(e.data_version)}` : ""}</span>${evTable({...e, preview: e.preview})}</div>`;
+    return `<div class="ev"><b>${esc(e.id)} · ${e.source === "orchestrator" ? "Orchestrator · live floor" : "Floor agent · World Model"}</b> <span class="note">${esc(e.task)}${e.data_version ? ` · plant data ${esc(e.data_version)}` : ""}</span>${evTable({...e, preview: e.preview})}</div>`;
   const s = e.summary || {};
   return `<div class="ev"><b>${esc(e.id)} · Log agent · traces and H-MEM</b> <span class="note">${esc(e.task)}</span>
     <div class="note">${s.incidents_matched_in_traces ?? 0} earlier incidents in the agents' traces${Object.keys(s.decisions || {}).length ? ` (${Object.entries(s.decisions).map(([k, v]) => `${esc(k)} ${v}`).join(", ")})` : ""}
@@ -957,12 +1053,59 @@ function showAsk(r) {
   if (pipeHist.ask.length && !pipeHist.ask.some(h => h.step === "result"))
     pipeRecord("ask", "result", {ok: true, detail: {summary: r.summary, findings: r.findings.length, dropped: r.dropped.length, recommendation: r.recommendation, trace: r.log_file}});
   $("askout").classList.remove("muted");
-  $("askout").innerHTML = `<div class="muted">Q: ${esc(r.question)}</div><p style="font-size:15px">${esc(r.summary)}</p>`
+  const ch = r.changes, prev = r.previous, list = xs => xs.map(x => `<div class="find">• ${esc(x)}</div>`).join("");
+  const since = !prev ? "" : `<div class="ev" style="margin-top:8px"><b>Asked before at ${esc(hhmm(prev.asked_at))}.</b> ${ch && !ch.summary_changed && !ch.new_findings.length && !ch.gone_findings.length
+      ? "Same answer as then." : "The answer has changed since then."}
+    <div class="note">Evidence then ${ch ? ch.rows_then : "-"} rows, now ${ch ? ch.rows_now : "-"}${ch && ch.same_evidence ? " (same data)" : ch && !ch.same_evidence ? " (new data, or the agents ran a different query)" : ""}.
+      ${ch && ch.summary_changed ? `Then: “${esc(prev.summary)}”` : ""}</div>
+    ${ch && ch.new_findings.length ? `<div class="note" style="margin-top:4px"><b>New since then</b></div>${list(ch.new_findings)}` : ""}
+    ${ch && ch.gone_findings.length ? `<div class="note" style="margin-top:4px"><b>No longer found</b></div>${list(ch.gone_findings)}` : ""}
+    ${prev.ask_id ? `<button class="act" data-askid="${esc(prev.ask_id)}" style="margin-top:6px">Open the earlier answer</button>` : ""}</div>`;
+  const ho = r.handoff, handoff = !ho ? "" : ho.incident ? `<button class="act primary" id="askhand">Open ${esc(ho.incident)} on the Live floor ↗</button>`
+    : ho.kind ? `<button class="act primary" id="askhand">Report ${esc(ho.kind.replace(/_/g, " "))}${ho.station ? " at " + esc(ho.station) : ""} on the Live floor ↗</button> <span class="note">fills the form; you press Run</span>`
+    : `<button class="act" id="askhand">Go to the Live floor ↗</button>`;
+  $("askout").innerHTML = `<div class="muted">Q: ${esc(r.question)}${r.asked_at ? ` · asked ${esc(new Date(r.asked_at).toLocaleString())}` : ""}</div>`
+    + (r.understood_as ? `<div class="note">Understood as: “${esc(r.understood_as)}”</div>` : "")
+    + (r.notes || []).map(n => `<div class="note" style="color:#f0c674">${esc(n)}</div>`).join("")
+    + `<p style="font-size:15px">${esc(r.summary)}</p>`
     + r.findings.map(f => `<div class="find">• ${esc(f.claim)} <span class="eid">[${f.evidence.map(esc).join(", ")}]</span></div>`).join("")
     + (r.dropped.length ? `<div class="note" style="margin-top:8px">Dropped by the critic (not backed by the evidence):</div>` + r.dropped.map(f => `<div class="find"><span class="dropped">${esc(f.claim)}</span> <span class="note">${esc(f.reason)}</span></div>`).join("") : "")
-    + `<p><b>Recommendation:</b> ${esc(r.recommendation)}</p><div class="note">models ${esc(r.models.join(", "))} · ${r.execution_time_seconds}s · trace ${esc(r.log_file)}</div>`;
+    + (handoff ? `<p>${handoff}</p>` : "")
+    + ((r.suggestions || []).length ? `<div class="row" style="align-items:center"><span class="note">Try:</span>${r.suggestions.map(q => `<button class="act" data-sugg="${esc(q).replace(/"/g, "&quot;")}">${esc(q)}</button>`).join("")}</div>` : "")
+    + (r.recommendation ? `<p><b>Recommendation:</b> ${esc(r.recommendation)}</p>` : "") + `<div class="note">${r.intent && !["floor_question", "follow_up"].includes(r.intent) ? `answered by the coordinator from the live floor (${esc(r.intake || "rules")}), nothing sent to SQL` : "models " + esc(r.models.join(", "))} · ${r.execution_time_seconds}s · trace ${esc(r.log_file)}</div>` + since;
+  for (const b of $("askout").querySelectorAll("[data-askid]")) b.onclick = () => openAsk(b.dataset.askid);
+  for (const b of $("askout").querySelectorAll("[data-sugg]")) b.onclick = () => ask(b.dataset.sugg);
+  if ($("askhand")) $("askhand").onclick = () => askHandoff(ho);
   $("askev").classList.remove("muted");
   $("askev").innerHTML = r.evidence.map(evCard).join("");
+  askShown = r.ask_id; askHistory();
+}
+let askShown = null;
+function askHandoff(ho) {  // the coordinator hands a report to the orchestrator: prefilled, a person presses Run
+  if (ho.incident) return openIncident(ho.incident);
+  show("live");
+  const f = $("custom");
+  if (ho.kind) { f.kind.value = ho.kind; f.kind.dispatchEvent(new Event("change")); }
+  if (ho.station && [...f.station.options].some(o => o.value === ho.station)) f.station.value = ho.station;
+  if (ho.note) f.note.value = ho.note;
+  f.scrollIntoView({behavior: "smooth", block: "center"}); f.classList.add("flash"); setTimeout(() => f.classList.remove("flash"), 1500);
+}
+async function askHistory() {
+  let rows; try { rows = await (await fetch("/api/asks")).json(); } catch { return; }
+  if (!Array.isArray(rows)) return;
+  $("askcount").textContent = rows.length ? `· ${rows.length}` : "";
+  $("askhist").classList.toggle("muted", !rows.length);
+  $("askhist").innerHTML = rows.length ? `<table><tr><th>asked</th><th>question</th><th>answer</th></tr>${rows.map(r =>
+    `<tr class="r${r.ask_id === askShown ? " sel" : ""}" data-askid="${esc(r.ask_id)}" style="cursor:pointer"><td style="white-space:nowrap">${esc(new Date(r.asked_at).toLocaleString([], {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"}))}</td>
+      <td><b>${esc(r.question)}</b>${r.asked_before ? `<div class="note">${r.changed ? '<span style="color:#f0c674">answer changed</span>' : "same answer"} vs. the time before</div>` : ""}</td>
+      <td class="note">${esc(String(r.summary || "").slice(0, 140))}${String(r.summary || "").length > 140 ? "…" : ""}</td></tr>`).join("")}</table>` : "No questions yet.";
+  for (const tr of $("askhist").querySelectorAll("tr.r")) tr.onclick = () => openAsk(tr.dataset.askid);
+}
+async function openAsk(id) {
+  if (ASKING) return;  // an investigation is streaming into the panels
+  const r = await fetch("/api/ask/" + encodeURIComponent(id)); if (!r.ok) return;
+  const rec = await r.json(); $("askq").value = rec.question; $("asksteps").innerHTML = '<span class="muted">an earlier answer: its steps are in its trace file</span>';
+  showAsk(rec); $("askout").closest(".panel").scrollIntoView({behavior: "smooth", block: "start"});
 }
 async function ask(q) {
   if (ASKING) return;  // one investigation at a time: a second click used to wipe the first one's steps
@@ -983,7 +1126,7 @@ $("askform").onsubmit = e => { e.preventDefault(); if ($("askq").value.trim()) a
 for (const b of document.querySelectorAll("[data-ask]")) b.onclick = () => ask(b.dataset.ask);
 es.addEventListener("ask_step", e => askStep(JSON.parse(e.data)));
 es.addEventListener("ask_result", e => showAsk(JSON.parse(e.data)));
-fetch("/api/ask_last").then(r => r.json()).then(showAsk);
+fetch("/api/ask_last").then(r => r.json()).then(r => r && r.question ? showAsk(r) : askHistory());
 
 // ---------------------------------------------------------------- autopilot shift
 let shiftFeed = [];
@@ -1021,7 +1164,6 @@ async function openIncident(id) {  // one place to judge any incident: the Decis
   if (VIEW && VIEW !== "live") show("live");
   const r = await fetch("/api/trace/" + encodeURIComponent(id)); if (!r.ok) return;
   const t = await r.json(); current = id; $("trace").innerHTML = "";
-  flowReset(`${id}: ${t.incident.kind.replace("_", " ")} at ${t.incident.station_id || t.incident.zone_id}`);
   t.steps.forEach(addStep);
   if (t.running) { decTitle(id, t.incident.kind, t.incident.station_id || t.incident.zone_id, t.from_shift);
     $("decision").innerHTML = `<b>${esc(t.incident.kind.replace("_", " "))}</b> at ${esc(t.incident.station_id || t.incident.zone_id)} · <span class="muted">agents working…</span>`;
@@ -1034,22 +1176,47 @@ async function openIncident(id) {  // one place to judge any incident: the Decis
 // Incidents tab: every handled incident, and the whole history of one (GET /api/incidents, /api/incident/<id>)
 let incSel = null, incRows = [];
 const GATEWORD2 = g => ({auto_executed:"ran on its own", awaiting_approval:"waiting for you", advisory:"advisory", approved:"approved",
-  rejected:"rejected", rolled_back:"rolled back", timeout_hold:"timed out: held", auto_after_timeout:"ran after timeout", confirmed:"confirmed by you"}[g] || g || "-");
+  running:"agents working…", queued:"queued", rejected:"rejected", rolled_back:"rolled back", timeout_hold:"timed out: held", auto_after_timeout:"ran after timeout", confirmed:"confirmed by you"}[g] || g || "-");
 const hhmm = t => t ? new Date(t).toLocaleTimeString() : "-";
-async function incList() {
+const srcOf = s => String(s || "").startsWith("you ran it") ? "live" : String(s || "").startsWith("autopilot") ? "auto" : "";
+const srcBadge = s => { const k = srcOf(s); return `<span class="src ${k}" title="${esc(s)}">${k === "live" ? "Live floor" : k === "auto" ? "Autopilot" : esc(s || "-")}</span>`
+  + (String(s).includes("linear") ? ' <span class="note">linear</span>' : ""); };
+let incFilter = "";
+for (const b of document.querySelectorAll("#incfilter button")) b.onclick = () => { incFilter = b.dataset.src;
+  document.querySelectorAll("#incfilter button").forEach(x => x.classList.toggle("on", x === b)); incList(true); };
+const INC_SHOWN = 300;  // a long autopilot run logs thousands: the table shows the newest ones
+function incScroll() {  // bring the selected row into view inside the list, without moving the page
+  const box = $("incrows"), tr = box.querySelector("tr.r.sel"); if (!tr) return;
+  const top = tr.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+  if (top < box.scrollTop + 24 || top + tr.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - box.clientHeight / 3);
+}
+function incClear(text) {  // nothing to show: no stale flow from an incident the filter hides
+  incSel = null; flowReset(""); $("inctitle").textContent = "History";
+  $("incdetail").classList.add("muted"); $("incdetail").textContent = text;
+}
+async function incList(filterChanged = false) {
   try { incRows = await (await fetch("/api/incidents")).json(); } catch { return; }
   if (!Array.isArray(incRows)) { $("incrows").innerHTML = '<div class="note">This server does not list incidents yet: restart it.</div>'; return; }
-  $("inccount").textContent = `· ${incRows.length}`;
+  const all = incRows.length; incRows = incRows.filter(r => !incFilter || srcOf(r.source) === incFilter);
+  const total = incRows.length; incRows = incRows.slice(0, INC_SHOWN);
+  $("inccount").textContent = `· ${total}${total !== all ? " of " + all : ""}${total > INC_SHOWN ? ` (newest ${INC_SHOWN} shown)` : ""}`;
+  const keep = $("incrows").scrollTop;
   $("incrows").classList.toggle("muted", !incRows.length);
   $("incrows").innerHTML = incRows.length ? `<table><tr><th>started</th><th>finished</th><th>took</th><th>incident</th><th>where</th><th>source</th><th>decision</th><th>gate</th><th>hops</th><th>model calls</th></tr>${incRows.map(r =>
     `<tr class="r${r.incident === incSel ? " sel" : ""}" data-id="${esc(r.incident)}"><td>${esc(hhmm(r.started_at))}</td><td>${esc(hhmm(r.finished_at))}</td>
       <td title="wall-clock time from start to decision; agents' own work ${(r.ms / 1000).toFixed(1)} s">${r.wall_s != null ? r.wall_s.toFixed(1) + " s" : "-"}</td><td><b>${esc(r.incident)}</b><div class="note">${esc(String(r.kind).replace(/_/g, " "))} · sev ${esc(r.severity)}</div></td>
-      <td>${esc(r.station)}</td><td>${esc(r.source)}</td><td>${esc(r.decision || "-")}${r.safe_mode ? ' <span class="bad-t">safe mode</span>' : ""}</td>
-      <td class="${["rejected", "rolled_back", "timeout_hold"].includes(r.gate) ? "bad-t" : r.gate === "awaiting_approval" ? "" : "ok-t"}">${esc(GATEWORD2(r.gate))}</td>
+      <td>${esc(r.station)}</td><td>${srcBadge(r.source)}</td><td>${esc(r.decision || "-")}${r.safe_mode ? ' <span class="bad-t">safe mode</span>' : ""}</td>
+      <td class="${["rejected", "rolled_back", "timeout_hold"].includes(r.gate) ? "bad-t" : ["awaiting_approval", "running", "queued"].includes(r.gate) ? "" : "ok-t"}">${esc(GATEWORD2(r.gate))}${r.gate === "running" && r.at ? `<div class="note">at ${esc(r.at)}</div>` : ""}</td>
       <td>${r.hops}${r.critic_rejections ? `<div class="note">${r.critic_rejections} critic reject</div>` : ""}</td><td>${r.model_calls}</td></tr>`).join("")}</table>`
-    : "No incidents yet. Run one on the Live floor, start a shift, or run the Lab.";
+    : all ? "None from this source yet." : "No incidents yet. Run one on the Live floor or start an autopilot shift.";
   for (const tr of $("incrows").querySelectorAll("tr.r")) tr.onclick = () => incShow(tr.dataset.id);
+  $("incrows").scrollTop = keep;  // the 5 s refresh no longer throws the list back to the top
+  const listed = incRows.some(r => r.incident === incSel);
+  if (!incRows.length) { if (filterChanged || !incSel || !incPinned) incClear(all ? "None from this source yet." : "Click an incident above."); }
+  else if (!incSel || (filterChanged && !listed)) incShow(incRows[0].incident, false);  // the flow always names its incident
+  else if (filterChanged) incScroll();
 }
+let incPinned = false;  // chosen by a person (a click, or Agent flow on the Live floor): a refresh keeps it
 // compact key/value lines for the history table: ids shortened, lists joined, long values cut (full value on hover)
 const ioShort = v => typeof v === "string" ? v.replace(/\b(?:worker|agv|station|machine):[\w-]+:/g, "") : v;
 const ioRoute = r => `${r.agv_id} → ${r.to_station} at ${r.speed_mps} m/s${r.crossing_speed_mps ? ` (${r.crossing_speed_mps} at crossings)` : ""}`;
@@ -1069,9 +1236,10 @@ function ioTable(d, skip = []) {
   return `<table class="kvt io">${rows.map(([k, v]) => { const t = ioVal(v);
     return `<tr><td>${esc(k)}</td><td title="${esc(t.length > 160 ? t.slice(0, 2000) : "").replace(/"/g, "&quot;")}">${esc(t.length > 160 ? t.slice(0, 160) + "…" : t)}</td></tr>`; }).join("")}</table>`;
 }
-async function incShow(id) {
-  incSel = id;  // highlight and say "loading" at once, before the fetch returns
+async function incShow(id, pinned = true) {
+  incSel = id; incPinned = pinned;  // highlight and say "loading" at once, before the fetch returns
   for (const tr of $("incrows").querySelectorAll("tr.r")) tr.classList.toggle("sel", tr.dataset.id === id);
+  incScroll();
   $("inctitle").textContent = "History: " + id; $("incdetail").classList.add("muted"); $("incdetail").innerHTML = "loading…";
   let h; try { const r = await fetch("/api/incident/" + encodeURIComponent(id)); if (!r.ok) throw new Error(r.status); h = await r.json(); }
   catch (e) { $("incdetail").innerHTML = `<span class="bad-t">could not load ${esc(id)} (${esc(e.message)})</span>`; return; }
@@ -1088,16 +1256,17 @@ async function incShow(id) {
       <td>${r.by ? `<b>${esc(r.by)}</b>: ${esc(r.reason || "")}${model(rc)}` : '<span class="muted">' + (h.mode === "linear" ? "fixed order" : "-") + "</span>"}</td>
       <td class="io">${ioTable(inputs[i] || {})}</td>
       <td class="io"><div>${esc(text || title)}</div>${model(own)}${ioTable(d, ["route", "model_call", "hop"])}</td></tr>`; }).join("");
-  const last = {}, rejects = []; steps.forEach((st, i) => { if (st.step === "router") { if ((st.detail || {}).rejected) rejects.push({...st.detail, hop: (st.detail || {}).hop ?? i}); } else last[st.step] = st; });
-  const path = (h.path || []).map((p, i) => ({hop: p.hop ?? i, agent: p.agent, by: p.by || "", reason: p.reason || ""}));
+  flowReset(`${id} · ${String(inc.kind).replace(/_/g, " ")} at ${inc.station_id || inc.zone_id}${h.running ? " (running)" : ""}`);
+  steps.forEach(flowStep);
   const acts = h.human_actions || [];
   $("incdetail").classList.remove("muted");
-  $("incdetail").innerHTML = `<p><b>${esc(String(inc.kind).replace(/_/g, " "))}</b> at ${esc(inc.station_id || inc.zone_id)} · severity ${esc(inc.severity)} · ${esc(meta.source || "-")} · started ${esc(hhmm(meta.started_at))} · finished ${esc(hhmm(meta.finished_at))}${meta.seconds != null ? ` · took ${meta.seconds.toFixed(1)} s` : ""}
-      <button class="act" id="incopen" style="margin-left:8px">Open on the Live floor ↗</button></p>
+  $("incdetail").innerHTML = `<p><b>${esc(String(inc.kind).replace(/_/g, " "))}</b> at ${esc(inc.station_id || inc.zone_id)} · severity ${esc(inc.severity)} · ${meta.source ? srcBadge(meta.source) : h.running ? '<span class="src live">running now</span>' : "-"} · started ${esc(hhmm(meta.started_at))} · finished ${esc(hhmm(meta.finished_at))}${meta.seconds != null ? ` · took ${meta.seconds.toFixed(1)} s` : ""}
+      <button class="act" id="incopen" style="margin-left:8px">Open on the Live floor ↗</button>
+      <button class="act" id="incverify" title="re-derive this decision with code only: critic, gate, data snapshot, journal">Re-check this decision (no model)</button></p>
+    <div id="incverified"></div>
     <p>Decision <b>${esc((h.decision || {}).decision || "-")}</b> · gate <b>${esc(GATEWORD2(h.gate))}</b>${(h.gate_reasons || []).length ? ` (${esc(h.gate_reasons.join("; "))})` : ""}
       · ${steps.length} steps · ${calls.length} model call(s) · ${h.critic_rejections || 0} critic rejection(s) · ${h.replans || 0} re-plan(s)${h.safe_mode ? ' · <span class="bad-t">safe mode</span>' : ""}</p>
     <p><b>Agents called:</b> <span class="chips">${agents.map(chip).join(" ")}</span></p>
-    <h2 style="margin-top:12px">Route</h2><div class="incflow">${graphSVG(path, last, rejects)}</div>
     <h2 style="margin-top:12px">Step by step: input and output of every agent</h2>
     <table class="hist"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:20%"><col style="width:30%"><col></colgroup>
       <tr><th>hop</th><th>agent</th><th>why this agent (chosen by)</th><th>input</th><th>output</th></tr>${rows}</table>
@@ -1106,6 +1275,13 @@ async function incShow(id) {
       `<tr><td>${esc(hhmm(a.ts))}</td><td>${esc(a.by || "-")}</td><td class="${a.approved ? "ok-t" : "bad-t"}">${a.approved ? "approve" : "reject"}</td><td>${esc(GATEWORD2(a.gate))}</td><td>${esc(a.action || "")}</td></tr>`).join("")}</table>`
       : `<div class="note">${h.gate === "awaiting_approval" ? "Nobody has answered yet: open it on the Live floor to judge it." : "No human action recorded."}</div>`}`;
   $("incopen").onclick = () => openIncident(id);
+  $("incverify").onclick = async () => {
+    $("incverified").innerHTML = '<p class="note">re-checking with code only…</p>';
+    let v; try { const r = await fetch("/api/verify/" + encodeURIComponent(id)); v = await r.json(); if (!r.ok) throw new Error(v.error || r.status); }
+    catch (e) { $("incverified").innerHTML = `<p class="bad-t">${esc(e.message)}</p>`; return; }
+    $("incverified").innerHTML = `<div class="ev"><b class="${v.verdict === "CONFIRMED" ? "ok-t" : "bad-t"}">${esc(v.verdict)}</b> <span class="note">re-derived by code, ${v.model_calls} model calls</span>
+      ${v.checks.map(c => `<div class="note"><span class="${c.ok ? "ok-t" : c.ok === null ? "" : "bad-t"}">${c.ok ? "pass" : c.ok === null ? "n/a" : "FAIL"}</span> · <b>${esc(c.check)}</b>: ${esc(c.detail)}</div>`).join("")}</div>`;
+  };
 }
 es.addEventListener("approval", () => { if (VIEW === "incs") { incList(); if (incSel) incShow(incSel); } });
 es.addEventListener("shift", e => showShift(JSON.parse(e.data)));
@@ -1119,13 +1295,50 @@ fetch("/api/shift").then(r => r.json()).then(showShift);
 function labBusy(on) { $("labrun").disabled = on; $("labrun").textContent = on ? "Running…" : "Run experiment"; }
 $("labrun").onclick = async () => {
   if ($("labrun").disabled) return;
-  labBusy(true); $("labwrite").disabled = true; pipeHist.lab = []; if (pipeOpen === "lab") pipeRender();
+  labBusy(true); $("labwrite").disabled = true; $("labapply").disabled = true; pipeHist.lab = []; if (pipeOpen === "lab") pipeRender();
   $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>';
   $("labsteps").innerHTML = '<span class="muted">reading the incident history from Zetaris…</span>'; $("labsteps").classList.add("muted");
   $("labev").innerHTML = ""; $("labev").classList.add("muted"); $("labreps").innerHTML = "—";
   try { const r = await fetch("/lab/run", {method:"POST"}); if (!r.ok) throw new Error((await r.json()).error || r.status); }
   catch (e) { labBusy(false); $("labout").innerHTML = `<span class="bad-t">Not started: ${esc(e.message)}</span>`; }
 };
+let LOOP = null;  // the applied change (drawn on the map) and what was measured since
+function loopRender(s) {
+  LOOP = s && s.applied ? s : null; draw();
+  $("labundo").style.display = LOOP ? "" : "none";
+  if (!LOOP) { $("labloop").classList.add("muted"); $("labloop").innerHTML = 'Nothing applied yet. Run an experiment; when the result is significant, press <b>Apply to the floor</b>. The change appears on the Live floor map, and every incident of that kind that follows is measured on the floor against the Lab\'s prediction.'; return; }
+  const a = s.applied, what = a.policy.type === "move_spill_kit" ? `an extra spill kit at ${a.policy.station}` : `a loaded AGV waiting at ${a.policy.station}`;
+  const kind = a.kind.replace("_", " "), sec = v => v == null ? "-" : `${v} s`;
+  const bar = (v, max, cls) => `<div style="height:10px;width:${Math.max(2, 100 * (v || 0) / max)}%;border-radius:3px" class="${cls}"></div>`;
+  const max = Math.max(1, s.predicted_saving_s || 0, s.measured_saving_s || 0, s.predicted_at_station_s || 0, s.measured_at_station_s || 0);
+  $("labloop").classList.remove("muted");
+  $("labloop").innerHTML = `<p><b>Applied:</b> ${esc(what)} · since ${esc(hhmm(a.applied_at))} · the Lab predicted ${esc(a.effect_pct)}% (${esc(a.ci[0])}% to ${esc(a.ci[1])}%) on time to clear</p>
+    <table><tr><th></th><th>predicted by the Lab</th><th>measured on the floor</th></tr>
+      <tr><td>seconds saved per ${esc(kind)}</td><td>${sec(s.predicted_saving_s)}${bar(s.predicted_saving_s, max, "loopbar p")}</td><td>${sec(s.measured_saving_s)} <span class="note">over ${s.n}</span>${bar(s.measured_saving_s, max, "loopbar m")}</td></tr>
+      <tr><td>at ${esc(a.policy.station)} itself</td><td>${sec(s.predicted_at_station_s)}${bar(s.predicted_at_station_s, max, "loopbar p")}</td><td>${sec(s.measured_at_station_s)} <span class="note">over ${s.at_station_n}</span>${bar(s.measured_at_station_s, max, "loopbar m")}</td></tr></table>
+    ${s.n ? `<table style="margin-top:8px"><tr><th>incident</th><th>where</th><th>walk without → with (cells)</th><th>saved</th></tr>${s.measured.slice().reverse().slice(0, 12).map(m =>
+        `<tr><td>${esc(m.incident)}</td><td>${esc(m.station)}</td><td>${m.cells_without} → ${m.cells_with}</td><td class="${m.saving_s > 0 ? "ok-t" : ""}">${m.saving_s} s</td></tr>`).join("")}</table>`
+      : `<p class="note">Waiting for the next ${esc(kind)}: report one on the Live floor${a.policy.station ? ` (try ${esc(a.policy.station)})` : ""} or start an autopilot shift.</p>`}
+    <p class="note">The prediction is the mean over every past ${esc(kind)} in Zetaris; the measurement is the incidents handled since you applied it, each walked on the floor grid with and without the change. They differ when new incidents happen in other places than past ones did.</p>`;
+}
+async function labRuns() {
+  let rows; try { rows = await (await fetch("/api/lab_runs")).json(); } catch { return; }
+  if (!Array.isArray(rows) || !rows.length) return;
+  $("labruns").classList.remove("muted");
+  $("labruns").innerHTML = `<table><tr><th>at</th><th>who proposed</th><th>change</th><th>effect</th><th>status</th><th>took</th></tr>${rows.map(r =>
+    `<tr><td>${esc(hhmm(r.at))}</td><td>${r.source === "nemotron" ? esc(shortModel(r.model) || "Nemotron") : '<span class="bad-t">rule (no model)</span>'}</td>
+      <td>${esc(r.policy.type === "move_spill_kit" ? "spill kit" : "waiting AGV")} at ${esc(r.policy.station)}</td><td>${esc(r.effect_pct)}%</td><td>${esc(r.status)}</td><td>${esc(r.seconds)} s</td></tr>`).join("")}</table>`;
+}
+async function labPost(path, btn) {
+  btn.disabled = true;
+  try { const r = await fetch(path, {method: "POST"}); const out = await r.json(); if (!r.ok) throw new Error(out.error || r.status); loopRender(out); }
+  catch (e) { $("labloop").insertAdjacentHTML("afterbegin", `<div class="bad-t">${esc(e.message)}</div>`); btn.disabled = false; }
+}
+$("labapply").onclick = () => labPost("/lab/apply", $("labapply"));
+$("labundo").onclick = () => labPost("/lab/undo", $("labundo")).then(() => { if (window.LASTLAB && LASTLAB.significant) $("labapply").disabled = false; });
+es.addEventListener("lab_loop", e => loopRender(JSON.parse(e.data)));
+fetch("/api/lab_loop").then(r => r.json()).then(loopRender).catch(() => {});
+labRuns();
 $("labwrite").onclick = async () => {
   const b = $("labwrite"); if (b.disabled) return; b.disabled = true; b.textContent = "Saving…";
   try { const r = await fetch("/lab/write", {method:"POST"}); if (!r.ok) throw new Error((await r.json()).error || r.status); }
@@ -1139,11 +1352,11 @@ function labStep(st) {
   pipeRecord("lab", st.step, {ok: true, ms: st.ms, detail: d});
   if (st.step === "history") txt = `${d.rows} station and kind summaries`;
   else if (st.step === "hypothesis") txt = d.source === "nemotron"
-    ? `${esc(String(d.model || "nemotron").split("/").pop())}: ${esc(d.hypothesis)} (expects ${d.expected_effect_pct}%)${d.receipt ? ` · receipt ${esc(d.receipt)}` : ""}`
-    : `rule-based: ${esc(d.hypothesis)}${d.fallback_reason ? ` <span class="bad-t">(${esc(d.fallback_reason)})</span>` : ""}`;
+    ? `${esc(shortModel(d.model) || "Nemotron")} read ${d.sent_rows ?? "the"} station summaries${d.tried_before ? ` and the ${d.tried_before} change(s) already tested` : ""} and answered in ${d.latency_s != null ? (+d.latency_s).toFixed(1) : (st.ms / 1000).toFixed(1)} s${d.latency_s != null && d.latency_s < 0.5 ? " (from Nightshift’s memory: the same question was asked before)" : ""}: ${esc(d.hypothesis)} (expects ${d.expected_effect_pct}%)${d.receipt ? ` · receipt ${esc(d.receipt)}` : ""}`
+    : `<span class="bad-t">Nemotron did not answer</span>${d.fallback_reason ? ` (${esc(d.fallback_reason.slice(0, 120))})` : ""}, so a fixed rule picked the change, the same every time: ${esc(d.hypothesis)}`;
   else if (st.step === "incidents") txt = `${d.rows} past incidents`;
-  else if (st.step === "rescore") txt = `${d.incidents} incidents, ${d.changed} shorter walks: ${d.baseline_mean_s} s → ${d.treatment_mean_s} s`;
-  else if (st.step === "replays") txt = `${d.replays} replays, no model calls`;
+  else if (st.step === "rescore") txt = `${d.walks ?? 2 * d.incidents} A* walks on the floor grid for ${d.incidents} incidents, ${d.changed} got shorter: ${d.baseline_mean_s} s → ${d.treatment_mean_s} s`;
+  else if (st.step === "replays") txt = `${d.replays} replays, ${d.resampled ?? ""} incident draws with the same jitter in both arms, no model calls`;
   else if (st.step === "bootstrap") txt = `${d.resamples} resamples: ${d.effect_pct}% (${d.ci_low_pct}% to ${d.ci_high_pct}%) · ${d.significant ? "significant" : "not significant"}`;
   if ($("labsteps").classList.contains("muted")) { $("labsteps").classList.remove("muted"); $("labsteps").innerHTML = ""; }
   $("labsteps").insertAdjacentHTML("beforeend", `<div class="step"><span class="n ok-t">${LAB_WHO[st.step] || esc(st.step)}</span><span class="ms">${(st.ms / 1000).toFixed(1)}s</span>${txt}</div>`);
@@ -1178,9 +1391,26 @@ function showLab(r) {
   $("labreps").innerHTML = `<div class="spark">${reps.map(x => `<i title="seed ${x.seed}: ${x.baseline_mean_s} → ${x.treatment_mean_s} s" style="height:${100 * x.treatment_mean_s / max}%"></i>`).join("")}</div>
     <div class="note" style="margin-top:6px">Each bar is one seeded replay's treatment mean, relative to the highest baseline (${max.toFixed(0)} s).</div>`;
   $("labwrite").disabled = !r.significant;
+  window.LASTLAB = r; $("labapply").disabled = !r.significant || !!(LOOP && LOOP.applied.lab_id === r.lab_id);
+  if (r.seconds != null) $("labout").insertAdjacentHTML("afterbegin", `<div class="note" style="margin-bottom:6px">${r.source === "nemotron"
+      ? `Took ${r.seconds} s: Nemotron ${r.model_latency_s != null ? (+r.model_latency_s).toFixed(1) : "?"} s for the hypothesis${r.model_latency_s != null && r.model_latency_s < 0.5 ? " (Nightshift answered from its memory of an identical question)" : ""}, the rest ${Math.max(0, r.seconds - (r.model_latency_s || 0)).toFixed(2)} s of seeded arithmetic. Each new run tells Nemotron what was already tested, so it proposes something else.`
+      : `<span class="bad-t">Took ${r.seconds} s with no model call: Nemotron did not answer, so this is the fixed rule's pick, not a new idea.</span>`}</div>`);
+  labRuns();
 }
 
+async function vdaPanel() {
+  let v; try { v = await (await fetch("/api/vda5050")).json(); } catch { return; }
+  if (!v || !v.states) return;
+  $("kvda").classList.remove("muted");
+  const last = v.orders[0];
+  $("kvda").innerHTML = `<table><tr><th>AGV</th><th>position (m)</th><th>driving</th><th>battery</th><th>order</th><th>errors</th></tr>${v.states.map(s =>
+      `<tr><td>${esc(s.serialNumber)}</td><td>${s.agvPosition.x}, ${s.agvPosition.y}</td><td>${s.driving ? "yes" : "no"}</td><td>${s.batteryState.batteryCharge}%</td>
+        <td class="note">${esc(s.orderId || "-")}</td><td class="${s.errors.length ? "bad-t" : ""}">${esc(s.errors.map(e => e.errorType + " " + e.errorLevel).join(", ") || "-")}</td></tr>`).join("")}</table>`
+    + (last ? `<details style="margin-top:8px"><summary>Last order sent: ${esc(last.serialNumber)} · ${esc(last.orderId)} · ${last.nodes.length} nodes, ${last.edges.length} edges</summary><pre>${esc(JSON.stringify(last, null, 1))}</pre></details>`
+            : '<p class="note">No AGV has been dispatched since the server started.</p>');
+}
 async function knowledge() {
+  vdaPanel();
   let k; try { k = await (await fetch("/api/knowledge")).json(); } catch { return; }
   $("kagvs").innerHTML = `<p class="note">${k.engine}: ${k.counts.station} stations, ${k.counts.machine} machines, ${k.counts.worker} workers, ${k.counts.agv} AGVs · ${k.events} events, ${k.audit} audit entries · live, updated ${new Date().toLocaleTimeString()}${k.loaded_at ? ` · plant data loaded from Zetaris at ${new Date(k.loaded_at * 1000).toLocaleTimeString()} (refreshed every 5 min)` : ""}</p>
     <table><tr><th>AGV</th><th>model</th><th>status</th><th>battery health</th><th>faults 90 d</th><th>service</th></tr>
@@ -1235,7 +1465,8 @@ async function poweredBy() {
 }
 flowReset(); load(); floorList(); health(); restoreLast(); poweredBy(); modelsPanel(); setInterval(health, 15000); setInterval(poweredBy, 10000); setInterval(modelsPanel, 10000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
-if (["#lab", "#know", "#flow", "#ask", "#incs"].includes(location.hash)) show(location.hash.slice(1));
+if (["#lab", "#know", "#ask", "#incs", "#nemo"].includes(location.hash)) show(location.hash.slice(1));
+if (location.hash === "#flow") show("incs");  // the old Flow page lives in Incidents now
 </script>
 </body>
 </html>

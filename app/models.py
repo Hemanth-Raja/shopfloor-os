@@ -64,6 +64,9 @@ def role_for(lane: str, role: str | None) -> str:
     return role
 
 
+RECEIPT_OK: dict[str, bool] = {}  # receipt id -> its signature verified at call time
+
+
 def receipt_for(request_id: str | None, wait_s: float = 1.0) -> str | None:
     """Nightshift's signed receipt id for one request (matched on the OpenAI response id), if it is readable."""
     from app.powered import receipts_path
@@ -77,13 +80,31 @@ def receipt_for(request_id: str | None, wait_s: float = 1.0) -> str | None:
             for line in reversed(fh.read().splitlines()):
                 if request_id.encode() in line:
                     try:
-                        body = json.loads(line)["body"]
-                        return (json.loads(body) if isinstance(body, str) else body)["receipt"]["receipt_id"]
+                        env = json.loads(line)
+                        body = env["body"]
+                        rid = (json.loads(body) if isinstance(body, str) else body)["receipt"]["receipt_id"]
                     except (ValueError, KeyError, TypeError):
                         return None
+                    try:  # check the Ed25519 signature now, on this one answer, not only in the nightly total
+                        from app.receipts import verify_envelope
+                        RECEIPT_OK[rid] = bool(verify_envelope(env))
+                    except Exception:  # noqa: BLE001 - an unreadable key is "not verified", never a crash
+                        RECEIPT_OK[rid] = False
+                    return rid
         if time.monotonic() >= deadline:
             return None
         time.sleep(0.2)
+
+
+def reasoning_kwargs(model: str, level: str | None) -> dict | None:
+    """config "reasoning" per role -> Nemotron 3.5 chat_template_kwargs (NVIDIA model cards): "off" answers directly,
+    "medium" is Super VL's medium effort (Lightning has no medium level: it reasons fully), "on"/None = model default.
+    Reasoning and answer share max_tokens, so the small fast decisions run with reasoning off."""
+    if level == "off":
+        return {"enable_thinking": False}
+    if level == "medium":
+        return {"enable_thinking": True, "medium_effort": True} if "super" in model else None
+    return None
 
 
 def _complete(model: str, role: str, messages: list[dict], max_tokens: int, timeout_s: float,
@@ -95,6 +116,9 @@ def _complete(model: str, role: str, messages: list[dict], max_tokens: int, time
         kwargs["extra_headers"] = {"meterless-app": app}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
+    thinking = reasoning_kwargs(model, CFG["roles"].get(role, {}).get("reasoning"))
+    if thinking is not None:  # NVIDIA's chat-template switch; Nightshift passes it through to the model
+        kwargs["extra_body"] = {"chat_template_kwargs": thinking}
     started = time.perf_counter()
     try:
         # no hidden SDK retries: our own retry loop below decides (backoff, jitter, deadline)
@@ -224,7 +248,7 @@ def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespac
             timeout = deadline.cap(spec["budget_s"])
             lim = limiter(model)
             try:
-                with lim.slot(min(timeout, 5.0)):
+                with lim.slot(min(timeout, 15.0)):
                     started = time.perf_counter()
                     out = call(model, spec, timeout)
                 lim.success(time.perf_counter() - started)
@@ -234,7 +258,8 @@ def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespac
             except (LLMUnavailable, LimiterTimeout) as err:
                 if isinstance(err, (CircuitOpen, BudgetExhausted)):
                     raise
-                lim.failure()
+                if not isinstance(err, LimiterTimeout):  # waiting for our own slot says nothing about the model
+                    lim.failure()
                 last = err
                 if n < retries:
                     RETRIES["n"] += 1
@@ -322,12 +347,17 @@ def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None =
         out.role, out.tried = role, tried
         out.fell_back = any("error" in t or "skipped" in t for t in tried) or out.model != out.requested
         out.receipt = receipt_for(out.request_id)
+        out.receipt_verified = RECEIPT_OK.get(out.receipt) if out.receipt else None
         note_answer(out.requested, out.model)
         LAST[role] = {"role": role, "requested": out.requested, "answering": out.model,
                       "latency_s": round(out.latency_s, 2), "receipt": out.receipt, "at": time.time(),
+                      "receipt_verified": out.receipt_verified,
                       "fell_back": out.fell_back, "retries": getattr(out, "retries", 0)}
         return out
-    raise LLMUnavailable(f"every model for role {role} failed or is open: {tried}")
+    err = LLMUnavailable(f"every model for role {role} failed or is open: {tried}")
+    if tried and all("LimiterTimeout" in str(t.get("error", "")) for t in tried):
+        err.not_a_failure = True  # only our own queue was full: the role's breaker must not open for that
+    raise err
 
 
 def _deadline(timeout_s, deadline) -> Deadline | None:
@@ -352,7 +382,7 @@ def call_info(reply) -> dict:
     """Requested and answering model, latency and receipt of one reply (replayed replies have fewer fields)."""
     return {"requested": getattr(reply, "requested", None), "answering": getattr(reply, "model", None),
             "latency_s": round(getattr(reply, "latency_s", 0.0) or 0.0, 2), "receipt": getattr(reply, "receipt", None),
-            "role": getattr(reply, "role", None), "fell_back": getattr(reply, "fell_back", None),
+            "receipt_verified": getattr(reply, "receipt_verified", None), "role": getattr(reply, "role", None), "fell_back": getattr(reply, "fell_back", None),
             "retries": getattr(reply, "retries", None), "repaired": getattr(reply, "repaired", None)}
 
 

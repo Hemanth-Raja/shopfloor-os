@@ -205,3 +205,28 @@ def test_a_report_while_the_last_response_is_still_under_way_is_the_same_inciden
     for a in app.traces[first].dispatch:
         app.sim.stop(a, "idle")  # the response is over: a new report is a new incident
     assert app.run({"kind": "part_shortage", "station": "F30"}) != first
+
+
+def test_handled_incidents_and_the_lab_state_survive_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    from app.contracts import Incident, Trace
+    a = server.App(offline=True, replay=True)
+    a.incidents_file, a.lab_file = tmp_path / "incidents.jsonl", tmp_path / "lab.json"
+    inc = Incident(id="SIM-42-007", kind="spill", station_id="F20", zone_id="FINAL", x=30, y=9, tick=5, severity="high")
+    a.traces[inc.id] = Trace(incident=inc, gate="awaiting_approval")
+    a.trace_meta[inc.id] = {"source": "you ran it", "finished_at": "2026-10-25T18:00:00+01:00"}
+    a._persist(inc.id)
+    a.traces[inc.id].gate = "approved"
+    a._persist(inc.id)  # a later judgement rewrites it: the last line wins
+    a.lab_runs = [{"lab_id": "lab-1", "policy": {"type": "move_spill_kit", "station": "F20"}}]
+    a._save_lab()
+    b = server.App(offline=True, replay=True)
+    b.incidents_file = a.incidents_file
+    b.traces, b.trace_meta = {}, {}
+    b._load_incidents()
+    assert b.traces["SIM-42-007"].gate == "approved" and b.trace_meta["SIM-42-007"]["source"] == "you ran it"
+    assert b.sim._incident_seq >= 7  # the next incident is SIM-42-008, not a second 001
+    assert b.incidents()[0]["incident"] == "SIM-42-007"
+    import json
+    assert json.loads(a.lab_file.read_text())["runs"][0]["lab_id"] == "lab-1"

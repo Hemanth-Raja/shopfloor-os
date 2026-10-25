@@ -365,6 +365,28 @@ def models(check: bool = False):
         print(model_id)
 
 
+def verify_decision(incident_id: str, offline: bool = False) -> None:
+    """Re-derive one saved decision with code only: the same checks as GET /api/verify/<id>."""
+    from datetime import date
+    from app.sim.grid import Grid
+    from app.sim.sim import Sim
+    from app.verify import load, verify
+    trace, meta = load(incident_id)
+    if offline or os.environ.get("SAMPLE_MODE") == "true":
+        from app.sim.offline import offline_plant
+        plant, run_sql = offline_plant(), None
+    else:
+        from app.engines.plant_world import load_plant_world
+        from app.runtime import run_sql
+        plant = load_plant_world(run_sql, today=date(2026, 10, 16), at="2026-10-16T14:00:00.000Z")
+    sim = Sim.from_plant(plant, Grid.load(run_sql), seed=42, shift="B")
+    out = verify(trace, plant, sim)
+    print(f"{out['incident']} {out['kind']}: {out['decision']} / {out['gate']} -> {out['verdict']} (model calls: 0)")
+    for c in out["checks"]:
+        mark = "PASS" if c["ok"] else "n/a " if c["ok"] is None else "FAIL"
+        print(f"  {mark}  {c['check']}: {c['detail']}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Shop-Floor OS")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -402,6 +424,9 @@ if __name__ == "__main__":
     ho = sub.add_parser("handover", help="shift handover note from the journal (Meterless Markovian engine, Nemotron)")
     ho.add_argument("--shifts", type=int, default=1, help="hand over the last N shifts (more = a longer chain)")
     ho.add_argument("--json", action="store_true")
+    vf = sub.add_parser("verify", help="re-check one saved decision with code only (no model): critic, gate, data, journal")
+    vf.add_argument("incident", help="an incident id from logs/incidents.jsonl, e.g. SIM-42-003")
+    vf.add_argument("--offline", action="store_true", help="offline plant instead of Zetaris")
     inc = sub.add_parser("incident", help="run the full agent loop on one injected incident")
     inc.add_argument("--kind", required=True, choices=list(__import__("app.api", fromlist=["KINDS"]).KINDS))
     inc.add_argument("--station", default=None)
@@ -417,6 +442,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.command == "context":
         context(args.zone)
+    elif args.command == "verify":
+        verify_decision(args.incident, args.offline)
     elif args.command == "incident":
         incident(args.kind, args.station, args.agv, args.seed, args.false_alarm, args.stall_after, not args.no_memory, args.offline,
                  args.severity, args.note, args.linear)

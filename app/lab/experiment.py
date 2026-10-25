@@ -72,7 +72,8 @@ class Hypothesis(BaseModel):
     expected_effect_pct: float = Field(ge=-100, le=100)
 
 
-def propose(summary: list[list], llm_json: Callable | None, info: dict | None = None) -> tuple[Hypothesis, str]:
+def propose(summary: list[list], llm_json: Callable | None, info: dict | None = None,
+            tried: list[dict] | None = None) -> tuple[Hypothesis, str]:
     """info, when given, receives the model that answered (or why the rule-based hypothesis was used)."""
     info = {} if info is None else info
     rows = [dict(zip(["kind", "station_id", "zone_id", "n", "avg_clear_s", "avg_downtime_min", "avg_kit_cells",
@@ -85,11 +86,16 @@ def propose(summary: list[list], llm_json: Callable | None, info: dict | None = 
                  "fluid_spill) or preposition_agv (stage a loaded kitting AGV at a station; helps part_shortage). "
                  f"Spill kits today: {[k[0] + '@' + str(k[1:]) for k in g.SPILL_KITS]}; the supermarket exit is "
                  "at (7, 13). Use a station id from the data."},
-                {"role": "user", "content": json.dumps(rows)}], Hypothesis, timeout_s=120, role="lab")
+                {"role": "user", "content": json.dumps(rows)}]
+                + ([{"role": "user", "content": "Already tested in this session (policy, effect on mean time_to_clear, "
+                     "status). Propose a policy or station NOT in this list, and use what these results show: "
+                     + json.dumps(tried[-8:])}] if tried else []), Hypothesis, timeout_s=120, role="lab")
             info.update({k: getattr(reply, k) for k in ("model", "latency_s", "receipt") if getattr(reply, k, None)})
+            info["sent_rows"] = len(rows)  # what the model saw: the per-station summary, nothing else
             return (reply.data if hasattr(reply, "data") else reply), "nemotron"
         except Exception as err:  # noqa: BLE001 - fall back to a rule-based hypothesis
             info["fallback_reason"] = f"{type(err).__name__}: {err}"[:200]
+    info["rule"] = "no model answer: the station with the most spills gets an extra kit (always the same pick)"
     top = max((r for r in rows if r["kind"] == "fluid_spill" and r["station_id"]), key=lambda r: r["n"], default=None)
     station = top["station_id"] if top else "F20"
     return Hypothesis(hypothesis=f"An extra spill kit at {station} cuts spill clean-up time there.",
@@ -104,24 +110,33 @@ def _walk(grid: Grid, a: tuple[int, int], b: tuple[int, int], cache: dict) -> in
     return cache[key]
 
 
+def staged_cell(station_id: str) -> tuple[int, int]:
+    """Where the policy puts its kit or its waiting AGV: line side, two cells south of the station."""
+    station = {s[0]: s for s in g.STATIONS}[station_id]
+    return station[3], station[4] + 2
+
+
+def travel(policy: Policy, cell: tuple[int, int], station_id: str | None, helped: bool, grid: Grid,
+           cache: dict) -> tuple[int, int, int]:
+    """(cells without the policy, cells with it, seconds per cell) for one incident at `cell`. The same A* walk the
+    replays use, so the Lab's prediction and the floor's measurement count the same thing."""
+    if policy.type == "move_spill_kit":
+        old = min(_walk(grid, (kx, ky), cell, cache) for _, kx, ky in g.SPILL_KITS)
+        return old, min(old, _walk(grid, staged_cell(policy.station), cell, cache)), SPILL_SECONDS_PER_CELL
+    old = _walk(grid, g.SMKT_EXIT, cell, cache)
+    new = min(old, STAGED_DISTANCE) if helped and station_id == policy.station else old
+    return old, new, SHORTAGE_SECONDS_PER_CELL
+
+
 def rescore(rows: list[dict], policy: Policy, grid: Grid) -> list[tuple[float, float]]:
     """(baseline, treatment) time to clear for each historical incident. No LLM, fully deterministic."""
-    station = {s[0]: s for s in g.STATIONS}[policy.station]
-    staged = (station[3], station[4] + 2)
     cache: dict = {}
     pairs = []
     for r in rows:
         actual = float(r["time_to_clear_s"])
-        cell = (int(r["x"]), int(r["y"]))
-        if policy.type == "move_spill_kit":
-            old = min(_walk(grid, (kx, ky), cell, cache) for _, kx, ky in g.SPILL_KITS)
-            new = min(old, _walk(grid, staged, cell, cache))
-            pairs.append((actual, actual + SPILL_SECONDS_PER_CELL * (new - old)))
-        else:
-            helped = r["station_id"] == policy.station and r["cause"] in ("agv_late", "agv_down")
-            old = _walk(grid, g.SMKT_EXIT, cell, cache)
-            new = min(old, STAGED_DISTANCE) if helped else old
-            pairs.append((actual, actual + SHORTAGE_SECONDS_PER_CELL * (new - old)))
+        old, new, per = travel(policy, (int(r["x"]), int(r["y"])), r["station_id"],
+                               r["cause"] in ("agv_late", "agv_down"), grid, cache)
+        pairs.append((actual, actual + per * (new - old)))
     return pairs
 
 
@@ -147,7 +162,7 @@ def bootstrap_ci(pairs: list[tuple[float, float]], n: int = BOOTSTRAP, seed: int
 
 
 def run_experiment(run_sql: Callable, llm_json: Callable | None, grid: Grid | None = None,
-                   on_step: Callable[[str, float, dict], None] | None = None) -> dict:
+                   on_step: Callable[[str, float, dict], None] | None = None, tried: list[dict] | None = None) -> dict:
     """on_step(step, started, detail) is called after each stage, so a UI can show the evidence as it is made."""
     step = on_step or (lambda *a: None)
     grid = grid or Grid.load(run_sql)
@@ -157,7 +172,8 @@ def run_experiment(run_sql: Callable, llm_json: Callable | None, grid: Grid | No
                         "columns": ["kind", "station_id", "zone_id", "n", "avg_clear_s", "avg_downtime_min",
                                     "avg_kit_cells", "avg_smkt_cells"]})
     t, info = time.perf_counter(), {}
-    hyp, source = propose(summary, llm_json, info)
+    hyp, source = propose(summary, llm_json, info, tried)
+    info["tried_before"] = len(tried or [])
     step("hypothesis", t, {"source": source, **info, **hyp.model_dump()})
     cols = ["incident_id", "kind", "cause", "station_id", "zone_id", "x", "y", "time_to_clear_s", "spill_kit_distance",
             "supermarket_distance", "shift_code", "false_alarm"]
@@ -169,23 +185,28 @@ def run_experiment(run_sql: Callable, llm_json: Callable | None, grid: Grid | No
     t = time.perf_counter()
     pairs = rescore(rows, hyp.policy, grid)
     base = statistics.fmean(b for b, _ in pairs)
-    step("rescore", t, {"incidents": len(pairs), "baseline_mean_s": round(base, 1),
+    at = [b - x for (b, x), r in zip(pairs, rows) if r["station_id"] == hyp.policy.station]
+    saving = {"per_incident_s": round(statistics.fmean(b - x for b, x in pairs), 1),
+              "at_station_s": round(statistics.fmean(at), 1) if at else None, "at_station_n": len(at)}
+    step("rescore", t, {"incidents": len(pairs), "baseline_mean_s": round(base, 1), "walks": len(pairs) * 2,
                         "treatment_mean_s": round(statistics.fmean(x for _, x in pairs), 1),
                         "changed": sum(1 for b, x in pairs if x != b), "method": "A* walking distance on the floor grid"})
     t = time.perf_counter()
     reps = replays(pairs)
-    step("replays", t, {"replays": len(reps), "seeds": [r["seed"] for r in reps][:3] + ["…"], "llm": "none"})
+    step("replays", t, {"replays": len(reps), "seeds": [r["seed"] for r in reps][:3] + ["…"], "llm": "none",
+                        "resampled": len(reps) * len(pairs)})
     t = time.perf_counter()
     mean_diff, lo, hi = bootstrap_ci(pairs)
     effect = 100 * mean_diff / base
     significant = hi < 0
     step("bootstrap", t, {"resamples": BOOTSTRAP, "effect_pct": round(effect, 1), "ci_low_pct": round(100 * lo / base, 1),
                           "ci_high_pct": round(100 * hi / base, 1), "significant": significant})
-    return {"hypothesis": hyp.model_dump(), "source": source, "incidents": len(pairs),
+    return {"hypothesis": hyp.model_dump(), "source": source, "incidents": len(pairs), "model": info.get("model"),
+            "model_latency_s": info.get("latency_s"), "fallback_reason": info.get("fallback_reason"),
             "baseline_mean_s": round(base, 1), "treatment_mean_s": round(base + mean_diff, 1),
             "effect_pct": round(effect, 1), "ci_low_s": round(lo, 1), "ci_high_s": round(hi, 1),
             "ci_low_pct": round(100 * lo / base, 1), "ci_high_pct": round(100 * hi / base, 1),
-            "replays": reps, "significant": significant,
+            "replays": reps, "significant": significant, "predicted_saving": saving,
             "status": "proposed" if significant else "inconclusive"}
 
 

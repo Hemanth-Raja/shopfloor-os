@@ -23,6 +23,7 @@ from typing import Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.investigate.intake import INVESTIGATE, Intake, live_lines, respond
 from app.investigate.catalog import AGENT_CATALOG, AGENT_NOTES, CATALOG, NOTES, about_agents
 from app.investigate.sqlguard import GuardError, check
 
@@ -30,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[2]
 LOGS = ROOT / "logs"
 FIXTURES = LOGS / "fixtures"
 MAX_TASKS = 4
+RELATIVE = re.compile(r"\b(?:today|yesterday|tonight|last night|this (?:morning|afternoon|evening|week|shift)|right now)\b", re.I)
 PREVIEW_ROWS = 15
 TIMEOUT_S = 90
 ANALYST_TIMEOUT_S = 180
@@ -154,8 +156,12 @@ def supported_numbers(evidence: list[dict]) -> list[float]:
 
 class Investigator:
     def __init__(self, run_sql: Callable, llm_json: Callable | None, on_step: Callable | None = None,
-                 ask_id: str | None = None, memory=None, sample: str = "false", plant=None, sim=None):
+                 ask_id: str | None = None, memory=None, sample: str = "false", plant=None, sim=None,
+                 history: list[dict] | None = None, live: Callable | None = None):
         self.run_sql, self.llm_json, self.on_step = run_sql, llm_json, on_step
+        self.history = history or []  # the last few questions and answers of this conversation, oldest first
+        self.live = live  # the orchestrator's live floor: open incidents, waiting decisions, the fleet (a dict)
+        self.coordinator_error: str | None = None
         self.plant, self.sim = plant, sim  # the Meterless World Model of the plant, and the live floor
         self.question = ""
         self.ask_id = ask_id or f"ask-{int(time.time())}-{os.urandom(2).hex()}"
@@ -205,7 +211,8 @@ class Investigator:
             if not any(t["kind"] == "logs" for t in tasks):
                 tasks.append({"kind": "logs", "ask": f"What did our agents do or learn that relates to: {question}"})
             return tasks[:MAX_TASKS + 1], "nemotron"
-        except Exception:  # noqa: BLE001 - rule-based coordinator when Nightshift is unavailable
+        except Exception as err:  # noqa: BLE001 - rule-based coordinator when Nightshift is unavailable
+            self.coordinator_error = f"{type(err).__name__}: {str(err)[:160]}"
             tasks = []
             for t in rule_tasks(question):
                 if t.get("logs"):
@@ -435,9 +442,49 @@ class Investigator:
         info = self.role_calls.get(role)
         return {"model_call": info} if info and how and how != "rule-based" else {}
 
+    # -- intake: what kind of message this is, before anything is split into SQL
+    def stations(self) -> set[str]:
+        return {e["id"].split(":")[-1] for e in self.plant.entities("station")} if self.plant is not None else set()
+
+    def live_floor(self) -> dict | None:
+        try:
+            return self.live() if self.live is not None else None
+        except Exception:  # noqa: BLE001 - the answer goes on without the live floor
+            return None
+
+    def data_until(self) -> str | None:
+        try:
+            rows = self.run_sql(check("SELECT max(ts) AS latest FROM sf_ops.incidents"))
+            return str(rows[0][0])[:10] if rows and rows[0][0] else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def understand(self, question: str):
+        from app.investigate.intake import understand
+        from app.orchestrator import SUPPORTED_KINDS
+        live = self.live_floor()
+        line = " ".join(live_lines(live)) if live else ""
+        model = (lambda msgs: self._llm(Intake, msgs, lane="fast", role="coordinator")) if self.llm_json else None
+        intake, how = understand(question, self.history, self.stations(), set(SUPPORTED_KINDS), model, line)
+        return intake, how, live
+
     # -- the whole investigation
     def run(self, question: str) -> dict:
         started = time.perf_counter()
+        t = time.perf_counter()
+        intake, how_i, live = self.understand(question)
+        asked = question
+        question = intake.question.strip() if intake.intent in INVESTIGATE and intake.question.strip() else question
+        self._step("intake", t, True, intent=intake.intent, understood_as=question if question != asked else None,
+                   model=how_i, **self._call("coordinator", "nemotron" if how_i == "nemotron" else ""))
+        if intake.intent not in INVESTIGATE:  # answered here, from the live floor; nothing goes to SQL
+            r = respond(intake, asked, live)
+            self._step("result", t, True, summary=r["summary"], intent=intake.intent)
+            return {"ask_id": self.ask_id, "question": asked, "intent": intake.intent, "intake": how_i,
+                    "summary": r["summary"], "findings": r["findings"], "dropped": [], "recommendation": r["recommendation"],
+                    "evidence": r["evidence"], "suggestions": r["suggestions"], "handoff": r["handoff"],
+                    "models": sorted(self.models) or ["rule-based"], "coordinator": how_i, "analyst": None,
+                    "log_file": f"logs/{self.trace_path.name}", "execution_time_seconds": round(time.perf_counter() - started, 2)}
         t = time.perf_counter()
         self.question = question
         tasks, how = self.plan(question)
@@ -497,7 +544,20 @@ class Investigator:
                 checked_by.append(f"model check skipped ({type(err).__name__})")
         self._step("critic", t, not dropped, kept=len(kept), dropped=dropped, checked_by=checked_by,
                    **self._call("evidence_critic", "model" if len(checked_by) > 1 and "skipped" not in checked_by[-1] else ""))
-        return {"ask_id": self.ask_id, "question": question, "summary": draft.summary, "findings": kept,
+        notes = []
+        if RELATIVE.search(question):  # "yesterday", "this morning": say how far the history goes
+            until = self.data_until()
+            notes.append(f"The incident history in Zetaris runs to {until}; for what is happening now, see the live floor."
+                         if until else "For what is happening now, see the live floor.")
+        failed = [x for x in (self.coordinator_error if how == "rule-based" else None,
+                              self.analyst_error if how_a == "rule-based" else None) if x]
+        if failed:
+            why = ("there is no recorded Nemotron reply for this question in replay mode" if "SAMPLE_MODE" in failed[0]
+                   else "Nemotron could not be reached (" + failed[0].split(":")[0] + ")")
+            notes.append(why[:1].upper() + why[1:] + ", so this answer is rule-based: it shows the top rows of standard "
+                         "queries rather than reasoning about your question.")
+        return {"ask_id": self.ask_id, "question": asked, "understood_as": question if question != asked else None,
+                "intent": intake.intent, "intake": how_i, "notes": notes, "summary": draft.summary, "findings": kept,
                 "dropped": dropped, "recommendation": draft.recommendation, "evidence": evidence,
                 "models": sorted(self.models) or ["rule-based"], "coordinator": how, "analyst": how_a,
                 "log_file": f"logs/{self.trace_path.name}", "execution_time_seconds": round(time.perf_counter() - started, 2)}

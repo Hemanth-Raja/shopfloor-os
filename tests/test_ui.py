@@ -27,8 +27,12 @@ def test_offline_health_reports_each_dependency(monkeypatch):
     assert h["floor"]["status"] == "ok" and h["overall"] == "ok"
 
 
-def test_flow_tab_is_a_route_graph_with_every_agent_and_a_models_panel():
-    assert 'data-view="flow"' in HTML and 'id="flowgraph"' in HTML and 'id="flowdetail"' in HTML and 'id="hops"' in HTML
+def test_flow_lives_in_incidents_for_a_named_incident_with_every_agent_and_a_models_panel():
+    assert 'data-view="flow"' not in HTML  # no separate Flow tab: it showed a flow without saying for which incident
+    incs = HTML.split('<section class="view" id="incs">')[1].split("</section>")[0]
+    assert 'id="flowgraph"' in incs and 'id="flowdetail"' in incs and 'id="hops"' in incs and 'id="flowhead"' in incs
+    assert '"Agent flow: " + flowMeta' in HTML and "steps.forEach(flowStep)" in HTML  # titled with, and fed by, the incident
+    assert 'id="models"' in HTML.split('<section class="view" id="nemo">')[1].split("</section>")[0]
     nodes = HTML.split("const NODES = {")[1].split("};")[0]
     for step in ("reflex", "monitor", "memory", "investigator", "candidates", "playbook", "verify_plan", "planner",
                  "critic", "dryrun", "restraint", "gate", "executor", "verifier", "safe_mode"):
@@ -62,3 +66,18 @@ def test_run_buttons_lock_per_click_and_open_incidents_are_listed():
     assert body.index("btn.disabled = true") < body.index("await fetch")  # locked before the request goes out
     assert 'id="floorlist"' in HTML and '"/api/floor"' in HTML
     assert "if (st.incident === current) addStep(st)" in HTML  # each incident's steps stay in its own trace
+
+
+def test_incidents_say_where_they_came_from_and_can_be_filtered():
+    assert 'id="incfilter"' in HTML and "srcBadge(r.source)" in HTML and 'class="src live"' in HTML
+
+
+def test_ask_keeps_a_history_and_compares_a_repeated_question():
+    assert 'id="askhist"' in HTML and '"/api/asks"' in HTML and '"/api/ask/"' in HTML
+    assert "Asked before at" in HTML and "ch.new_findings" in HTML and "ch.gone_findings" in HTML
+
+
+def test_incidents_filter_never_shows_a_hidden_incidents_flow_and_keeps_the_selection_in_view():
+    body = HTML.split("async function incList(")[1].split("// compact key/value")[0]
+    assert "incClear(" in body and "filterChanged && !listed" in body and "scrollTop = keep" in body
+    assert "incScroll();" in HTML.split("async function incShow(")[1].split("await fetch")[0]

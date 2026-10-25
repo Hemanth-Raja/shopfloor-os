@@ -10,9 +10,13 @@
     POST /shift/start  {"minutes", "seed", "rate", "workers"}: autonomous shift (Sentinel + concurrent incidents);
                        'shift', 'shift_event', 'shift_step', 'shift_done' events; GET /api/shift; GET /api/trace/<id>
     POST /shift/stop
+    GET  /api/nemotron Nemotron scorecard: calls per role, latency, fallbacks, what the answers decided, receipts
     GET  /api/models   role -> model chain, breaker states and the last call per role (config/models.json)
     POST /ask          investigator team in the background -> 'ask_step' and 'ask_result' events; GET /api/ask_last
+    GET  /api/asks     earlier questions, newest first; GET /api/ask/<id> one earlier answer (app/askhistory.py)
     POST /lab/run      Lab Level 2 experiment in the background -> 'lab' event; POST /lab/write saves it
+    POST /lab/apply    puts the tested change on the floor; /lab/undo removes it; GET /api/lab_loop predicted vs
+                       measured since (app/lab/loop.py); GET /api/lab_runs every experiment run, newest first
     POST /run          {"kind", "station", "agv", "severity", "note", "false_alarm", "stall_after", "seed"} -> runs the agent loop
     POST /approve      {"incident_id", "approve": true|false, "by"} -> a human judges the decision
     POST /autonomy     {"mode": "auto" | "supervised" | "advisory"} -> how much the agents may do on their own
@@ -30,6 +34,7 @@ import contextlib
 import json
 import os
 import queue
+import re
 import threading
 import time
 import urllib.parse
@@ -106,15 +111,36 @@ class App:
             from app.sim.offline import offline_plant
             self.plant, self.run_sql = offline_plant(), None
         self.grid = Grid.load(self.run_sql)
-        self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift="B")
+        self.floor_shift = "B"  # the crew placed on the simulated floor
+        self.sim = Sim.from_plant(self.plant, self.grid, seed=42, shift=self.floor_shift)
+        # every AGV dispatch also goes out as a VDA 5050 order (app/vda5050.py): the interface a real fleet speaks
+        from app import vda5050
+        self.vda = vda5050.Bridge(None if (replay or offline) else LOGS / "vda5050.jsonl")
         self._watch_invariants()
         # replay: an in-memory store per session, so a repeated incident can take the playbook route
         self.memory = PlaybookStore(path=None) if replay else PlaybookStore()
         self.mode = "dynamic"  # or "linear" (POST /run {"mode": "linear"}) for comparison
         self.traces: dict[str, object] = {}
         self.trace_meta: dict[str, dict] = {}  # incident id -> {source, finished_at}, for the Incidents table
+        # handled incidents survive a restart (live only: replay must start from the recorded state)
+        self.incidents_file = None if (replay or offline) else LOGS / "incidents.jsonl"
+        self._persist_lock = threading.Lock()
+        self._load_incidents()
         self.last_lab: dict | None = None
-        self.last_ask: dict | None = None
+        self.lab_runs: list[dict] = []  # every experiment this server ran, newest last (so a repeat shows if it varies)
+        from app.lab.loop import LabLoop
+        self.lab_loop = LabLoop()  # Lab in the loop: the applied change and the incidents measured since
+        self.lab_file = None if (replay or offline) else LOGS / "lab_state.json"  # survives a restart (live only)
+        if self.lab_file is not None and self.lab_file.exists():
+            try:
+                st = json.loads(self.lab_file.read_text())
+                self.lab_runs = st.get("runs", [])[-20:]
+                self.lab_loop.applied, self.lab_loop.measured = st.get("applied"), st.get("measured", [])
+            except (ValueError, OSError):
+                pass
+        from app.askhistory import AskHistory
+        self.asks = AskHistory(LOGS / ("ask_history-replay.jsonl" if replay else "ask_history.jsonl"))
+        self.last_ask: dict | None = self.asks.last()
         self.asking = False
         self.autonomy = "auto"
         self.busy = False  # only the linear comparison pipeline runs alone
@@ -228,11 +254,15 @@ class App:
                     for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
                         if aid in self.sim.agents:
                             trace.dispatch.setdefault(aid, list(self.sim.agents[aid].pos))
-                    execute(plan, trace.incident, self.plant, self.sim)
+                    execute(plan, trace.incident, self.plant, self.sim, fleet=self._fleet())
                     trace.gate = "auto_after_timeout"
             elif action == "hold":
                 trace.gate = "timeout_hold"
                 self._release(trace.incident.id)
+        if action in ("auto_execute", "hold"):
+            self._persist(trace.incident.id)
+            if trace.gate == "auto_after_timeout":
+                self._measure(trace)  # dispatched now: the Lab's applied change applies to it
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": None,
                   "by": "approval-timeout policy", "decision": trace.decision.decision if trace.decision else None,
                   "gate": trace.gate, "action": note, "waited_min": round(waited, 1)}
@@ -370,6 +400,12 @@ class App:
                                     on_event=event, on_done=self._floor_done, sim=self.sim)
         return self.floor
 
+    def _fleet(self):
+        """The fleet connector on the current sim (replay rebuilds the sim per run): AGV moves go out as VDA 5050."""
+        from app import vda5050
+        from app.connectors import SimFleet
+        return vda5050.Fleet(SimFleet(self.sim), self.vda, self.sim)
+
     def _make_floor_orch(self, inc, risk):
         from app.dynamic import DynamicOrchestrator
         from app.investigate.sources import sql_runner
@@ -382,7 +418,7 @@ class App:
                                    on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}),
                                    router_llm=None if self.replay else llm_json,
                                    run_sql=sql_runner("true") if self.offline else self.run_sql,
-                                   leases=leases, risk=risk, sim_lock=self.lock)
+                                   leases=leases, risk=risk, sim_lock=self.lock, fleet=self._fleet())
         if self._shift_running():
             orch.fleet, orch.mes = self.shift.fleet, self.shift.mes
         return orch
@@ -400,6 +436,41 @@ class App:
             self.memory.record(trace)
         self._store(trace, "you ran it", result.get("seconds"))
 
+    def _load_incidents(self, keep: int = 2000) -> None:
+        from app.contracts import Trace
+        path = self.incidents_file
+        if path is None or not path.exists():
+            return
+        rows: dict[str, dict] = {}
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                r = json.loads(line)
+                rows.pop(r["id"], None)
+                rows[r["id"]] = r  # the last line for an id wins (a later approval rewrites it)
+            except (ValueError, KeyError):
+                continue
+        seq = self.sim._incident_seq
+        for iid, r in list(rows.items())[-keep:]:
+            try:
+                self.traces[iid] = Trace.model_validate(r["trace"])
+            except Exception:  # noqa: BLE001 - an old line from before a schema change: skip it
+                continue
+            self.trace_meta[iid] = r.get("meta") or {}
+            m = re.fullmatch(rf"SIM-{self.sim.seed}-(\d+)", iid)
+            seq = max(seq, int(m.group(1))) if m else seq
+        self.sim._incident_seq = seq  # new incidents keep counting after the loaded ones
+
+    def _persist(self, iid: str) -> None:
+        t = self.traces.get(iid)
+        if self.incidents_file is None or t is None:
+            return
+        try:
+            with self._persist_lock, self.incidents_file.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"id": iid, "meta": self.trace_meta.get(iid, {}), "trace": t.model_dump(mode="json")},
+                                    default=str) + "\n")
+        except OSError as err:
+            print(f"[WARN] could not save incident {iid}: {err}", flush=True)
+
     def _store(self, trace, source: str, seconds: float | None = None) -> None:
         inc = trace.incident
         if inc.id in self.traces:  # replay rebuilds the sim, so ids repeat: keep the earlier run under its own key
@@ -407,9 +478,11 @@ class App:
             self.traces[f"{inc.id} (run {n})"] = self.traces.pop(inc.id)
             self.trace_meta[f"{inc.id} (run {n})"] = self.trace_meta.pop(inc.id, {})
         self.traces[inc.id] = trace
+        self._measure(trace)
         now = datetime.now().astimezone()
         self.trace_meta[inc.id] = {"source": source, "finished_at": now.isoformat(), "seconds": seconds,
                                    "started_at": (now - timedelta(seconds=seconds)).isoformat() if seconds else None}
+        self._persist(inc.id)
         self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
                                       "plan": trace.plan.model_dump() if trace.plan else None,
                                       "critic_rejections": trace.critic_rejections, "replans": trace.replans,
@@ -430,6 +503,41 @@ class App:
                            "station": e["incident"].station_id or e["incident"].zone_id, "risk": e["risk"],
                            "hops": e["hops"], "at": t.steps[-1].step if t and t.steps else "starting"})
         return {"active": active, "queue": d.queued(), "leases": self.floor_leases.snapshot(), "workers": d.workers}
+
+    def live_snapshot(self) -> dict:
+        """The orchestrator's view for the Ask coordinator: what is open, what waits for a person, and the fleet."""
+        opened, seen = [], set()
+        for a in self.floor_state()["active"]:
+            opened.append({"incident": a["incident"], "kind": a["kind"], "station": a["station"], "state": "agents working"})
+        for q in self.floor_state()["queue"]:
+            opened.append({"incident": q["incident"], "kind": q["kind"], "station": q["station"], "state": "queued"})
+        waiting = {"awaiting_approval": "waiting for your approval", "advisory": "waiting: advisory, you dispatch",
+                   "timeout_hold": "waiting: held after a timeout"}
+        for iid, t in list(self.traces.items()):
+            if t.gate in waiting and " (run " not in iid:
+                opened.append({"incident": iid, "kind": t.incident.kind,
+                               "station": t.incident.station_id or t.incident.zone_id, "state": waiting[t.gate]})
+        opened = [o for o in opened if not (o["incident"] in seen or seen.add(o["incident"]))]
+        agvs = [a for a in self.sim.agents.values() if a.kind == "agv"]
+        bad = [{"agv": a.id.split(":")[-1], "status": a.status} for a in agvs if a.status in ("fault", "stalled", "held")]
+        from app.autonomy.detectors import shift_of_hour
+        now = datetime.now().astimezone()
+        return {"time": now.strftime("%H:%M"), "hour": now.hour, "shift": shift_of_hour(now.hour),
+                "floor_shift": getattr(self, "floor_shift", "B"),  # the crew the floor sim was built with
+                "open": opened, "agvs": {"total": len(agvs), "available": len(agvs) - len(bad), "problems": bad},
+                "autopilot": self.shift is not None and self.shift_summary is None}
+
+    def recent_asks(self, minutes: int = 30) -> list[dict]:
+        """This conversation: the last few questions asked within the last half hour, oldest first."""
+        cutoff = datetime.now().astimezone() - timedelta(minutes=minutes)
+        out = []
+        for r in self.asks.listing()[:3]:
+            try:
+                if datetime.fromisoformat(r["asked_at"]) >= cutoff:
+                    out.append({"question": r["question"], "summary": r["summary"]})
+            except (TypeError, ValueError):
+                continue
+        return out[::-1]
 
     def _release(self, iid: str) -> None:
         leases = self.lease_of.pop(iid, None) or (self.shift.leases if self.shift is not None else None)
@@ -488,6 +596,8 @@ class App:
                                threads=not self.replay, sentinel_llm=None if self.replay else llm_json,
                                on_event=event, sim_lock=self.lock, memory=self.memory, rate_per_min=rate,
                                journal=self.journal)
+            from app import vda5050
+            self.shift.fleet = vda5050.Fleet(self.shift.fleet, self.vda, self.sim)  # shift AGV orders as VDA 5050
             self.shift.begin()
         self.shift_summary = None
         original = self.shift._done
@@ -500,6 +610,8 @@ class App:
                 self.trace_meta[trace.incident.id] = {"source": "autopilot shift", "finished_at": now.isoformat(),
                                                       "seconds": result.get("seconds"),
                                                       "started_at": (now - timedelta(seconds=result.get("seconds") or 0)).isoformat()}
+                self._measure(trace)
+                self._persist(trace.incident.id)
 
         self.shift.dispatcher.on_done = done
         self.bus.publish("shift_event", {"kind": "shift_started", "minutes": minutes, "seed": seed,
@@ -592,7 +704,34 @@ class App:
                         "gate": t.gate, "steps": len(t.steps), "hops": len(t.path), "model_calls": len(calls),
                         "ms": round(sum(st.ms for st in t.steps)), "safe_mode": t.safe_mode,
                         "critic_rejections": t.critic_rejections})
-        return sorted(out, key=lambda r: r["finished_at"] or "", reverse=True)
+        done = sorted(out, key=lambda r: r["finished_at"] or "", reverse=True)
+        return self._open_rows({r["incident"] for r in done}) + done
+
+    def _open_rows(self, listed: set[str]) -> list[dict]:
+        """Incidents still being worked on or waiting in a queue: listed at the top as soon as they are reported."""
+        rows = []
+        for d, source in ((self.floor, "you ran it"), (self.shift.dispatcher if self.shift is not None else None,
+                                                       "autopilot shift")):
+            if d is None:
+                continue
+            for e in list(d.active.values()):
+                inc, t = e["incident"], getattr(e["orch"], "trace", None)
+                if inc.id in listed:
+                    continue
+                steps = t.steps if t is not None else []
+                rows.append({"incident": inc.id, "kind": inc.kind, "station": inc.station_id or inc.zone_id,
+                             "severity": inc.severity, "source": source, "started_at": None, "finished_at": None,
+                             "wall_s": None, "decision": None, "gate": "running", "steps": len(steps),
+                             "hops": len(t.path) if t is not None else 0, "model_calls": 0,
+                             "ms": round(sum(st.ms for st in steps)), "safe_mode": False, "critic_rejections": 0,
+                             "at": steps[-1].step if steps else "starting"})
+            for q in d.queued():
+                if q["incident"] not in listed:
+                    rows.append({"incident": q["incident"], "kind": q["kind"], "station": q["station"], "severity": "-",
+                                 "source": source, "started_at": None, "finished_at": None, "wall_s": None,
+                                 "decision": None, "gate": "queued", "steps": 0, "hops": 0, "model_calls": 0, "ms": 0,
+                                 "safe_mode": False, "critic_rejections": 0})
+        return rows
 
     def incident_history(self, incident_id: str) -> dict:
         """Everything that happened in one incident: the trace (every agent step with who chose it, its model call and
@@ -628,8 +767,9 @@ class App:
                     for aid in list(plan.assignee_ids) + [r.agv_id for r in plan.agv_routes]:
                         if aid in self.sim.agents:
                             trace.dispatch.setdefault(aid, list(self.sim.agents[aid].pos))
-                    execute(plan, trace.incident, self.plant, self.sim)
+                    execute(plan, trace.incident, self.plant, self.sim, fleet=self._fleet())
                     trace.gate, action = "approved", "plan dispatched after human approval"
+                    self._measure(trace)
                 else:
                     trace.gate, action = "rejected", "plan dropped by the human; nothing was dispatched"
             elif trace.gate in ("auto_executed", "auto_after_timeout") and not approved:
@@ -641,6 +781,7 @@ class App:
                 trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
             elif approved and trace.gate in ("auto_executed", "auto_after_timeout"):
                 trace.gate, action = "confirmed", "auto-executed plan confirmed by the human"
+            self._persist(req.get("incident_id"))  # the judged state survives a restart too
             if trace.gate in ("rejected", "rolled_back"):
                 self._release(trace.incident.id)  # the people and robots are free again
         self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
@@ -742,11 +883,25 @@ class App:
                     from app.lab.offline import offline_run_sql
                     sql, llm_json = offline_run_sql, None  # offline: rule-based hypothesis, generator history
                 else:
-                    from app import runtime
-                    sql, llm_json = self.run_sql, maybe_sample(runtime.chat_json, "json")
+                    from app import models  # not runtime.chat_json: its one breaker for all roles opens after two
+                    sql, llm_json = self.run_sql, maybe_sample(models.chat_json, "json")  # failed incident calls
                 self.bus.publish("lab_status", {"status": "running", "lab_id": lab_id})
-                result = run_experiment(sql, llm_json, self.grid, on_step=on_step)
-                self.last_lab = {**result, "lab_id": lab_id, "trace": f"logs/{trace.name}"}
+                started = time.perf_counter()
+                loop = self.lab_loop.summary()  # an applied change's measured result goes back to the model too
+                on_floor = (loop.get("applied") or {}).get("lab_id")
+                tried = [{"policy": r["policy"], "effect_pct": r["effect_pct"], "status": r["status"],
+                          **({"applied_to_floor": True, "measured_saving_s": loop.get("measured_saving_s"),
+                              "predicted_saving_s": loop.get("predicted_saving_s"), "measured_incidents": loop.get("n")}
+                             if r["lab_id"] == on_floor else {})} for r in self.lab_runs]
+                result = run_experiment(sql, llm_json, self.grid, on_step=on_step, tried=tried)  # each run builds on the last
+                self.last_lab = {**result, "lab_id": lab_id, "trace": f"logs/{trace.name}",
+                                 "seconds": round(time.perf_counter() - started, 2), "at": datetime.now().astimezone().isoformat()}
+                h = result["hypothesis"]
+                self.lab_runs = (self.lab_runs + [{"lab_id": lab_id, "at": self.last_lab["at"], "source": result["source"],
+                                                   "model": result.get("model"), "hypothesis": h["hypothesis"],
+                                                   "policy": h["policy"], "effect_pct": result["effect_pct"],
+                                                   "status": result["status"], "seconds": self.last_lab["seconds"]}])[-20:]
+                self._save_lab()
                 self.bus.publish("lab", self.last_lab)
             except Exception as err:  # noqa: BLE001
                 self.bus.publish("lab", {"error": f"{type(err).__name__}: {err}"[:300]})
@@ -772,9 +927,9 @@ class App:
             try:
                 runner = sql_runner("true") if self.offline and not self.replay else sql_runner(sample_mode(), self.run_sql)
                 inv = Investigator(runner, maybe_sample(runtime.chat_json, "json"), ask_id=ask_id, memory=self.memory, sample=sample_mode(),
-                                   plant=self.plant, sim=self.sim,
+                                   plant=self.plant, sim=self.sim, history=self.recent_asks(), live=self.live_snapshot,
                                    on_step=lambda aid, st: self.bus.publish("ask_step", {"ask_id": aid, **st}))
-                self.last_ask = inv.run(question)
+                self.last_ask = self.asks.add(inv.run(question))
                 self.bus.publish("ask_result", self.last_ask)
             except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
                 self.bus.publish("error", {"incident": ask_id, "error": f"{type(err).__name__}: {err}"[:300]})
@@ -783,6 +938,52 @@ class App:
 
         threading.Thread(target=work, daemon=True).start()
         return ask_id
+
+    def nemotron(self, hours: float | None = 24) -> dict:
+        """The Nemotron scorecard (app/scorecard.py): calls per role from logs/llm.jsonl, decisions from the traces."""
+        from app.scorecard import scorecard
+        now = time.monotonic()
+        if now - getattr(self, "_receipts_at", -1e9) > 30:  # verifying every signature is a file scan: 30 s cache
+            try:
+                from app.receipts import verify_all
+                r = verify_all()
+                self._receipts = {"verified": r["verified"], "total": r["total"], "keys": r["keys"]}
+            except Exception:  # noqa: BLE001
+                self._receipts = {}
+            self._receipts_at = now
+        return scorecard(list(self.traces.values()), self._receipts, hours=hours)
+
+    def _save_lab(self) -> None:
+        if self.lab_file is None:
+            return
+        try:
+            with self.lab_loop.lock:
+                st = {"runs": self.lab_runs, "applied": self.lab_loop.applied, "measured": self.lab_loop.measured}
+            tmp = self.lab_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(st, default=str))
+            tmp.replace(self.lab_file)
+        except OSError as err:
+            print(f"[WARN] could not save the Lab state: {err}", flush=True)
+
+    def _measure(self, trace) -> None:
+        try:
+            if self.lab_loop.measure(trace, self.grid) is not None:
+                self._save_lab()
+                self.bus.publish("lab_loop", self.lab_loop.summary())
+        except Exception as err:  # noqa: BLE001 - measuring must never break incident handling
+            print(f"[WARN] lab loop measure failed: {err}", flush=True)
+
+    def lab_apply(self) -> dict:
+        out = self.lab_loop.apply(self.last_lab)
+        self._save_lab()
+        self.bus.publish("lab_loop", out)
+        return out
+
+    def lab_undo(self) -> dict:
+        out = self.lab_loop.undo()
+        self._save_lab()
+        self.bus.publish("lab_loop", out)
+        return out
 
     def lab_write(self) -> dict:
         from app.lab.experiment import experiment_row, write_zetaris
@@ -872,6 +1073,33 @@ def make_handler(app: App):
                 return self._send(200, mapping())
             if self.path == "/api/ask_last":
                 return self._send(200, app.last_ask or {})
+            if self.path == "/api/asks":
+                return self._send(200, app.asks.listing())
+            if self.path.startswith("/api/ask/"):
+                rec = app.asks.get(urllib.parse.unquote(self.path.split("/api/ask/", 1)[1]))
+                return self._send(200, rec) if rec else self._send(404, {"error": "no such answer"})
+            if self.path.startswith("/api/nemotron"):
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                try:
+                    hours = float(q.get("hours", ["24"])[0])
+                except ValueError:
+                    hours = 24.0
+                return self._send(200, app.nemotron(hours or None))
+            if self.path.startswith("/api/verify/"):
+                from app.verify import verify
+                iid = urllib.parse.unquote(self.path.split("/api/verify/", 1)[1])
+                t = app.traces.get(iid)
+                if t is None:
+                    return self._send(404, {"error": "unknown or still running incident"})
+                with app.lock:
+                    return self._send(200, verify(t, app.plant, app.sim, app.journal, app.autonomy))
+            if self.path == "/api/vda5050":
+                return self._send(200, {"standard": "VDA 5050 v2.0", "orders": list(app.vda.orders)[-20:][::-1],
+                                        "states": app.vda.states(app.sim, app.plant)})
+            if self.path == "/api/lab_loop":
+                return self._send(200, app.lab_loop.summary())
+            if self.path == "/api/lab_runs":
+                return self._send(200, app.lab_runs[::-1])
             if self.path == "/api/lab_last":
                 return self._send(200, app.last_lab or {})
             if self.path == "/api/last":
@@ -931,6 +1159,10 @@ def make_handler(app: App):
                     return self._send(202, {"status": "running"})
                 if self.path == "/lab/write":
                     return self._send(200, app.lab_write())
+                if self.path == "/lab/apply":
+                    return self._send(200, app.lab_apply())
+                if self.path == "/lab/undo":
+                    return self._send(200, app.lab_undo())
             except DuplicateIncident as err:
                 return self._send(409, {"error": str(err), "existing": err.existing})
             except (KeyError, ValueError, RuntimeError) as err:

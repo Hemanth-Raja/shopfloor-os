@@ -24,7 +24,9 @@ def backoff_delay(attempt: int, base_s: float = 0.4, cap_s: float = 4.0, rng: ra
 
 
 class LimiterTimeout(TimeoutError):
-    """No concurrency slot became free before the deadline."""
+    """No concurrency slot became free before the deadline. Our own queueing, not a model failure: it must not
+    trip a breaker or shrink the limit further (that spiral took both Nemotron lanes down under autopilot load)."""
+    not_a_failure = True
 
 
 class AIMDLimiter:

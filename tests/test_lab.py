@@ -77,3 +77,19 @@ def test_zetaris_write_is_check_insert_check_and_idempotent():
     assert "'AGV\\'s kit'" in calls[1] and ";" not in calls[1] and len(calls) == 3
     assert write_zetaris(row, fake_sql) == "EXP-1" and table == ["EXP-1"]  # a retry does not insert again
     assert _spark_lit("a\\b") == "'a\\\\b'"
+
+
+def test_a_new_hypothesis_is_told_what_was_already_tested():
+    from types import SimpleNamespace
+    from app.lab.experiment import Hypothesis, Policy, propose
+    seen = []
+
+    def llm(lane, messages, schema, **kw):
+        seen.append(messages)
+        return SimpleNamespace(data=Hypothesis(hypothesis="Stage an AGV at T20 instead.", expected_effect_pct=-5,
+                                               policy=Policy(type="preposition_agv", station="T20")), model="m")
+    tried = [{"policy": {"type": "move_spill_kit", "station": "F20"}, "effect_pct": -8.2, "status": "proposed"}]
+    hyp, how = propose([["fluid_spill", "F20", "FINAL", 30, 600, 10, 12, 8]], llm, {}, tried)
+    assert how == "nemotron" and "Already tested" in seen[0][-1]["content"] and "F20" in seen[0][-1]["content"]
+    propose([["fluid_spill", "F20", "FINAL", 30, 600, 10, 12, 8]], llm, {})
+    assert "Already tested" not in seen[1][-1]["content"]
