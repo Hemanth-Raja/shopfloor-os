@@ -12,7 +12,7 @@
 [![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C034%2F6%2C034%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
 
-**[Replay site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Evaluation](docs/eval.md)** ·
+**[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
 **[Live demo runbook](docs/live-demo.md)**
 
@@ -198,7 +198,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 | **Shift handover** | `run.py handover [--shifts 3]`: the shift journal read in bounded chunks on the Meterless Markovian engine, then a handover note |
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
-| Static replay page | `python scripts/build_site.py`, then open [`docs/site/index.html`](docs/site/index.html); [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on push |
+| Project site and replays | [hemanth-raja.github.io/shopfloor-os](https://hemanth-raja.github.io/shopfloor-os/): landing page [`docs/site/index.html`](docs/site/index.html); `python scripts/build_site.py` rebuilds the replay page (`docs/site/replay.html`) from the examples; [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes both on push |
 
 <details>
 <summary><b>Request and response format</b></summary>

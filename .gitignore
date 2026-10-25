@@ -13,3 +13,4 @@ logs/chaos-*.json
 logs/.logsync.json
 logs/shift-*.md
 logs/*.out
+docs/site/assets/

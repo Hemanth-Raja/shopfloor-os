@@ -1,8 +1,8 @@
-name: Replay site
+name: Project site
 on:
   push:
     branches: [main]
-    paths: ["docs/site/**"]
+    paths: ["docs/**", "scripts/build_site.py", "output_examples/**"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Build the replay page and copy the site's images
+        run: python3 scripts/build_site.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

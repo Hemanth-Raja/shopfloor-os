@@ -1,4 +1,7 @@
-"""Build the static replay page: docs/site/index.html, one self-contained file (no server, no network).
+"""Build the static replay page, docs/site/replay.html: one self-contained file (no server, no network).
+
+The project site's landing page is docs/site/index.html (hand-written). build() also copies the images it shows from
+docs/ into docs/site/assets/ (not committed; the Pages workflow runs this script before publishing).
 
 It embeds the recorded runs in output_examples/ (and, when present, the step details of their last run in
 logs/trace-example-N.jsonl) plus the headline numbers of docs/eval.md. Open the file in a browser; nothing is
@@ -12,7 +15,10 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "site" / "index.html"
+OUT = ROOT / "docs" / "site" / "replay.html"
+ASSETS = ["demo.gif", "hero.png", "architecture.png", "loop-dark.png", "learning-loops.png"] + \
+    [f"screenshots/{n}" for n in ("01-part-shortage-critic.png", "02-agv-fault-replan.png", "03-overheat-verify.png",
+                                  "04-lab.png", "05-agents-know.png", "06-flow-graph.png")]
 KEEP = ("monitor", "candidates", "planner", "critic", "dryrun", "refine", "restraint", "gate", "verifier", "reflex",
         "executor")
 
@@ -79,6 +85,7 @@ ol.steps li.on{opacity:1;border-color:var(--accent)}ol.steps li.fail{border-colo
 .ctl{display:flex;gap:8px;margin:8px 0 12px}.ctl button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 code{font:13px ui-monospace,Consolas,monospace;word-break:break-word}ul{margin:4px 0;padding-left:20px}
 </style></head><body><main>
+<p style="margin:0 0 10px"><a href="index.html" style="color:var(--accent);text-decoration:none">&larr; Shop-Floor OS</a></p>
 <h1>Shop-Floor OS: replay</h1>
 <p class="sub">Recorded agent runs from the repository, replayed in the browser. AI agents plan, robots execute, humans judge. Nothing here calls a model.</p>
 <div class="tabs" id="tabs"></div><div id="run"></div>
@@ -115,8 +122,17 @@ tabs();render();
 """
 
 
+def copy_assets(dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in ASSETS:
+        src = ROOT / "docs" / name
+        if src.exists():
+            (dest / Path(name).name).write_bytes(src.read_bytes())
+
+
 def build() -> Path:
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    copy_assets(OUT.parent / "assets")
     data = json.dumps(runs(), separators=(",", ":")).replace("</", "<\\/")
     OUT.write_text(PAGE.replace("__RUNS__", data).replace("__EVAL__", json.dumps(eval_lines()).replace("</", "<\\/")),
                    encoding="utf-8")

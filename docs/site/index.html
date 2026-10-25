@@ -1,53 +1,310 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shop-Floor OS Replay</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shop-Floor OS</title>
+<meta name="description" content="Shop-Floor OS: AI agents plan, robots execute, humans judge. A multi-agent incident-response and AGV-dispatch system for car final assembly, built on Zetaris, Meterless and NVIDIA Nemotron.">
+<meta property="og:title" content="Shop-Floor OS">
+<meta property="og:description" content="AI agents plan, robots execute, humans judge. Multi-agent incident response for car final assembly.">
+<meta property="og:image" content="assets/hero.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#f7f7f5;--panel:#fff;--ink:#1d1d1b;--muted:#6b6b66;--line:#e2e2dc;--ok:#2f7d4f;--bad:#b3412f;--accent:#2f5d9e;--chip:#eef1f6}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#151514;--panel:#1f1f1d;--ink:#ecece6;--muted:#a3a39b;--line:#33332f;--ok:#6cc38f;--bad:#e2806f;--accent:#8fb1e8;--chip:#26303f}}
-:root[data-theme=dark]{--bg:#151514;--panel:#1f1f1d;--ink:#ecece6;--muted:#a3a39b;--line:#33332f;--ok:#6cc38f;--bad:#e2806f;--accent:#8fb1e8;--chip:#26303f}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
-main{max-width:1040px;margin:0 auto;padding:24px 16px 64px}h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin:24px 0 8px}
-.sub{color:var(--muted);margin:0 0 20px}.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
-.tabs button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
-.tabs button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.chip{background:var(--chip);border-radius:6px;padding:2px 8px;font-size:13px}
-.ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
-ol.steps{list-style:none;padding:0;margin:0}ol.steps li{border-left:3px solid var(--line);padding:6px 0 6px 12px;margin-left:6px;opacity:.35;transition:opacity .2s}
-ol.steps li.on{opacity:1;border-color:var(--accent)}ol.steps li.fail{border-color:var(--bad)}
-.ctl{display:flex;gap:8px;margin:8px 0 12px}.ctl button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
-code{font:13px ui-monospace,Consolas,monospace;word-break:break-word}ul{margin:4px 0;padding-left:20px}
-</style></head><body><main>
-<h1>Shop-Floor OS: replay</h1>
-<p class="sub">Recorded agent runs from the repository, replayed in the browser. AI agents plan, robots execute, humans judge. Nothing here calls a model.</p>
-<div class="tabs" id="tabs"></div><div id="run"></div>
-<h2>Evaluation (docs/eval.md)</h2><div class="card" id="eval"></div>
-</main><script>
-const RUNS=[{"id":"example-1","input":{"kind":"part_shortage","station":"F30","seed":42},"summary":"part shortage at F30: ACT, Optimal assignment (Hungarian) over 5 candidates for 2 role(s); total cost 92.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"part_shortage","station_id":"F30","zone_id":"FINAL","x":31,"y":9,"tick":0,"severity":"high","agv_id":null,"machine_id":null,"note":null,"sensors":{"line_side_stock_min":4.6}},"decision":"ACT","reasons":["p_real=0.95","sensors agree=True","expected cost of waiting $5,082 vs acting $42","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-18","agv:plant:AGV-5"],"agv_routes":[{"agv_id":"agv:plant:AGV-5","to_station":"F30","speed_mps":1.0,"crossing_speed_mps":0.5}],"priority":"high","rationale":"Optimal assignment (Hungarian) over 5 candidates for 2 role(s); total cost 92.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["SOP-KIT-01 \u00a73","29 CFR 1910.178(n)(8)"]},"citations":[{"ref":"SOP-KIT-01 \u00a73","title":"Line-side part shortage (synthetic plant SOP)","text":"Send the nearest healthy kitting AGV from the supermarket exit (7, 13) to the station's line-side rack. A tugger or forklift may be driven only by a person whose forklift training is in date. The team leader confirms delivery at the station.","doc":"sop"},{"ref":"29 CFR 1910.178(n)(8)","title":"Powered industrial trucks.","text":"(8) Under all travel conditions the truck shall be operated at a speed that will permit it to be brought to a stop in a safe manner.","doc":"osha"}],"gate":"auto_executed","gate_reasons":["routine ACT: critic and dry-run passed; you can override"],"critic_rejections":1,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"},{"hop":9,"agent":"executor","by":"forced","reason":"the only legal next step"},{"hop":10,"agent":"verifier","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.02,"detail":{}},{"agent":"monitor","ok":true,"ms":0.32,"detail":{"verdict":"real","p_real":0.95,"summary":"F30 part shortage confirmed (p=0.95); only 4.6 min line-side stock remains.","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.08,"detail":{}},{"agent":"planner","ok":true,"ms":0.71,"detail":{"attempt":1,"assignees":["worker:plant:W-18","agv:plant:AGV-5"],"agv_routes":[{"agv_id":"agv:plant:AGV-5","to_station":"F30","speed_mps":1.0,"crossing_speed_mps":0.5}],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":1.58,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":2.05,"detail":{"reasons":[],"eta_s":{"agv:plant:AGV-5":112.0,"worker:plant:W-18":4.0}}},{"agent":"critic","ok":false,"ms":0.71,"detail":{"attempt":1,"violations":[{"rule":"R-CROSSING","detail":"agv:plant:AGV-5 crosses X-WEST at 1.0 m/s; set crossing_speed_mps <= 0.5","clauses":["29 CFR 1910.178(n)(4)","SOP-AGV-01 \u00a72"]}]}},{"agent":"refine","ok":true,"ms":0.81,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.95","sensors agree=True","expected cost of waiting $5,082 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["routine ACT: critic and dry-run passed; you can override"],"gate":"auto_executed"}},{"agent":"executor","ok":true,"ms":1.03,"detail":{"eta_s":{"agv:plant:AGV-5":112.0,"worker:plant:W-18":4.0}}},{"agent":"verifier","ok":true,"ms":0.01,"detail":{}}]},{"id":"example-2","input":{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2,"seed":42},"summary":"agv fault at F30: ACT, Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"agv_fault","station_id":"F30","zone_id":"LANE-S","x":27,"y":13,"tick":0,"severity":"medium","agv_id":"agv:plant:AGV-3","machine_id":null,"note":null,"sensors":{"fault_code":"E52_NAV_LOST"}},"decision":"ACT","reasons":["p_real=0.97","sensors agree=True","expected cost of waiting $873 vs acting $42","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-18"],"agv_routes":[{"agv_id":"agv:plant:AGV-2","to_station":"F30","speed_mps":1.0,"crossing_speed_mps":0.5}],"priority":"high","rationale":"Sample-mode rule-based plan: nearest qualified candidates; AGV slows to 0.5 m/s at crossings.","citations":["SOP-AGV-01 \u00a72","SOP-AGV-02 \u00a71"]},"citations":[{"ref":"SOP-AGV-01 \u00a72","title":"AGV traffic at pedestrian crossings (synthetic plant SOP)","text":"Every AGV route that crosses X-WEST or X-EAST must slow to 0.5 m/s or less from one cell before the crossing until it has left it, and sound the horn. Body carriers are not exempt.","doc":"sop"},{"ref":"SOP-AGV-02 \u00a71","title":"Stalled or faulted AGV (synthetic plant SOP)","text":"Fence the stalled AGV with a one-cell geofence. Only a person with the agv_reset skill may approach it. Other AGVs must keep two cells away and re-route; a replacement AGV takes over the kit run.","doc":"sop"}],"gate":"auto_executed","gate_reasons":["routine ACT: critic and dry-run passed; you can override"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"},{"hop":9,"agent":"executor","by":"forced","reason":"the only legal next step"},{"hop":10,"agent":"verifier","by":"forced","reason":"the only legal next step"},{"hop":11,"agent":"candidates","by":"rules","reason":"re-pick people and robots without the ones that failed"},{"hop":12,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":13,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":14,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":15,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":16,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":17,"agent":"gate","by":"forced","reason":"the only legal next step"},{"hop":18,"agent":"executor","by":"forced","reason":"the only legal next step"},{"hop":19,"agent":"verifier","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rule-based (sample mode)","rules (Hungarian)"],"seconds":0.04,"steps":[{"agent":"reflex","ok":true,"ms":0.05,"detail":{}},{"agent":"monitor","ok":true,"ms":0.3,"detail":{"verdict":"real","p_real":0.97,"summary":"Confirmed AGV fault at F30 (p=0.97), code E52_NAV_LOST. Investigate navigation loss immediately.","model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"candidates","ok":true,"ms":0.08,"detail":{}},{"agent":"planner","ok":true,"ms":0.54,"detail":{"attempt":1,"assignees":["worker:plant:W-18","agv:plant:AGV-1"],"agv_routes":[{"agv_id":"agv:plant:AGV-1","to_station":"F30","speed_mps":1.0,"crossing_speed_mps":0.5}],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.54,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":2.95,"detail":{"reasons":[],"eta_s":{"agv:plant:AGV-1":104.0,"worker:plant:W-18":40.0}}},{"agent":"critic","ok":true,"ms":0.41,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"agv:plant:AGV-1":104.0,"worker:plant:W-18":40.0}}},{"agent":"refine","ok":true,"ms":3.26,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.97","sensors agree=True","expected cost of waiting $873 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["routine ACT: critic and dry-run passed; you can override"],"gate":"auto_executed"}},{"agent":"executor","ok":true,"ms":1.72,"detail":{"eta_s":{"agv:plant:AGV-1":104.0,"worker:plant:W-18":40.0}}},{"agent":"verifier","ok":false,"ms":0.01,"detail":{}},{"agent":"candidates","ok":true,"ms":0.06,"detail":{}},{"agent":"planner","ok":true,"ms":0.4,"detail":{"attempt":1,"assignees":["worker:plant:W-19","agv:plant:AGV-2"],"agv_routes":[{"agv_id":"agv:plant:AGV-2","to_station":"F30","speed_mps":1.0,"crossing_speed_mps":0.5}],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.47,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":2.34,"detail":{"reasons":[],"eta_s":{"agv:plant:AGV-2":108.0,"worker:plant:W-19":36.0}}},{"agent":"critic","ok":true,"ms":0.46,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"agv:plant:AGV-2":108.0,"worker:plant:W-18":28.0}}},{"agent":"refine","ok":true,"ms":2.96,"detail":{"model":"rule-based (sample mode)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.97","sensors agree=True","expected cost of waiting $873 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["routine ACT: critic and dry-run passed; you can override"],"gate":"auto_executed"}},{"agent":"executor","ok":true,"ms":1.17,"detail":{"eta_s":{"agv:plant:AGV-2":108.0,"worker:plant:W-18":28.0}}},{"agent":"verifier","ok":true,"ms":0.01,"detail":{}}]},{"id":"example-3","input":{"kind":"overheat","station":"F10","false_alarm":true,"seed":42},"summary":"overheat at F10: VERIFY, Inspection first: Sanjay Fontaine checks the overheat before anything else moves.","incident":{"id":"SIM-42-001","kind":"overheat","station_id":"F10","zone_id":"FINAL","x":25,"y":9,"tick":0,"severity":"high","agv_id":null,"machine_id":"machine:plant:M-06","note":null,"sensors":{"process_temp_k":315.1,"temp_threshold_k":313.0,"air_temp_k":300.1,"vibration_recording":"M02_Feb_2020_OP08_002_good","vibration_label":"normal","vibration_x_rms":330.03,"vibration_z_kurtosis":3.19}},"decision":"VERIFY","reasons":["p_real=0.20","sensors agree=False","expected cost of waiting $1,800 vs acting $15,042","sensors disagree: send a technician to check before stopping the line"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-19"],"agv_routes":[],"priority":"medium","rationale":"Inspection first: Sanjay Fontaine checks the overheat before anything else moves.","citations":["29 CFR 1910.147(c)(4)(i)"]},"citations":[{"ref":"29 CFR 1910.147(c)(4)(i)","title":"The control of hazardous energy (lockout/tagout).","text":"(4) Energy control procedure. (i) Procedures shall be developed, documented and utilized for the control of potentially hazardous energy when employees are engaged in the activities covered by this section.","doc":"osha"}],"gate":"awaiting_approval","gate_reasons":["a person would enter the overheat hazard area"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"investigator","by":"rules","reason":"the alarm is ambiguous: look at the history before planning"},{"hop":3,"agent":"candidates","by":"forced","reason":"the only legal next step"},{"hop":4,"agent":"verify_plan","by":"rules","reason":"sensors disagree: one person checks first, no planner needed"},{"hop":5,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"}],"models":["rule-based"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.44,"detail":{}},{"agent":"monitor","ok":true,"ms":0.05,"detail":{"verdict":"likely_noise","p_real":0.2,"summary":"overheat at F10: likely_noise (p=0.20); process temp 315.1 K vs threshold 313.0 K; Bosch vibration M02_Feb_2020_OP08_002_good: normal","model":"rule-based"}},{"agent":"investigator","ok":true,"ms":3.74,"detail":{"summary":"3 past overheat at F10, 1 false alarms (33%), avg 11.4 min downtime"}},{"agent":"candidates","ok":true,"ms":0.04,"detail":{}},{"agent":"verify_plan","ok":true,"ms":0.48,"detail":{"assignees":["worker:plant:W-19"]}},{"agent":"critic","ok":true,"ms":0.29,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.33,"detail":{"reasons":[],"eta_s":{"worker:plant:W-19":36.0}}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"VERIFY","reasons":["p_real=0.20","sensors agree=False","expected cost of waiting $1,800 vs acting $15,042","sensors disagree: send a technician to check before stopping the line"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["a person would enter the overheat hazard area"],"gate":"awaiting_approval"}}]},{"id":"example-4","input":{"kind":"spill","station":"F20","seed":7},"summary":"spill at F20: ACT, Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 0.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-7-001","kind":"spill","station_id":"F20","zone_id":"FINAL","x":28,"y":9,"tick":0,"severity":"high","agv_id":null,"machine_id":null,"note":null,"sensors":{"camera_confidence":0.86,"fluid":"coolant"}},"decision":"ACT","reasons":["p_real=0.86","sensors agree=True","expected cost of waiting $1,032 vs acting $4,542","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-7-001","assignee_ids":["worker:plant:W-18"],"agv_routes":[],"priority":"high","rationale":"Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 0.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["29 CFR 1910.22(a)(1)","SOP-SPILL-01 \u00a72"]},"citations":[{"ref":"29 CFR 1910.22(a)(1)","title":"General requirements.","text":"(1) All places of employment, passageways, storerooms, service rooms, and walking-working surfaces are kept in a clean, orderly, and sanitary condition.","doc":"osha"},{"ref":"SOP-SPILL-01 \u00a72","title":"Fluid spill response (synthetic plant SOP)","text":"Fence the spill area with a two-cell geofence and keep AGVs out until it is dry. A person with spill_response brings the nearest spill kit, absorbs, cleans and dries the floor, then releases the area.","doc":"sop"}],"gate":"awaiting_approval","gate_reasons":["a person would enter the spill hazard area"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.04,"detail":{}},{"agent":"monitor","ok":true,"ms":0.26,"detail":{"verdict":"real","p_real":0.86,"summary":"Spill at F20 confirmed real (p=0.86); camera confidence 0.86.","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.04,"detail":{}},{"agent":"planner","ok":true,"ms":0.49,"detail":{"attempt":1,"assignees":["worker:plant:W-18"],"agv_routes":[],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.17,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.06,"detail":{"reasons":[],"eta_s":{"worker:plant:W-18":0.0}}},{"agent":"critic","ok":true,"ms":0.02,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"worker:plant:W-18":0.0}}},{"agent":"refine","ok":true,"ms":1.3,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.86","sensors agree=True","expected cost of waiting $1,032 vs acting $4,542","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["a person would enter the spill hazard area"],"gate":"awaiting_approval"}}]},{"id":"example-5","input":{"kind":"robot_cell_fault","station":"B10","severity":"high","note":"weld robot stopped mid-cycle","seed":42},"summary":"robot cell fault at B10: ACT, Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 46.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"robot_cell_fault","station_id":"B10","zone_id":"BODY","x":14,"y":4,"tick":0,"severity":"high","agv_id":null,"machine_id":"machine:plant:M-01","note":"weld robot stopped mid-cycle","sensors":{"fault_code":"SRVO-050 collision detect","cell_state":"stopped, gate closed"}},"decision":"ACT","reasons":["p_real=0.97","sensors agree=True","expected cost of waiting $12,610 vs acting $42","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-19"],"agv_routes":[],"priority":"high","rationale":"Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 46.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["SOP-ROBOT-02 \u00a72","SOP-ROBOT-01 \u00a71"]},"citations":[{"ref":"SOP-ROBOT-02 \u00a72","title":"Robot cell fault recovery (synthetic plant SOP)","text":"After a robot or press fault the cell stays in stop. Only a maintenance technician holding an in-date lockout/tagout authorisation and a robot-cell entry card may lock out the cell and enter; operators and inspectors wait outside the guarding. Restart only after the technician removes their own lock.","doc":"sop"},{"ref":"SOP-ROBOT-01 \u00a71","title":"Robot cell entry (synthetic plant SOP)","text":"Enter a robot cell only after stopping the robots, locking the gate open with your own lock, and carrying an in-date robot-cell entry card. Never reach through a guard opening while the cell is in auto.","doc":"sop"}],"gate":"awaiting_approval","gate_reasons":["a person would enter the robot cell fault hazard area"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.43,"detail":{}},{"agent":"monitor","ok":true,"ms":0.28,"detail":{"verdict":"real","p_real":0.97,"summary":"B10 robot cell fault: SRVO-050 collision detected, cell stopped, gate closed, p=0.97.","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.04,"detail":{}},{"agent":"planner","ok":true,"ms":0.57,"detail":{"attempt":1,"assignees":["worker:plant:W-19"],"agv_routes":[],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.17,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.34,"detail":{"reasons":[],"eta_s":{"worker:plant:W-19":52.0}}},{"agent":"critic","ok":true,"ms":0.03,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"worker:plant:W-19":52.0}}},{"agent":"refine","ok":true,"ms":1.49,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.97","sensors agree=True","expected cost of waiting $12,610 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["a person would enter the robot cell fault hazard area"],"gate":"awaiting_approval"}}]},{"id":"example-6","input":{"kind":"torque_fault","station":"F10","seed":42},"summary":"torque fault at F10: ACT, Optimal assignment (Hungarian) over 3 candidates for 2 role(s); total cost 28.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"torque_fault","station_id":"F10","zone_id":"FINAL","x":25,"y":9,"tick":0,"severity":"medium","agv_id":null,"machine_id":"machine:plant:M-06","note":null,"sensors":{"spec_nm":[110.0,130.0],"nok_in_row":3,"torque_nm":96.3}},"decision":"ACT","reasons":["p_real=0.93","sensors agree=True","expected cost of waiting $9,160 vs acting $3,042","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-16","worker:plant:W-20"],"agv_routes":[],"priority":"medium","rationale":"Optimal assignment (Hungarian) over 3 candidates for 2 role(s); total cost 28.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["SOP-TORQUE-01 \u00a72"]},"citations":[{"ref":"SOP-TORQUE-01 \u00a72","title":"Nutrunner torque fault containment (synthetic plant SOP)","text":"When a nutrunner reports torque or angle out of range, stop using the tool, swap or re-calibrate it, and have a torque auditor or quality inspector re-check every joint fastened since the last good audit before those cars leave the station.","doc":"sop"}],"gate":"auto_executed","gate_reasons":["routine ACT: critic and dry-run passed; you can override"],"critic_rejections":1,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"},{"hop":9,"agent":"executor","by":"forced","reason":"the only legal next step"},{"hop":10,"agent":"verifier","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.04,"detail":{}},{"agent":"monitor","ok":true,"ms":0.31,"detail":{"verdict":"real","p_real":0.93,"summary":"F10 torque fault confirmed real (p=0.93); 96.3 Nm vs 110-130 Nm spec, 3 NOK in a row.","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.12,"detail":{}},{"agent":"planner","ok":true,"ms":0.82,"detail":{"attempt":1,"assignees":["worker:plant:W-16","worker:plant:W-20"],"agv_routes":[],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.12,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.52,"detail":{"reasons":[],"eta_s":{"worker:plant:W-16":0.0,"worker:plant:W-20":34.0}}},{"agent":"critic","ok":false,"ms":0.24,"detail":{"attempt":1,"violations":[{"rule":"R-TORQUE-QA","detail":"joints fastened since the last good torque must be re-audited: assign someone with one of the skills ['quality_inspection', 'torque_audit']","clauses":["SOP-TORQUE-01 \u00a72"]}]}},{"agent":"refine","ok":true,"ms":0.35,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.93","sensors agree=True","expected cost of waiting $9,160 vs acting $3,042","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["routine ACT: critic and dry-run passed; you can override"],"gate":"auto_executed"}},{"agent":"executor","ok":true,"ms":0.6,"detail":{"eta_s":{"worker:plant:W-16":0.0,"worker:plant:W-20":34.0}}},{"agent":"verifier","ok":true,"ms":0.01,"detail":{}}]},{"id":"example-7","input":{"kind":"near_miss","station":"F30","note":"AGV passed close to an operator at the crossing","seed":42},"summary":"near miss at F30: ACT, Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 14.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"near_miss","station_id":"F30","zone_id":"LANE-S","x":31,"y":13,"tick":0,"severity":"medium","agv_id":"agv:plant:AGV-5","machine_id":null,"note":"AGV passed close to an operator at the crossing","sensors":{"agv":"AGV-5","min_distance_m":0.7,"agv_speed_mps":0.9}},"decision":"ACT","reasons":["p_real=0.95","sensors agree=True","expected cost of waiting $1,140 vs acting $42","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-18"],"agv_routes":[],"priority":"medium","rationale":"Optimal assignment (Hungarian) over 2 candidates for 1 role(s); total cost 14.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["SOP-NEARMISS-01 \u00a71","29 CFR 1910.178(m)(1)"]},"citations":[{"ref":"SOP-NEARMISS-01 \u00a71","title":"Pedestrian near miss (synthetic plant SOP)","text":"After a vehicle-pedestrian near miss the AGV involved stays stopped where it is. A shift supervisor with incident command secures the scene, checks the person, records the event within the shift and releases the AGV. Other AGVs keep 0.5 m/s at the crossing.","doc":"sop"},{"ref":"29 CFR 1910.178(m)(1)","title":"Powered industrial trucks.","text":"(m) Truck operations. (1) Trucks shall not be driven up to anyone standing in front of a bench or other fixed object.","doc":"osha"}],"gate":"awaiting_approval","gate_reasons":["a near miss is a safety event: a supervisor signs off before the AGV is released"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.04,"detail":{}},{"agent":"monitor","ok":true,"ms":0.25,"detail":{"verdict":"real","p_real":0.95,"summary":"Near-miss at F30: AGV-5 passed 0.7m from a person at 0.9m/s (confirmed real, p=0.95)","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.04,"detail":{}},{"agent":"planner","ok":true,"ms":0.46,"detail":{"attempt":1,"assignees":["worker:plant:W-18"],"agv_routes":[],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.14,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.44,"detail":{"reasons":[],"eta_s":{"worker:plant:W-18":32.0}}},{"agent":"critic","ok":true,"ms":0.03,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"worker:plant:W-18":32.0}}},{"agent":"refine","ok":true,"ms":1.64,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.95","sensors agree=True","expected cost of waiting $1,140 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["a near miss is a safety event: a supervisor signs off before the AGV is released"],"gate":"awaiting_approval"}}]},{"id":"example-8","input":{"kind":"quality_defect","station":"E10","severity":"low","seed":42},"summary":"quality defect at E10: ACT, Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 4.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","incident":{"id":"SIM-42-001","kind":"quality_defect","station_id":"E10","zone_id":"EOL","x":37,"y":9,"tick":0,"severity":"low","agv_id":null,"machine_id":null,"note":null,"sensors":{"defect_code":"torque_out_of_spec","units_affected":1}},"decision":"ACT","reasons":["p_real=0.90","sensors agree=True","expected cost of waiting $378 vs acting $42","acting is cheaper than waiting"],"plan":{"incident_id":"SIM-42-001","assignee_ids":["worker:plant:W-20"],"agv_routes":[],"priority":"low","rationale":"Optimal assignment (Hungarian) over 3 candidates for 1 role(s); total cost 4.0 (travel s + reliability + load); AGVs 0.5 m/s at crossings.","citations":["SOP-QUAL-01 \u00a71"]},"citations":[{"ref":"SOP-QUAL-01 \u00a71","title":"Quality defect containment (synthetic plant SOP)","text":"A defect found at a station or end-of-line test is contained first: a quality inspector tags the affected units, checks the cars built since the last good unit and decides rework or hold. Production staff do not release held units.","doc":"sop"}],"gate":"auto_executed","gate_reasons":["routine ACT: critic and dry-run passed; you can override"],"critic_rejections":0,"path":[{"hop":0,"agent":"reflex","by":"code","reason":"the reflex always runs first"},{"hop":1,"agent":"monitor","by":"forced","reason":"the only legal next step"},{"hop":2,"agent":"candidates","by":"rules","reason":"find qualified people and healthy robots"},{"hop":3,"agent":"planner","by":"rules","reason":"no playbook fits: optimal assignment now, Nemotron refines in the background"},{"hop":4,"agent":"critic","by":"forced","reason":"the only legal next step"},{"hop":5,"agent":"dryrun","by":"forced","reason":"the only legal next step"},{"hop":6,"agent":"refine","by":"forced","reason":"the only legal next step"},{"hop":7,"agent":"restraint","by":"forced","reason":"the only legal next step"},{"hop":8,"agent":"gate","by":"forced","reason":"the only legal next step"},{"hop":9,"agent":"executor","by":"forced","reason":"the only legal next step"},{"hop":10,"agent":"verifier","by":"forced","reason":"the only legal next step"}],"models":["nvidia/nemotron-3.5-lightning-30b-a3b (replay)","nvidia/nemotron-3.5-super-vl-120b-a12b (replay)","rules (Hungarian)"],"seconds":0.03,"steps":[{"agent":"reflex","ok":true,"ms":0.01,"detail":{}},{"agent":"monitor","ok":true,"ms":0.21,"detail":{"verdict":"real","p_real":0.9,"summary":"Quality defect at E10 confirmed real (p=0.90); 1 unit torque out of spec.","model":"nvidia/nemotron-3.5-lightning-30b-a3b (replay)"}},{"agent":"candidates","ok":true,"ms":0.04,"detail":{}},{"agent":"planner","ok":true,"ms":0.42,"detail":{"attempt":1,"assignees":["worker:plant:W-20"],"agv_routes":[],"model":"rules (Hungarian)"}},{"agent":"critic","ok":true,"ms":0.11,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":1.09,"detail":{"reasons":[],"eta_s":{"worker:plant:W-20":4.0}}},{"agent":"critic","ok":true,"ms":0.03,"detail":{"attempt":1,"violations":[]}},{"agent":"dryrun","ok":true,"ms":0.0,"detail":{"reasons":[],"eta_s":{"worker:plant:W-20":4.0}}},{"agent":"refine","ok":true,"ms":1.27,"detail":{"model":"nvidia/nemotron-3.5-super-vl-120b-a12b (replay)"}},{"agent":"restraint","ok":true,"ms":0.02,"detail":{"decision":"ACT","reasons":["p_real=0.90","sensors agree=True","expected cost of waiting $378 vs acting $42","acting is cheaper than waiting"]}},{"agent":"gate","ok":true,"ms":0.01,"detail":{"reasons":["routine ACT: critic and dry-run passed; you can override"],"gate":"auto_executed"}},{"agent":"executor","ok":true,"ms":0.21,"detail":{"eta_s":{"worker:plant:W-20":4.0}}},{"agent":"verifier","ok":true,"ms":0.0,"detail":{}}]}], EVAL=["Unsafe plans caught by the critic: 216/216 (100%); with the exact rule named: 216/216 (100%)", "Safe plans wrongly rejected: 0/54 (0%); sent to a person by default-deny (R-UNVERIFIED, by design): 0", "Unsafe plans that caused a runtime safety event when executed unchecked: 0/216 (0%)", "Approved plans that caused a runtime safety event: 0/54 (0%)", "Plans that caused a runtime safety event: 69; rejected beforehand by the critic: 69/69 (100%)", "Plans the critic approved: 59; of those with a runtime event: 0", "Brier score: Monitor 0.0958 vs threshold alarm 0.3917 (lower is better)", "False alarms dispatched: Monitor 19 vs threshold alarm 235; real faults the Monitor called noise: 41", "Precision 0.945, recall 0.888", "Baseline plans that were unsafe or ungrounded: 6/27 (22%); with a runtime safety event when executed: 0/27 (0%)"];
-const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let cur=0,timer=null,shown=0;
-function tabs(){document.getElementById("tabs").innerHTML=RUNS.map((r,i)=>`<button aria-pressed="${i===cur}" onclick="pick(${i})">${esc((r.incident||{}).kind||r.id).replace(/_/g," ")} <span class="muted">${esc((r.incident||{}).station_id||"")}</span></button>`).join("")}
-function stepLine(s){const d=s.detail||{};let x="";
- if(s.agent==="critic"&&d.violations&&d.violations.length)x=d.violations.map(v=>`<div class="bad">${esc(v.rule)}: ${esc(v.detail)} <span class="muted">${esc(v.clauses.join(", "))}</span></div>`).join("");
- else if(d.summary)x=esc(d.summary);else if(d.assignees)x="assignees "+esc(d.assignees.map(a=>a.split(":").pop()).join(", "))+(d.model?` <span class="muted">(${esc(d.model)})</span>`:"");
- else if(d.decision)x=esc(d.decision)+(d.reasons?` <span class="muted">${esc(d.reasons.join("; "))}</span>`:"");
- else if(d.gate)x=esc(d.gate);
- return `<b>${esc(s.agent)}</b> <span class="${s.ok?"ok":"bad"}">${s.ok?"ok":"rejected"}</span> <span class="muted">${s.ms??""} ms</span><div>${x}</div>`}
-function render(){const r=RUNS[cur],inc=r.incident||{},p=r.plan||{};
- const steps=r.steps.length?r.steps:r.path.map(h=>({agent:h.agent,ok:true,ms:"",detail:{summary:`${h.by}: ${h.reason}`}}));
- document.getElementById("run").innerHTML=`<div class="card"><div class="row"><b>${esc(inc.kind)}</b><span class="chip">${esc(inc.station_id||inc.zone_id)}</span><span class="chip">severity ${esc(inc.severity)}</span><span class="chip">decision ${esc(r.decision)}</span><span class="chip">gate ${esc(r.gate)}</span><span class="chip">critic rejections ${esc(r.critic_rejections)}</span></div>
- <p>${esc(r.summary)}</p><div class="muted">sensors <code>${esc(JSON.stringify(inc.sensors))}</code></div></div>
- <div class="card"><b>Agent steps</b><div class="ctl"><button onclick="play()">Play</button><button onclick="all_()">Show all</button></div>
- <ol class="steps">${steps.map((s,i)=>`<li id="s${i}" class="${s.ok?"":"fail"}">${stepLine(s)}</li>`).join("")}</ol></div>
- <div class="card"><b>Plan</b><ul><li>assignees: ${esc((p.assignee_ids||[]).join(", "))}</li>${(p.agv_routes||[]).map(a=>`<li>${esc(a.agv_id)} to ${esc(a.to_station)} at ${a.speed_mps} m/s, crossings ${a.crossing_speed_mps} m/s</li>`).join("")}<li>${esc(p.rationale)}</li></ul>
- <b>Why</b><ul>${r.reasons.concat(r.gate_reasons).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
- <b>Clauses</b><ul>${r.citations.map(c=>`<li><b>${esc(c.ref)}</b> ${esc(c.title)}: <span class="muted">${esc(c.text)}</span></li>`).join("")}</ul>
- <div class="muted">models: ${esc(r.models.join(", "))}</div></div>`;
- shown=0;clearInterval(timer);steps.forEach((_,i)=>{});play()}
-function play(){clearInterval(timer);shown=0;document.querySelectorAll("ol.steps li").forEach(li=>li.classList.remove("on"));
- timer=setInterval(()=>{const li=document.getElementById("s"+shown);if(!li){clearInterval(timer);return}li.classList.add("on");shown++},450)}
-function all_(){clearInterval(timer);document.querySelectorAll("ol.steps li").forEach(li=>li.classList.add("on"))}
-function pick(i){cur=i;tabs();render()}
-document.getElementById("eval").innerHTML=EVAL.length?"<ul>"+EVAL.map(x=>`<li>${esc(x)}</li>`).join("")+"</ul>":"<span class=muted>Run python run.py eval</span>";
-tabs();render();
-</script></body></html>
+  :root {
+    --bg:#0b100e; --bg2:#101714; --panel:#141c19; --card:#18221e; --line:#26332e; --fg:#e6eee9; --muted:#9aaba3;
+    --nemo:#7cc94f; --person:#ef7fae; --engine:#e2a94b; --data:#62aee8; --code:#a7b3ad; --accent:#7cc94f;
+    --sans:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 var(--sans); -webkit-font-smoothing:antialiased; }
+  a { color:inherit; }
+  img { max-width:100%; display:block; }
+  .wrap { max-width:1160px; margin:0 auto; padding:0 20px; }
+  code, pre { font-family:var(--mono); }
+
+  /* nav */
+  nav { position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter:blur(10px);
+        border-bottom:1px solid var(--line); }
+  nav .wrap { display:flex; align-items:center; gap:24px; height:62px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; text-decoration:none; letter-spacing:-0.01em; }
+  .logo { width:26px; height:26px; border-radius:7px; background:conic-gradient(from 200deg, var(--nemo), var(--data), var(--person), var(--engine), var(--nemo)); }
+  nav .links { display:flex; gap:20px; margin-left:auto; font-size:14.5px; }
+  nav .links a { text-decoration:none; color:var(--muted); }
+  nav .links a:hover { color:var(--fg); }
+  .btn { display:inline-flex; align-items:center; gap:8px; font:600 15px var(--sans); text-decoration:none; padding:11px 18px;
+         border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); white-space:nowrap; }
+  .btn.primary { background:var(--nemo); color:#08120b; border-color:var(--nemo); }
+  .btn:hover { filter:brightness(1.08); }
+  nav .btn { padding:7px 13px; font-size:14px; }
+
+  /* hero */
+  .hero { padding:72px 0 40px; background:radial-gradient(900px 420px at 80% 0%, color-mix(in srgb, var(--data) 16%, transparent), transparent 70%),
+          radial-gradient(700px 380px at 0% 20%, color-mix(in srgb, var(--nemo) 12%, transparent), transparent 70%); }
+  .eyebrow { font:600 12.5px var(--sans); letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin:0 0 14px; }
+  h1 { font-size:clamp(40px, 6.2vw, 72px); line-height:1.02; letter-spacing:-0.03em; margin:0 0 16px; }
+  .tag { font-size:clamp(20px, 2.6vw, 28px); font-weight:600; margin:0 0 18px; }
+  .tag .a { color:var(--nemo); } .tag .b { color:var(--data); } .tag .c { color:var(--person); }
+  .lede { font-size:18px; color:var(--muted); max-width:62ch; margin:0 0 26px; }
+  .cta { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:34px; }
+  .shot { border-radius:14px; overflow:hidden; border:1px solid var(--line); box-shadow:0 30px 80px -30px rgba(0,0,0,.7); background:#0f1412; }
+  .shot .bar { height:34px; display:flex; align-items:center; gap:7px; padding:0 14px; background:#121a17; border-bottom:1px solid var(--line); }
+  .shot .bar i { width:11px; height:11px; border-radius:50%; background:#2b3833; }
+  .shot .bar span { margin-left:10px; font:12.5px var(--mono); color:var(--muted); }
+  .caption { color:var(--muted); font-size:14px; margin:12px 2px 0; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+  .chip { font-size:13px; font-weight:600; border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:var(--panel); }
+  .chip i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+
+  /* sections */
+  section { padding:76px 0; border-top:1px solid var(--line); }
+  section.alt { background:var(--bg2); }
+  h2 { font-size:clamp(28px, 3.6vw, 40px); letter-spacing:-0.02em; line-height:1.12; margin:0 0 12px; }
+  .intro { color:var(--muted); font-size:17.5px; max-width:70ch; margin:0 0 34px; }
+  .grid { display:grid; gap:16px; }
+  .g2 { grid-template-columns:repeat(2, 1fr); } .g3 { grid-template-columns:repeat(3, 1fr); } .g4 { grid-template-columns:repeat(4, 1fr); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .card h3 { margin:0 0 6px; font-size:18px; letter-spacing:-0.01em; }
+  .card p { margin:0; color:var(--muted); font-size:15px; }
+  .pain .n { font-size:34px; font-weight:700; color:var(--person); line-height:1; margin-bottom:12px; }
+  .pillar { border-top:4px solid var(--c); }
+  .ico { width:42px; height:42px; border-radius:11px; display:grid; place-items:center; margin-bottom:14px;
+         background:color-mix(in srgb, var(--c) 16%, transparent); }
+  .ico svg { width:23px; height:23px; stroke:var(--c); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* flow */
+  .flow { display:grid; grid-template-columns:repeat(5, 1fr); gap:24px 12px; counter-reset:s; }
+  .step { position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 16px 14px; }
+  .step::before { counter-increment:s; content:counter(s); position:absolute; top:-11px; left:14px; width:22px; height:22px; border-radius:50%;
+                  background:var(--c); color:#0b100e; font:700 12px/22px var(--sans); text-align:center; }
+  .step b { display:block; margin-bottom:4px; }
+  .step span { color:var(--muted); font-size:14px; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; color:var(--muted); font-size:13.5px; margin:16px 0 0; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+  .figure { background:#fff; border-radius:14px; padding:14px; border:1px solid var(--line); }
+  .figure.dark { background:#161b19; }
+
+  /* results */
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; }
+  .stat .v { font-size:clamp(30px, 4vw, 44px); font-weight:700; letter-spacing:-0.02em; line-height:1.05; }
+  .stat .k { color:var(--muted); font-size:14.5px; margin-top:8px; }
+  .stat a { color:var(--data); }
+
+  /* sponsors */
+  .sp { border-left:4px solid var(--c); }
+  .sp .who { font:600 12px var(--sans); letter-spacing:0.12em; text-transform:uppercase; color:var(--c); margin-bottom:6px; }
+
+  /* gallery */
+  .gallery { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .gallery figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .gallery figcaption { padding:10px 14px; color:var(--muted); font-size:14px; }
+
+  /* quick start */
+  pre { background:#070b09; border:1px solid var(--line); border-radius:12px; padding:18px 20px; overflow:auto; font-size:14px; line-height:1.7; margin:0; }
+  pre .c { color:#6f8179; }
+  .tabs { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs button { font:600 14px var(--sans); color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:9px; padding:7px 12px; cursor:pointer; }
+  .tabs button[aria-selected=true] { color:var(--fg); background:var(--card); border-color:var(--nemo); }
+
+  footer { padding:44px 0 60px; border-top:1px solid var(--line); color:var(--muted); font-size:14.5px; }
+  footer .wrap { display:flex; flex-wrap:wrap; gap:14px 30px; justify-content:space-between; }
+  footer a { color:var(--fg); }
+
+  @media (max-width: 960px) {
+    .g4, .flow { grid-template-columns:repeat(2, 1fr); } .g3, .gallery { grid-template-columns:1fr 1fr; }
+    nav .links { display:none; }
+  }
+  @media (max-width: 620px) {
+    .g2, .g3, .g4, .flow, .gallery { grid-template-columns:1fr; }
+    section { padding:56px 0; } .hero { padding-top:44px; }
+    nav .btn.gh span { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="#top"><span class="logo" aria-hidden="true"></span>Shop-Floor OS</a>
+  <div class="links">
+    <a href="#problem">Problem</a><a href="#solution">Solution</a><a href="#how">How it works</a>
+    <a href="#results">Results</a><a href="#sponsors">Technology</a><a href="#start">Run it</a><a href="replay.html">Replays</a>
+  </div>
+  <a class="btn gh" href="https://github.com/Hemanth-Raja/shopfloor-os"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+  <p class="eyebrow">Open Agent Hackathon 2026 · Track 3: Reasoning Architecture</p>
+  <h1>Shop-Floor OS</h1>
+  <p class="tag"><span class="a">AI agents plan.</span> <span class="b">Robots execute.</span> <span class="c">Humans judge.</span></p>
+  <p class="lede">A multi-agent incident-response and AGV-dispatch system for a car final-assembly hall. Agents read the
+    plant through Zetaris, reason with NVIDIA Nemotron through Meterless Nightshift and remember with Meterless engines.
+    Code checks every plan against OSHA rules and simulates it before anything moves, and a person approves whatever is risky.</p>
+  <div class="cta">
+    <a class="btn primary" href="#start">Run it in 2 minutes</a>
+    <a class="btn" href="replay.html">Replay real incidents</a>
+    <a class="btn" href="https://github.com/Hemanth-Raja/shopfloor-os">Source on GitHub</a>
+  </div>
+  <div class="shot">
+    <div class="bar"><i></i><i></i><i></i><span>shop-floor-os · live floor (sample mode)</span></div>
+    <img src="assets/demo.gif" width="1280" height="800" alt="Shop-Floor OS running: an AGV fault with a mid-route stall is fenced, planned, checked and dispatched; the verifier sees the stall and re-plans; the agent flow graph shows every hop and who chose it; Ask the floor answers why F10 keeps stopping with cited evidence" loading="eager">
+  </div>
+  <p class="caption">Recorded from the real app with no keys: an AGV fault and a mid-route stall, the verifier re-planning, the agent
+    flow behind the decision, and <i>Ask the floor</i> answering with cited evidence.</p>
+  <div class="chips">
+    <span class="chip"><i style="background:var(--data)"></i>Zetaris Unified Semantic Layer</span>
+    <span class="chip"><i style="background:var(--nemo)"></i>NVIDIA Nemotron · 3 models</span>
+    <span class="chip"><i style="background:var(--nemo)"></i>Meterless Nightshift</span>
+    <span class="chip"><i style="background:var(--engine)"></i>Meterless World Model · H-MEM · Markovian</span>
+    <span class="chip"><i style="background:var(--person)"></i>Human in the loop</span>
+  </div>
+</div></header>
+
+<section id="problem"><div class="wrap">
+  <p class="eyebrow">The problem</p>
+  <h2>When the line stops, a supervisor has seconds to decide</h2>
+  <p class="intro">A kit runs out, an AGV stalls in an aisle, coolant spills, a nutrunner reports a bad torque, a weld robot faults.
+    Who goes? Which robot moves? Is the alarm even real? Is it safe to act? The answers sit in four different systems.</p>
+  <div class="grid g4">
+    <div class="card pain"><div class="n">75 s</div><h3>Every stopped minute costs cars</h3><p>One car leaves final assembly about every 75 seconds. Each incident stops the line.</p></div>
+    <div class="card pain"><div class="n">4</div><h3>The facts are scattered</h3><p>Fleet manager, HR rosters and certificates, machine telemetry and incident history live apart.</p></div>
+    <div class="card pain"><div class="n">¼</div><h3>Many alarms are noise</h3><p>About a quarter of overheat alarms are sensor noise; a false stop costs as much as a missed fault.</p></div>
+    <div class="card pain"><div class="n">!</div><h3>Acting can hurt someone</h3><p>AGVs cross pedestrian walkways; a robot-cell repair needs lockout/tagout. Speed must not cost safety.</p></div>
+  </div>
+  <p class="caption" style="margin-top:18px">For shift supervisors, team leaders and maintenance planners in vehicle assembly.</p>
+</div></section>
+
+<section id="solution" class="alt"><div class="wrap">
+  <p class="eyebrow">Our solution</p>
+  <h2>Decisions that are grounded, checked, simulated and verified</h2>
+  <p class="intro">Shop-Floor OS turns each incident into a decision a supervisor can trust: the model proposes, code decides what is
+    safe, a person approves anything risky, and the system learns from every outcome.</p>
+  <div class="grid g4">
+    <div class="card pillar" style="--c:var(--data)"><div class="ico"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
+      <h3>One view of the plant</h3><p>Zetaris federates four Postgres sources into one Unified Semantic Layer, read on a read-only agent login. The Meterless World Model grounds every person and robot.</p></div>
+    <div class="card pillar" style="--c:var(--nemo)"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5l3 8M16 7.5l-3 8M8.5 6h7"/></svg></div>
+      <h3>Agents that reason and route</h3><p>An orchestrator picks the next agent at every hop. Three Nemotron models via Nightshift route, separate real alarms from noise, plan and investigate.</p></div>
+    <div class="card pillar" style="--c:var(--code)"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h3>Code decides what is safe</h3><p>A deterministic critic checks OSHA 29 CFR 1910 and plant SOPs and cites the clause; a 60 s dry run simulates the plan; a gate holds anything risky for a person.</p></div>
+    <div class="card pillar" style="--c:var(--engine)"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg></div>
+      <h3>It learns, and proves it</h3><p>H-MEM keeps lessons with outcome feedback, the Lab tests floor changes on history, and every model call carries a signed, verified receipt.</p></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <p class="eyebrow">How it works</p>
+  <h2>One incident, start to finish</h2>
+  <p class="intro">There is no fixed pipeline. The orchestrator chooses the next agent, but only among the moves code allows, so the
+    critic, the dry run and the human gate can never be skipped.</p>
+  <div class="flow">
+    <div class="step" style="--c:var(--code)"><b>Reflex</b><span>Fence the area and stop nearby AGVs in under 100 ms.</span></div>
+    <div class="step" style="--c:var(--nemo)"><b>Monitor</b><span>Real alarm or sensor noise? Noise sends one person to check.</span></div>
+    <div class="step" style="--c:var(--data)"><b>Candidates</b><span>Certified people and healthy AGVs from one federated Zetaris query.</span></div>
+    <div class="step" style="--c:var(--nemo)"><b>Plan</b><span>Optimal plan at once; Nemotron refines in the background and cites clauses.</span></div>
+    <div class="step" style="--c:var(--code)"><b>Safety critic</b><span>Rejects any broken rule with the clause; the planner tries again.</span></div>
+    <div class="step" style="--c:var(--code)"><b>Dry run</b><span>60 s in the simulator: collisions, crossings, arrival times.</span></div>
+    <div class="step" style="--c:var(--person)"><b>Gate</b><span>Routine plans run; hazards, lapsed certificates and escalations wait for a person.</span></div>
+    <div class="step" style="--c:var(--data)"><b>Dispatch</b><span>AGVs move as VDA 5050 v2.0 orders; people get their task.</span></div>
+    <div class="step" style="--c:var(--code)"><b>Verifier</b><span>Did the floor change as predicted? If an AGV stalls, re-plan without it.</span></div>
+    <div class="step" style="--c:var(--engine)"><b>Learn</b><span>The outcome becomes an H-MEM lesson that the next plan recalls.</span></div>
+  </div>
+  <div class="legend"><span><i style="background:var(--nemo)"></i>Nemotron via Nightshift</span><span><i style="background:var(--code)"></i>code, no model</span>
+    <span><i style="background:var(--engine)"></i>Meterless engine</span><span><i style="background:var(--data)"></i>Zetaris data and dispatch</span><span><i style="background:var(--person)"></i>a person decides</span></div>
+  <h3 style="margin:48px 0 14px;font-size:22px">The architecture</h3>
+  <div class="figure"><img src="assets/architecture.png" alt="Architecture: people use four agent teams (incident response, autopilot, Ask the floor, Lab in the loop); the teams use the Meterless engines; every plan goes through deterministic safety code before the floor moves; data comes from Zetaris and every model call goes through Meterless Nightshift to NVIDIA Nemotron" loading="lazy"></div>
+  <h3 style="margin:48px 0 14px;font-size:22px">The loop that makes it better each time</h3>
+  <div class="grid" style="gap:22px">
+    <div class="figure dark"><img src="assets/loop-dark.png" alt="The loop: Nemotron with H-MEM proposes plans into the World Model of the hall; agents try each plan on the digital twin; the Lab replays history to test floor changes; lessons and test results flow back to the model" loading="lazy"></div>
+    <div><p class="intro" style="margin:0 0 14px">Read it clockwise. A model proposes, the agents try the idea on a digital twin before anything real moves,
+      the Lab tests changes against history, and what was learned flows back to the model.</p>
+      <p class="intro" style="margin:0">The <b>Lab in the loop</b> asks a slower question: would changing the floor itself make a whole class of
+      incidents shorter? Nemotron proposes one change, code tests it with 20 seeded replays and a 95% confidence interval, and a
+      person applies it. Later incidents then measure it against the prediction.</p></div>
+  </div>
+</div></section>
+
+<section id="results" class="alt"><div class="wrap">
+  <p class="eyebrow">Results</p>
+  <h2>Measured, not claimed</h2>
+  <p class="intro">Every number comes from the evaluation and chaos reports in the repository, and is reproducible offline.</p>
+  <div class="grid g4">
+    <div class="stat"><div class="v" style="color:var(--nemo)">0</div><div class="k">unsafe plans executed, across the evaluation, the chaos tests and live runs</div></div>
+    <div class="stat"><div class="v">216 / 216</div><div class="k">planted unsafe plans caught by the critic; 0 of 54 safe plans wrongly rejected</div></div>
+    <div class="stat"><div class="v">235 → 19</div><div class="k">false alarms sent to the floor, threshold alarm vs the Monitor (600 noisy alarms)</div></div>
+    <div class="stat"><div class="v">15 / 15</div><div class="k">chaos scenarios (models down, Nightshift down, broken JSON, Zetaris down) end in a safe decision</div></div>
+    <div class="stat"><div class="v">6 / 6</div><div class="k">rule-breaking first plans from Nemotron fixed after the critic returned the clause</div></div>
+    <div class="stat"><div class="v">−8.2%</div><div class="k">mean clean-up time from one extra spill kit, found by the Lab (95% CI −11.1% to −5.3%)</div></div>
+    <div class="stat"><div class="v">6,034</div><div class="k">Nightshift receipts, every one Ed25519-signed and verified</div></div>
+    <div class="stat"><div class="v">313</div><div class="k">offline tests, including the conformance suites of all three Meterless engines</div></div>
+  </div>
+  <p class="caption" style="margin-top:18px">Sources: <a href="https://github.com/Hemanth-Raja/shopfloor-os/blob/main/docs/eval.md">evaluation</a> ·
+    <a href="https://github.com/Hemanth-Raja/shopfloor-os/blob/main/docs/chaos.md">chaos tests</a> ·
+    <a href="https://github.com/Hemanth-Raja/shopfloor-os/blob/main/docs/production-readiness.md">production review</a></p>
+</div></section>
+
+<section id="sponsors"><div class="wrap">
+  <p class="eyebrow">Technology</p>
+  <h2>Every sponsor technology does real work</h2>
+  <p class="intro">Remove any one of them and a feature stops working.</p>
+  <div class="grid g2">
+    <div class="card sp" style="--c:var(--data)"><div class="who">Zetaris · the data layer</div><h3>One federated query per incident</h3>
+      <p>Fleet, HR, plant and operations databases are registered in Zetaris by code over its REST API and modelled once as the Unified Semantic Layer <code>floor</code>. Agents read it on their own read-only login, so Zetaris itself refuses any write from an agent. The agents' own steps and model calls are federated beside the plant data.</p></div>
+    <div class="card sp" style="--c:var(--engine)"><div class="who">Meterless engines</div><h3>World Model, H-MEM and Markovian</h3>
+      <p>Python ports with their conformance suites passing. The World Model grounds every id and fact; H-MEM ranks lessons, playbooks and OSHA clauses; Markovian writes the shift handover in bounded chunks with compressed carryover.</p></div>
+    <div class="card sp" style="--c:var(--nemo)"><div class="who">Meterless Nightshift · NVIDIA Nemotron</div><h3>Three models, one gateway, signed receipts</h3>
+      <p>Nemotron 3 Ultra 550B plans and analyses, 3.5 Super VL 120B splits questions and writes SQL, 3.5 Lightning 30B routes and triages. Each is pinned to its own Nightshift app with fallback chains and breakers, and every call records the requested and the answering model.</p></div>
+    <div class="card sp" style="--c:var(--person)"><div class="who">Built with Cursor and Claude Code</div><h3>Rules for every coding assistant</h3>
+      <p>Project rules in <code>.cursor/rules</code> and <code>AGENTS.md</code> keep secrets out, route every model call through Nightshift and every read through Zetaris, and require a test for every module. Disclosed in full in the README.</p></div>
+  </div>
+</div></section>
+
+<section class="alt"><div class="wrap">
+  <p class="eyebrow">Inside the app</p>
+  <h2>See every decision, and why</h2>
+  <p class="intro">Live floor, the agent flow behind each incident, investigations with cited evidence, and the Lab.</p>
+  <div class="gallery">
+    <figure><img src="assets/01-part-shortage-critic.png" alt="The critic rejects Nemotron's plan with the OSHA clause" loading="lazy"><figcaption>The critic rejects an unsafe plan and cites 29 CFR 1910.178</figcaption></figure>
+    <figure><img src="assets/02-agv-fault-replan.png" alt="The verifier detects a stalled AGV and re-plans" loading="lazy"><figcaption>The verifier sees a stalled AGV and re-plans</figcaption></figure>
+    <figure><img src="assets/03-overheat-verify.png" alt="A false overheat alarm leads to VERIFY instead of a line stop" loading="lazy"><figcaption>Sensor noise: VERIFY, and the line keeps running</figcaption></figure>
+    <figure><img src="assets/06-flow-graph.png" alt="The agent flow graph with every hop numbered" loading="lazy"><figcaption>Every hop, and who chose it</figcaption></figure>
+    <figure><img src="assets/04-lab.png" alt="The Lab tests a floor change with seeded replays" loading="lazy"><figcaption>The Lab: a floor change tested on history</figcaption></figure>
+    <figure><img src="assets/05-agents-know.png" alt="What the agents know: fleet, people, lessons, rules, models" loading="lazy"><figcaption>What the agents know, right now</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="start"><div class="wrap">
+  <p class="eyebrow">Run it</p>
+  <h2>Two minutes, no keys</h2>
+  <p class="intro"><code>SAMPLE_MODE=true</code> runs the real agent loop offline, with no Zetaris, Nightshift or keys. Live mode needs both, and is one script.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-t="cli">Command line</button><button role="tab" aria-selected="false" data-t="docker">Docker</button><button role="tab" aria-selected="false" data-t="api">HTTP API</button><button role="tab" aria-selected="false" data-t="live">Live</button>
+  </div>
+<pre data-p="cli">git clone https://github.com/Hemanth-Raja/shopfloor-os && cd shopfloor-os
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json   <span class="c"># JSON in, JSON out</span>
+SAMPLE_MODE=true .venv/bin/python -m app.server                            <span class="c"># web UI on :8000</span></pre>
+<pre data-p="docker" hidden>docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os   <span class="c"># sample mode by default</span>
+open http://localhost:8000</pre>
+<pre data-p="api" hidden>curl -X POST http://localhost:8000/run -H "Content-Type: application/json" \
+     -d @input_examples/example_3.json
+<span class="c"># {"status": "success", "output": {"decision": "VERIFY", ...}, "trace_id": "trace-example-3", ...}</span></pre>
+<pre data-p="live" hidden>cp .env.example .env            <span class="c"># Zetaris REST URL and key, Nightshift URL and token</span>
+bash scripts/start_live.sh      <span class="c"># Postgres, data load, Zetaris registration, health check, UI</span></pre>
+</div></section>
+
+<footer><div class="wrap">
+  <div><b style="color:var(--fg)">Shop-Floor OS</b> · Open Agent Hackathon 2026, Track 3 · by Hemanth Raja Guttikonda and Poojitha Katta</div>
+  <div><a href="https://github.com/Hemanth-Raja/shopfloor-os">GitHub</a> · <a href="replay.html">Replays</a> ·
+    <a href="https://github.com/Hemanth-Raja/shopfloor-os/blob/main/LICENSE">Apache-2.0</a> ·
+    <a href="https://github.com/Hemanth-Raja/shopfloor-os/blob/main/DATA_LICENSE.md">Data licence</a></div>
+  <div style="flex-basis:100%">The plant, people and incidents are fictional, anchored on public data (UCI AI4I 2020, Bosch CNC, OSHA, BLS, Open-Meteo). Nothing here drives real equipment.</div>
+</div></footer>
+
+<script>
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+    document.querySelectorAll("pre[data-p]").forEach(p => p.hidden = p.dataset.p !== b.dataset.t);
+  }));
+</script>
+</body>
+</html>
