@@ -23,6 +23,7 @@ from typing import Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.tracefmt import envelope, fill_targets
 from app.investigate.intake import INVESTIGATE, Intake, live_lines, respond
 from app.investigate.catalog import AGENT_CATALOG, AGENT_NOTES, CATALOG, NOTES, about_agents
 from app.investigate.sqlguard import GuardError, check
@@ -172,13 +173,16 @@ class Investigator:
         self._lock = threading.Lock()
         self.analyst_error: str | None = None
         self.role_calls: dict[str | None, dict] = {}
+        self._subject, self._prev_agent = "", None  # the question, and the last agent (trace from_agent)
 
     def _step(self, name: str, started: float, ok: bool, **detail) -> None:
         rec = {"step": name, "ok": ok, "ms": round((time.perf_counter() - started) * 1000, 2), "detail": detail}
         self.trace_path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock, self.trace_path.open("a", encoding="utf-8") as fh:
+            env = envelope(self.ask_id, name, ok, detail, subject=self._subject, prev=self._prev_agent)
             fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "run_id": self.ask_id,
-                                 "incident": self.ask_id, "agent": name, **rec}, default=str) + "\n")
+                                 "incident": self.ask_id, "agent": name, **env, **rec}, default=str) + "\n")
+            self._prev_agent = name
         if self.on_step:
             self.on_step(self.ask_id, rec)
 
@@ -470,6 +474,13 @@ class Investigator:
 
     # -- the whole investigation
     def run(self, question: str) -> dict:
+        self._subject = f"question: {question}"
+        try:
+            return self._run(question)
+        finally:
+            fill_targets(self.trace_path)
+
+    def _run(self, question: str) -> dict:
         started = time.perf_counter()
         t = time.perf_counter()
         intake, how_i, live = self.understand(question)

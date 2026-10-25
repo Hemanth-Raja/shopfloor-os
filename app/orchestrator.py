@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from app.tracefmt import envelope, fill_targets
 from app.agents.candidates import find_candidates
 from app.agents.dryrun import dry_run
 from app.agents.executor import execute, verify
@@ -93,23 +94,36 @@ class Orchestrator:
             from app.engines.citations import default_index
             citations = default_index()
         self.citations = citations  # OSHA clauses + plant SOPs indexed in H-MEM
+        self._prev: dict[str, str] = {}  # last agent per incident, for the trace's from_agent
+
+    def finish_trace(self, incident_id: str) -> None:
+        """Fill target_agent in this run's trace file (per-run files only; the shared legacy file is left alone)."""
+        if self.trace_path and self.trace_path != TRACE_PATH:
+            fill_targets(self.trace_path)
+        self._prev.pop(incident_id, None)
 
     def _step(self, trace: Trace, name: str, started: float, ok: bool, **detail) -> None:
         result = StepResult(step=name, ok=ok, ms=round((time.perf_counter() - started) * 1000, 2), detail=detail)
         trace.steps.append(result)
         if self.on_step:
             self.on_step(trace.incident.id, result)
+        inc = trace.incident
+        prev = self._prev.get(inc.id)
+        env = envelope(self.run_id or inc.id, name, ok, detail,
+                       subject=f"{inc.kind} at {inc.station_id or inc.zone_id}", prev=prev)
+        self._prev[inc.id] = name
         if self.trace_path:
             self.trace_path.parent.mkdir(parents=True, exist_ok=True)
             with self.trace_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "run_id": self.run_id,
-                                     "incident": trace.incident.id, "agent": name, "tick": self.sim.tick,
-                                     **result.model_dump()}, default=str) + "\n")
+                                     "incident": inc.id, "agent": name, "tick": self.sim.tick,
+                                     **env, **result.model_dump()}, default=str) + "\n")
         if self.echo:
             extra = {k: detail[k] for k in ("model", "attempt", "decision", "playbook") if detail.get(k) is not None}
             if name == "critic" and detail.get("violations"):
                 extra["violations"] = [v["rule_id"] for v in detail["violations"]]
-            print(f"[INFO] run_id={self.run_id} agent={name} ok={ok} ms={result.ms} {json.dumps(extra, default=str)}", flush=True)
+            print(f"[INFO] run_id={self.run_id} agent={name} action={env['action']} status={env['status']} "
+                  f"from={prev} ms={result.ms} | {env['output_summary']} {json.dumps(extra, default=str)}", flush=True)
 
     def _plan_loop(self, trace: Trace, incident: Incident, cands: dict):
         feedback = list(self.lessons) or None  # critic findings carry over to a re-plan
@@ -146,6 +160,7 @@ class Orchestrator:
 
     def handle(self, incident: Incident, stall: tuple[int, int] | None = None) -> Trace:
         trace = self._handle(incident, stall)
+        self.finish_trace(incident.id)
         if self.memory is not None:
             self.memory.record(trace)
         return trace

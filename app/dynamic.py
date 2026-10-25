@@ -316,6 +316,11 @@ class DynamicOrchestrator(Orchestrator):
     def run_steps(self, incident: Incident, stall: tuple[int, int] | None = None):
         """The orchestrator as a generator: one yield per hop, so a dispatcher can interleave many incidents.
         Returns the Trace (StopIteration.value)."""
+        trace = yield from self._run_steps(incident, stall)
+        self.finish_trace(incident.id)
+        return trace
+
+    def _run_steps(self, incident: Incident, stall: tuple[int, int] | None = None):
         trace = Trace(incident=incident, mode="dynamic", data_version=getattr(self.plant, "version", None))
         self.trace = trace
         from app.models import CFG

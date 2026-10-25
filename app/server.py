@@ -45,6 +45,7 @@ from pathlib import Path
 from app.agents.executor import execute
 from app.engines.playbooks import PlaybookStore
 from app.orchestrator import Orchestrator
+from app.tracefmt import envelope, fill_targets
 from app.sim.grid import Grid
 from app.sim.sim import Sim
 
@@ -877,11 +878,16 @@ class App:
         lab_id = f"lab-{int(time.time())}-{os.urandom(2).hex()}"
         trace = Path(__file__).resolve().parents[1] / "logs" / f"trace-{lab_id}.jsonl"
 
+        prev = [None]
+
         def on_step(name, started, detail):
             rec = {"lab_id": lab_id, "step": name, "ms": round((time.perf_counter() - started) * 1000, 1), "detail": detail}
             with trace.open("a", encoding="utf-8") as fh:
+                env = envelope(lab_id, "lab", True, detail, subject=f"lab stage: {name}", prev=prev[0])
+                env["action"] = name
                 fh.write(json.dumps({"ts": datetime.now().astimezone().isoformat(), "run_id": lab_id, "agent": "lab",
-                                     **rec}, default=str) + "\n")
+                                     **env, **rec}, default=str) + "\n")
+            prev[0] = "lab"
             self.bus.publish("lab_step", json.loads(json.dumps(rec, default=str)))
 
         def work():
@@ -916,6 +922,8 @@ class App:
                 self.bus.publish("lab", {"error": f"{type(err).__name__}: {err}"[:300]})
             finally:
                 self.lab_running = False
+                if trace.exists():
+                    fill_targets(trace)
         threading.Thread(target=work, daemon=True).start()
 
     def ask(self, req: dict) -> str:
