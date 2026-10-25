@@ -48,6 +48,7 @@
         "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "planner": [
+        "nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
@@ -59,7 +60,16 @@
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
+      "handover": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "handover_reflect": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
       "analyst": [
+        "nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
       ],
@@ -68,8 +78,13 @@
         "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ],
       "lab": [
+        "nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "sentinel": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b"
       ]
     },
     "deterministic_no_model": [
@@ -82,9 +97,9 @@
       "verifier"
     ],
     "probe": "scripts/probe_models.py -> data/model_probe.json (which model Nightshift really serves per requested id)",
-    "nightshift_routing_note": "Nightshift routes by per-app rule: shopfloor-os-fast is pinned to the Lightning lane and shopfloor-os to the Super VL lane (lane allowlists in Nightshift's app-policy.json); every call records requested vs answering model and the receipt id"
+    "nightshift_routing_note": "Nightshift routes by per-app rule: shopfloor-os-ultra -> Nemotron 3 Ultra 550B, shopfloor-os -> Nemotron 3.5 Super VL, shopfloor-os-fast -> Nemotron 3.5 Lightning (one-lane allowlists in Nightshift's app policy); every call records requested vs answering model and the receipt id, and the Ed25519 receipt signature is verified at call time"
   },
-  "data_platform": "Zetaris (four Postgres sources federated as sf_fleet, sf_hr, sf_plant, sf_ops); one federated query per incident",
+  "data_platform": "Zetaris: four Postgres sources federated as sf_fleet, sf_hr, sf_plant, sf_ops; one federated query per incident; Unified Semantic Layer 'floor' (app/usl.py, 9 tables with keys); agents read on a read-only login (role SF_AGENT_READER); agent logs synced back into sf_ops.agent_steps, llm_calls, journal",
   "agent_loop": {
     "kind": "dynamic orchestrator (app/dynamic.py); the fixed pipeline is kept as --linear",
     "router": "router role (config/models.json) returns strict JSON {next_agent, reason, args} per decision point; rule-based router in sample mode, when Nightshift is down, and after 6 router calls",
@@ -130,12 +145,12 @@
       "overheat false alarm at F10 (VERIFY)"
     ]
   },
-  "tests": "python -m pytest  (192 offline tests: Meterless conformance, guardrails, model registry and resilience, anytime planning, journal, autopilot, detectors, caches, SQL guard, property-based safety fuzzing)",
+  "tests": "python -m pytest  (309 offline tests: Meterless conformance, guardrails, model registry and resilience, anytime planning, journal, autopilot, detectors, caches, SQL guard, intake, Lab loop, VDA 5050, offline verification, property-based safety fuzzing)",
   "data_sources": "See README: synthetic plant anchored on UCI AI4I 2020, OSHA SIR, BLS SOII, Open-Meteo, Bosch CNC, MovingAI MAPF",
   "entry_points": {
     "programmatic": "python run.py run input_examples/example_1.json  (JSON in, JSON out)",
-    "http": "POST /api/run on python -m app.server (port $PORT, default 8000)",
-    "ui": "python -m app.server -> http://127.0.0.1:8000 (live floor with custom incident form, Flow, Ask the floor, Lab, What the agents know)",
+    "http": "POST /run or POST /api/run with an input_examples/*.json body on python -m app.server (port $PORT, default 8000); GET /health",
+    "ui": "python -m app.server -> http://127.0.0.1:8000 (Live floor with report form, Incidents with agent flow and history, Ask the floor, Lab, Nemotron at work, What the agents know)",
     "docker": "docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os"
   },
   "sample_inputs": [
@@ -225,5 +240,6 @@
     "adaptive_detection": "EWMA baselines from sf_plant.machine_telemetry per machine and shift, CUSUM drift, stock trend, fixed per-machine hard limits (app/autonomy/detectors.py)",
     "cars_saved": "bootstrap 95% interval over historical incidents per kind",
     "connectors": "FleetManager / MES / PLC interfaces with simulator implementations (app/connectors.py)"
-  }
+  },
+  "license": "Apache-2.0"
 }

@@ -5,6 +5,7 @@ import threading
 import time
 import urllib.request
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -65,6 +66,11 @@ def test_server_runs_a_demo_offline(monkeypatch):
         assert trace.decision.decision == "ACT" and trace.critic_rejections in (0, 1)  # v2 may or may not break a rule
         assert "<canvas" in urllib.request.urlopen(base + "/").read().decode()
         assert json.load(urllib.request.urlopen(base + "/health"))["floor"]["collisions"] == 0
+        # the judges' checklist: POST /run with an input example returns the JSON contract at once
+        example = (Path(__file__).resolve().parents[1] / "input_examples" / "example_3.json").read_bytes()
+        req = urllib.request.Request(base + "/run", data=example, headers={"Content-Type": "application/json"})
+        out = json.load(urllib.request.urlopen(req))
+        assert out["status"] == "success" and out["output"]["decision"] == "VERIFY"
     finally:
         httpd.shutdown()
 

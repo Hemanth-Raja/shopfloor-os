@@ -21,12 +21,12 @@
    Nightshift as ok.
 
 ### Seeing what happens, live
-- **Flow tab** (next to Live floor): the pipeline as boxes. The active agent lights up, and the critic-retry and re-plan loops count up. Click any box for its full input and output: what was sent to Nemotron, which model answered, and how long it took.
+- **Incidents tab** (next to Live floor): every incident with its agent flow as a graph. The active agent lights up, and the critic-retry and re-plan loops count up. Click any agent for its full input and output: what was sent to Nemotron, which model answered, and how long it took.
 - **Second terminal:** `cd ~/hackathon/shopfloor-os && .venv/bin/python run.py watch`. This prints one line per step, Nemotron call and approval.
 - **Raw logs:** each incident writes its own file, `logs/trace-<incident id>.jsonl`; `logs/llm.jsonl` records every Nemotron call. For example `tail -f logs/llm.jsonl`, or `ls -t logs/trace-*.jsonl | head -1 | xargs tail -f` for the newest incident. The old single `logs/trace.jsonl` is no longer written.
 
 ### Which model does what
-The **Models** panel (Flow tab) lists each agent role, its model chain from `config/models.json`, breaker states
+The **Models** panel (*Nemotron at work* tab) lists each agent role, its model chain from `config/models.json`, breaker states
 and the last call: which model answered, latency and the Nightshift receipt id. Run
 `.venv/bin/python scripts/probe_models.py` beforehand to refresh which models Nightshift really serves. With a
 single lane configured, every NVIDIA id is answered by Nemotron 3.5 Super VL, and the panel says so.

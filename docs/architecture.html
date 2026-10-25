@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Shop-Floor OS architecture</title>
+<style>
+  :root { --ink:#16202c; --mut:#56657a; --line:#d5dde8; --bg:#ffffff;
+          --nemo:#76b900; --zet:#2b4c7e; --met:#5b3fa8; --code:#2f6f4a; --floor:#b5651d; --ppl:#1d3550; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); font-family: "Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  .page { width:1600px; padding:36px 40px 30px; }
+  h1 { margin:0; font-size:30px; letter-spacing:-.3px; }
+  .sub { color:var(--mut); font-size:16px; margin:6px 0 22px; }
+  .band { display:grid; gap:14px; margin:0; }
+  .lbl { font-size:12px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:var(--mut); margin:0 0 8px 2px; }
+  .box { border:1.5px solid var(--line); border-radius:12px; padding:14px 16px; background:#fff; }
+  .box h3 { margin:0 0 6px; font-size:17px; }
+  .box p { margin:0; font-size:13.5px; line-height:1.45; color:#2c3a4c; }
+  .box .tag { display:inline-block; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:20px; margin:8px 6px 0 0; }
+  .ppl { border-color:var(--ppl); background:#f1f5fa; }
+  .team { border-top:5px solid var(--ppl); }
+  .code { border-color:var(--code); background:#f2f8f4; }
+  .met  { border-color:var(--met); background:#f5f2fb; }
+  .floor{ border-color:var(--floor); background:#fbf5ef; }
+  .zet  { border-color:var(--zet); background:#eef3fa; }
+  .nemo { border-color:var(--nemo); background:#f5faeb; }
+  .logs { border-color:#7a8699; background:#f4f6f9; }
+  .t-nemo { background:#e6f3cf; color:#3d5f00; } .t-code { background:#dcefe3; color:#1f5236; }
+  .t-met { background:#e8e0f7; color:#45307f; } .t-zet { background:#dfe8f5; color:#22406b; }
+  .flow { display:flex; justify-content:space-around; align-items:center; height:46px; color:var(--mut); font-size:13px; }
+  .flow span { display:flex; align-items:center; gap:8px; }
+  .flow b { font-size:20px; color:#8a97a8; font-weight:400; }
+  .grid4 { grid-template-columns: repeat(4, 1fr); }
+  .grid3 { grid-template-columns: 1.05fr 1.25fr 1fr; }
+  .grid3b{ grid-template-columns: 1.15fr 1.3fr 0.85fr; }
+  .mini { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px; }
+  .mini div { font-size:12.5px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 8px; line-height:1.35; }
+  .mini div b { display:block; font-size:13px; }
+  .foot { margin-top:18px; color:var(--mut); font-size:12.5px; display:flex; justify-content:space-between; }
+</style></head>
+<body><div class="page">
+  <h1>Shop-Floor OS</h1>
+  <div class="sub">AI agents plan, robots execute, humans judge. Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.</div>
+
+  <div class="lbl">People</div>
+  <div class="band"><div class="box ppl"><h3>Shift supervisor, team leader, maintenance planner</h3>
+    <p>Web UI (Live floor, Incidents, Ask the floor, Lab, Nemotron at work, What the agents know) · JSON API <code>POST /run</code> · CLI <code>run.py</code>. Approves or rejects anything risky; every judgement is logged.</p></div></div>
+
+  <div class="flow"><span><b>↓</b> report, question, approval</span><span><b>↑</b> decision with reasons, evidence, clause citations</span></div>
+
+  <div class="lbl">Agent teams</div>
+  <div class="band grid4">
+    <div class="box team"><h3>Incident response</h3><p>A dynamic orchestrator picks the next agent among the moves code allows: reflex, monitor, memory, investigator, candidates, playbook, planner (v1 at once, Nemotron v2 in the background), refine, executor, verifier.</p><span class="tag t-nemo">router · planner</span></div>
+    <div class="box team"><h3>Autopilot</h3><p>Sentinel watches floor signals (EWMA, CUSUM, trends) and triages the ambiguous ones; a priority dispatcher runs several incidents at once with leases on people and AGVs.</p><span class="tag t-nemo">sentinel triage</span></div>
+    <div class="box team"><h3>Ask the floor</h3><p>Intake works out what was asked; a coordinator splits it; a SQL agent queries Zetaris behind a guard; a log agent reads the agents' traces; an analyst writes findings; two critics drop unsupported claims.</p><span class="tag t-nemo">coordinator · SQL · analyst</span></div>
+    <div class="box team"><h3>Lab in the loop</h3><p>Nemotron proposes one floor change from history; seeded replays and a bootstrap CI test it with no model; a significant change is applied and measured on later incidents.</p><span class="tag t-nemo">lab hypothesis</span></div>
+  </div>
+
+  <div class="flow"><span><b>↔</b> facts, lessons, clauses</span><span><b>↓</b> every plan goes through code</span><span><b>↓</b> only what passed moves</span></div>
+
+  <div class="band grid3">
+    <div class="box met"><div class="lbl" style="color:var(--met)">Meterless engines</div>
+      <div class="mini"><div><b>World Model</b>grounded entities and facts; rejects invented ids</div>
+        <div><b>H-MEM</b>lessons, playbooks and the OSHA/SOP clause index</div>
+        <div><b>Markovian</b>shift handover over the whole journal in bounded chunks</div>
+        <div><b>Conformance</b>8 checks, 13 vectors and engine tests pass</div></div></div>
+    <div class="box code"><div class="lbl" style="color:var(--code)">Deterministic safety · no model</div>
+      <div class="mini"><div><b>Safety critic</b>OSHA 29 CFR 1910 + plant SOPs; cites the exact clause</div>
+        <div><b>Dry run</b>60 s simulation, A* with a reservation table</div>
+        <div><b>Restraint and human gate</b>ACT · VERIFY · SAFE_HOLD · ESCALATE</div>
+        <div><b>Runtime monitor</b>invariants after every tick; 0.5 m/s at crossings</div></div></div>
+    <div class="box floor"><div class="lbl" style="color:var(--floor)">The floor</div>
+      <p><b>Simulated assembly hall</b>: 10 stations, 8 AGVs, 24 people, walkways crossing AGV lanes.</p>
+      <p style="margin-top:6px">Every AGV dispatch is a <b>VDA 5050 v2.0</b> order; the verifier checks the world changed as predicted and re-plans if not.</p></div>
+  </div>
+
+  <div class="flow"><span><b>↓</b> one federated query per incident · guarded read-only SQL</span><span><b>↓</b> every model call, with role and pinned app</span><span><b>↑</b> logs synced back every 30 s</span></div>
+
+  <div class="lbl">Platforms</div>
+  <div class="band grid3b">
+    <div class="box zet"><h3>Zetaris · the data layer</h3><p>Four Postgres sources federated as <code>sf_fleet</code>, <code>sf_hr</code>, <code>sf_plant</code>, <code>sf_ops</code>, modelled once as the Unified Semantic Layer <b>floor</b> (9 entities with keys). Agents read on a read-only login; Zetaris refuses their writes.</p><span class="tag t-zet">built by code over REST</span></div>
+    <div class="box nemo"><h3>Meterless Nightshift → NVIDIA Nemotron</h3><p>The only model provider. One app pinned per model: <b>Nemotron 3 Ultra 550B</b> (planner, analyst, Lab), <b>3.5 Super VL 120B</b> (coordinator, SQL, handover), <b>3.5 Lightning 30B</b> (router, monitor, triage, evidence critic). Fallback chains, breakers, hedging; every answer carries a signed receipt verified at call time.</p><span class="tag t-nemo">requested vs answering model logged</span></div>
+    <div class="box logs"><h3>Evidence</h3><p>Per-run traces, model log, hash-chained journal and approvals. Any decision can be re-derived offline with no model (<code>/api/verify</code>).</p></div>
+  </div>
+
+  <div class="foot"><span>Open Agent Hackathon 2026 · Track 3: Reasoning Architecture</span><span>Plant, people and incidents are synthetic, anchored on public data (UCI AI4I, Bosch CNC, OSHA, BLS, Open-Meteo)</span></div>
+</div></body></html>

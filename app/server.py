@@ -1147,14 +1147,17 @@ def make_handler(app: App):
 
         def do_POST(self):  # noqa: N802
             try:
+                body = self._json() if self.path in ("/run", "/api/run") else None
+                # the JSON contract ({"input": {...}}, as in input_examples/) runs synchronously on either path, which is
+                # what the hackathon's judge checklist curls; a flat {"kind": ...} on /run is the UI's live-floor report
+                if self.path == "/api/run" or (self.path == "/run" and isinstance(body, dict) and "input" in body):
+                    from app.api import run_request  # app/api.py; independent of the UI sim
+                    result = run_request(body, echo=True)
+                    return self._send(200 if result["status"] == "success" else 422, result)
                 if self.path == "/run":
-                    return self._send(202, {"incident_id": app.run(self._json())})
+                    return self._send(202, {"incident_id": app.run(body)})
                 if self.path == "/approve":
                     return self._send(200, app.approve(self._json()))
-                if self.path == "/api/run":  # synchronous JSON contract (app/api.py); independent of the UI sim
-                    from app.api import run_request
-                    result = run_request(self._json(), echo=True)
-                    return self._send(200 if result["status"] == "success" else 422, result)
                 if self.path == "/autonomy":
                     mode = self._json().get("mode")
                     if mode not in ("auto", "supervised", "advisory"):
