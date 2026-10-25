@@ -46,6 +46,8 @@ class CircuitBreaker:
         except Exception as err:  # noqa: BLE001 - any failure counts against the dependency
             if probe:
                 self._probing = False
+            if getattr(err, "not_a_failure", False):  # our own pacing (model-call budget), not a broken dependency
+                raise
             self.failures += 1
             self.last_error = f"{type(err).__name__}: {err}"
             if self.failures >= self.threshold or self.state == "HALF_OPEN":

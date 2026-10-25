@@ -149,21 +149,19 @@ def test_half_open_lets_exactly_one_probe_through():
     assert results == ["ok"] and b.state == "CLOSED"
 
 
-def test_the_hourly_call_budget_fails_fast_and_frees_up_after_an_hour(monkeypatch):
+def test_the_call_budget_paces_sheds_low_value_calls_first_and_refills(monkeypatch):
     clock = [0.0]
-    budget = models.CallBudget(3, clock=lambda: clock[0])
-    monkeypatch.setattr(models, "BUDGET", budget)
-    calls = []
-
-    def complete(model, role, messages, max_tokens, timeout_s, json_mode):
-        calls.append(model)
-        return reply(model)
-    monkeypatch.setattr(models, "_complete", complete)
+    budget = models.CallBudget(16, clock=lambda: clock[0])  # bucket of 4 (a quarter hour)
     for _ in range(3):
-        models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner")
-    with pytest.raises(LLMUnavailable):
-        models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner")
-    assert len(calls) == 3 and budget.status()["refused"] >= 1
-    clock[0] = 3601.0
-    models.BREAKERS.clear()
-    assert models.chat_json("deep", [{"role": "user", "content": "x"}], Out, role="planner").data.ok
+        budget.admit("planner")  # 4 -> 1 token: a quarter full
+    with pytest.raises(models.BudgetExhausted):
+        budget.admit("monitor")  # cosmetic calls are shed below half
+    budget.admit("router")  # useful calls still run at a quarter: takes the last token
+    with pytest.raises(models.BudgetExhausted):
+        budget.admit("router")
+    with pytest.raises(models.BudgetExhausted):
+        budget.admit("planner")  # empty: even decision-critical calls wait for the refill
+    assert budget.status()["shed_by_tier"] == {1: 1, 2: 1, 3: 1}
+    clock[0] = 900.0  # a quarter hour later the bucket is full again
+    budget.admit("monitor")
+    assert getattr(models.BudgetExhausted("x"), "not_a_failure", False)  # breakers do not count pacing

@@ -145,31 +145,58 @@ SLEEP = time.sleep  # tests replace it
 
 
 class BudgetExhausted(LLMUnavailable):
-    """The hourly model-call budget is spent: the caller takes its no-model path (rules plan, person approves)."""
+    """The model-call budget says no for this call: the caller takes its rule-based path. Not a Nightshift failure,
+    so no breaker counts it and nothing goes into safe mode."""
+    not_a_failure = True
+
+
+# value of a model call per role: 1 = the decision depends on it, 2 = it improves a decision, 3 = cosmetic
+ROLE_TIER = {"planner": 1, "coordinator": 1, "sql_agent": 1, "analyst": 1, "sentinel": 1,
+             "router": 2, "evidence_critic": 2, "handover": 2, "handover_reflect": 2, "lab": 2, "monitor": 3}
 
 
 class CallBudget:
-    """Sliding one-hour window over model calls (retries count). Stops a runaway loop or a thundering herd from
-    burning the endpoint: once spent, calls fail fast and the agents degrade to their rule-based paths."""
+    """Paces model calls over the hour instead of letting a busy quarter burn them all (token bucket).
+
+    per_hour calls a hour, refilled continuously; at most a quarter of an hour's calls can be spent in a burst. When
+    the bucket runs low, low-value calls are shed first: below half full the cosmetic ones (the Monitor's one-line
+    summary falls back to its rule summary), below a quarter also the useful ones (the router routes by rules, the
+    evidence critic leaves it to the code check). Planner, Ask and Sentinel calls stop only when it is empty. A shed call
+    is not a failure: the agents keep deciding (the planner's rules plan is already optimal-assignment and critic
+    checked, so routine incidents still run on their own)."""
 
     def __init__(self, per_hour: int, clock=time.monotonic):
-        self.per_hour, self.clock, self.calls, self.refused = per_hour, clock, [], 0
+        self.per_hour, self.clock = per_hour, clock
+        self.capacity = max(1.0, per_hour / 4) if per_hour else 0.0
+        self.tokens, self.last = self.capacity, clock()
+        self.used, self.shed = 0, {1: 0, 2: 0, 3: 0}
         self._lock = threading.Lock()
 
-    def spend(self) -> None:
+    def _refill(self) -> None:
+        now = self.clock()
+        self.tokens = min(self.capacity, self.tokens + (now - self.last) * self.per_hour / 3600)
+        self.last = now
+
+    def admit(self, role: str) -> None:
+        if not self.per_hour:
+            return
+        tier = ROLE_TIER.get(role, 2)
         with self._lock:
-            now = self.clock()
-            self.calls = [t for t in self.calls if now - t < 3600]
-            if self.per_hour and len(self.calls) >= self.per_hour:
-                self.refused += 1
-                raise BudgetExhausted(f"model-call budget spent ({self.per_hour} per hour)")
-            self.calls.append(now)
+            self._refill()
+            level = self.tokens / self.capacity
+            floor = {1: 1.0 / self.capacity, 2: 0.25, 3: 0.5}[tier]  # tier 1 only needs one token left
+            if self.tokens < 1 or level < floor:
+                self.shed[tier] += 1
+                raise BudgetExhausted(f"model-call budget pacing: {role} call shed (tier {tier}, bucket "
+                                      f"{level:.0%} full, {self.per_hour} calls per hour)")
+            self.tokens -= 1
+            self.used += 1
 
     def status(self) -> dict:
         with self._lock:
-            now = self.clock()
-            used = sum(1 for t in self.calls if now - t < 3600)
-        return {"per_hour": self.per_hour, "used_last_hour": used, "refused": self.refused}
+            self._refill()
+            return {"per_hour": self.per_hour, "bucket_pct": round(100 * self.tokens / self.capacity) if self.capacity else None,
+                    "used": self.used, "shed_by_tier": dict(self.shed)}
 
 
 BUDGET = CallBudget(int(os.environ.get("MODEL_CALLS_PER_HOUR") or CFG["defaults"].get("calls_per_hour", 0)))
@@ -198,7 +225,6 @@ def _attempt(model: str, spec: dict, call, deadline: Deadline) -> SimpleNamespac
             lim = limiter(model)
             try:
                 with lim.slot(min(timeout, 5.0)):
-                    BUDGET.spend()
                     started = time.perf_counter()
                     out = call(model, spec, timeout)
                 lim.success(time.perf_counter() - started)
@@ -257,6 +283,7 @@ def _race(first: str, second: str, spec: dict, call, deadline: Deadline, tried: 
 def _over_chain(lane: str, role: str | None, call, messages: list[dict] | None = None,
                 deadline: Deadline | None = None) -> SimpleNamespace:
     role = role_for(lane, role)
+    BUDGET.admit(role)  # one logical call, whatever retries and fallbacks it needs
     spec = {**CFG["roles"][role], "_role": role}
     deadline = deadline or Deadline(seconds=spec["budget_s"] * len(spec["chain"]) + 5)
     tried: list = []

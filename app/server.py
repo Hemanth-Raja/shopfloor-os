@@ -26,6 +26,7 @@ to logs/approvals.jsonl.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import queue
@@ -285,15 +286,17 @@ class App:
             common = dict(memory=self.memory, run_id=inc.id, autonomy=req.get("autonomy") or self.autonomy, echo=True,
                           on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             if (req.get("mode") or self.mode) == "linear":
-                orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, **common)
+                orch, whole_run = Orchestrator(self.plant, self.sim, llm_json, llm_text, **common), self.lock
             else:
                 from app.dynamic import DynamicOrchestrator
                 from app.investigate.sources import sql_runner
                 orch = DynamicOrchestrator(self.plant, self.sim, llm_json, llm_text, **common,
                                            router_llm=None if self.replay else llm_json,
-                                           run_sql=sql_runner("true") if self.offline else self.run_sql)
+                                           run_sql=sql_runner("true") if self.offline else self.run_sql,
+                                           sim_lock=self.lock)
+                whole_run = contextlib.nullcontext()  # the lock covers floor hops only: Approve never waits on a model call
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
-            with self.lock:
+            with whole_run:
                 trace = orch.handle(inc, stall=stall)
             self.traces[inc.id] = trace
             self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,

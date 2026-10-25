@@ -39,6 +39,7 @@ from app.contracts import Incident, Plan, RestraintDecision, Trace, Violation
 from app.engines.citations import KIND_RULES
 from app import orchestrator as linear
 from app.llm import LLMUnavailable
+from app.models import BudgetExhausted
 from app.orchestrator import MAX_ATTEMPTS, VERIFY_TICKS, Orchestrator, executable_plan, gate_reasons
 
 HOP_BUDGET = 24
@@ -102,6 +103,7 @@ class State:
     excluded: set = field(default_factory=set)
     done: bool = False
     nightshift_down: bool = False
+    budget_paced: bool = False  # the call budget shed the planner's model call: rules plan, not safe mode
     pending: object = None  # anytime planning: the model's plan (v2), being computed in the background
 
 
@@ -280,6 +282,9 @@ class DynamicOrchestrator(Orchestrator):
                 self._step(trace, "router", t, False, rejected=choice.next_agent, reason=choice.reason, legal=legal,
                            fallback=agent, note="not a legal move: rejected by the guardrails")
                 return agent, "rules (model choice rejected)", why, {}
+            except BudgetExhausted as err:  # pacing, not an outage: this hop by rules, the model again next time
+                self._step(trace, "router", t, True, note="model budget pacing: rule-based router for this hop",
+                           error=str(err)[:200])
             except LLMUnavailable as err:
                 s.nightshift_down = True
                 self._step(trace, "router", t, False, error=str(err)[:200], note="Nightshift unavailable: rule-based router")
@@ -292,7 +297,10 @@ class DynamicOrchestrator(Orchestrator):
 
     # ---------------------------------------------------------------- the loop
 
-    UNLOCKED = {"monitor", "memory", "investigator", "planner"}  # no floor access: may run while others move
+    # no floor access while they wait on a model: may run while others move. refine waits for Nemotron's v2 (up to
+    # anytime_wait_s) outside the floor lock and takes the lock only to check v2 (a live run showed Approve and the
+    # floor clock freezing while refine held the lock during the model wait)
+    UNLOCKED = {"monitor", "memory", "investigator", "planner", "refine"}
 
     def _floor(self, agent: str):
         return self.sim_lock if self.sim_lock is not None and agent not in self.UNLOCKED else contextlib.nullcontext()
@@ -404,10 +412,15 @@ class DynamicOrchestrator(Orchestrator):
             s.feedback = list(self.lessons) or None  # lessons recalled from H-MEM seed the first attempt
         t = time.perf_counter()
         clauses = self.citations.for_incident(incident.kind, f"{incident.kind} at {incident.station_id} {incident.zone_id}")
-        if self.anytime and (s.attempts == 0 or s.nightshift_down):
+        if self.anytime and (s.attempts == 0 or s.nightshift_down or s.budget_paced):
             return self._anytime_plan(s, trace, incident, clauses, t)
         try:
             plan = make_plan(incident, s.cands, self.llm_json, s.feedback, clauses, deadline=getattr(self, "deadline_at", None))
+        except BudgetExhausted as err:  # pacing, not an outage: the rules plan goes through the same critic and gate
+            s.budget_paced = True
+            self._step(trace, "planner", t, True, attempt=s.attempts + 1, note="model budget pacing: rules plan",
+                       error=str(err)[:200])
+            return self._anytime_plan(s, trace, incident, clauses, t)
         except LLMUnavailable as err:
             s.nightshift_down = True
             self._step(trace, "planner", t, False, attempt=s.attempts + 1, error=str(err)[:200])
@@ -433,7 +446,7 @@ class DynamicOrchestrator(Orchestrator):
         """v1 at once by optimal assignment; the model's v2 starts in the background (unless Nightshift is down)."""
         named = {v.detail.split(" ")[0] for v in (s.feedback or []) if ":" in v.detail.split(" ")[0]}
         v1, info = assign_plan(incident, s.cands, self.plant, self.sim, clauses, exclude=s.excluded | named)
-        if not s.nightshift_down and self.llm_json is not None and s.pending is None and s.attempts == 0:
+        if not (s.nightshift_down or s.budget_paced) and self.llm_json is not None and s.pending is None and s.attempts == 0:
             import concurrent.futures as cf
             pool = cf.ThreadPoolExecutor(max_workers=1)
             s.pending = pool.submit(make_plan_info, incident, s.cands, self.llm_json, s.feedback, clauses,
@@ -469,6 +482,8 @@ class DynamicOrchestrator(Orchestrator):
                                                                   - time.monotonic()))
         try:
             return fut.result(timeout=wait)
+        except BudgetExhausted as err:  # pacing: keep the rules plan, which already passed the critic and the dry run
+            return None, None, f"model budget pacing ({str(err)[:80]})"
         except LLMUnavailable as err:
             s.nightshift_down = True
             return None, None, f"Nightshift unavailable: {str(err)[:120]}"
@@ -489,6 +504,10 @@ class DynamicOrchestrator(Orchestrator):
         t = time.perf_counter()
         v1, v1_ok = s.plan, bool(s.critic_ok and s.dryrun and s.dryrun["ok"])
         v2, model, info = self._wait_v2(s)
+        with self._floor("critic"):
+            return self._refine_checked(s, trace, incident, t, v1, v1_ok, v2, model, info)
+
+    def _refine_checked(self, s, trace, incident, t, v1, v1_ok, v2, model, info):
         if v2 is None:
             trace.safe_mode = trace.safe_mode or s.nightshift_down
             self._step(trace, "refine", t, v1_ok, chosen="v1", reason=f"model plan unavailable ({info}): keep v1",

@@ -633,8 +633,28 @@ function setButtons(on) {
   $("approve").textContent = labels[0]; $("reject").textContent = labels[1];
   for (const id of ["approve", "reject"]) $(id).disabled = !on || !["auto_executed", "auto_after_timeout", "awaiting_approval", "timeout_hold", "advisory"].includes(gate);
 }
+const PENDING = new Set();  // incidents with an Approve/Reject on its way: no second click, instant feedback
+async function sendJudgement(incident, approve) {
+  if (PENDING.has(incident)) return null;
+  PENDING.add(incident);
+  try {
+    const r = await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"},
+                                        body:JSON.stringify({incident_id: incident, approve, by: "supervisor"})});
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || r.status);
+    return out;
+  } catch (e) { alert("Not recorded: " + e.message + ". Try again."); return null; }
+  finally { PENDING.delete(incident); }
+}
 async function judge(approve) {
-  await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: current, approve, by: "supervisor"})});
+  const inc = current, btn = $(approve ? "approve" : "reject"), label = btn.textContent;
+  $("approve").disabled = $("reject").disabled = true;
+  btn.textContent = approve ? "Sending approval…" : "Sending…";
+  const out = await sendJudgement(inc, approve);
+  btn.textContent = label;
+  if (out && inc === current) { gate = out.gate; const box = $("decision").querySelector(".gate");
+    if (box) box.outerHTML = gateBox(out.gate, []); }
+  setButtons(true);
 }
 $("approve").onclick = () => judge(true); $("reject").onclick = () => judge(false);
 function hideHowto() { $("howto").style.display = "none"; try { localStorage.setItem("howto-hidden", "1"); } catch {} }
@@ -725,12 +745,13 @@ function showShift(st) {
     <h2 style="margin-top:10px">Queue (${st.queue.length})</h2>${st.queue.map(x => row(x, "")).join("") || '<div class="note">empty</div>'}
     <h2 style="margin-top:10px">Leases</h2><div class="note">${st.leases.map(l => `${esc(short(l.resource))} → ${esc(l.incident)}`).join(" · ") || "none"}</div>
     <h2 style="margin-top:10px">Handled (${st.done.length})</h2>${st.done.slice().reverse().map(x => row(x, `<span class="pill ${x.decision}" style="font-size:11px">${esc(x.decision || "-")}</span>
-      <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? `<button class="act ok" data-ok="${esc(x.incident)}">Approve</button><button class="act bad" data-no="${esc(x.incident)}">Reject</button>` : ""}`)).join("")}
+      <span class="muted">${esc(GATEWORD[x.gate] || x.gate || "")}</span>${wait(x) ? (PENDING.has(x.incident) ? '<span class="note">sending…</span>' : `<button class="act ok" data-ok="${esc(x.incident)}">Approve</button><button class="act bad" data-no="${esc(x.incident)}">Reject</button>`) : ""}`)).join("")}
     ${st.summary ? `<div class="gate done" style="margin-top:8px"><b>Shift summary:</b> ${st.summary.incidents} incidents from ${st.summary.signals} signals ·
       ${st.summary.auto_resolved} resolved on their own · ${st.summary.waiting_for_a_person.length} waited for a person · ${st.summary.escalations.length} escalated ·
       mean ${st.summary.mean_minutes_to_resolve ?? "-"} min to resolve · ~${st.summary.cars_saved_estimate} cars saved (95% CI ${(st.summary.cars_saved_ci95 || []).join("–")}, bootstrap over history) · ${st.summary.preemptions} pre-emptions · up to ${st.summary.max_concurrent} at once</div>` : ""}`;
   for (const b of $("shift").querySelectorAll("[data-ok],[data-no]")) b.onclick = async ev => { ev.stopPropagation();
-    await fetch("/approve", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({incident_id: b.dataset.ok || b.dataset.no, approve: !!b.dataset.ok})}); };
+    const row = b.parentElement; row.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "sending…";
+    await sendJudgement(b.dataset.ok || b.dataset.no, !!b.dataset.ok); };
   for (const r of $("shift").querySelectorAll(".inc")) r.onclick = () => openIncident(r.dataset.inc);
 }
 async function openIncident(id) {

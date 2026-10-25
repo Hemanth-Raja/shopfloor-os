@@ -17,7 +17,7 @@ human gate), which is what Track 3 judges.
 | Query in place, no copy into a vector store | covered | four Postgres sources federated as `sf_*`; one federated query builds the World Model |
 | Token firewall: filter and aggregate at the source | covered | SQL agent aggregates in Zetaris; 15 preview rows per result, 200-row cap; World Model payloads, not tables |
 | Do not overload operational databases | covered | read cache with TTL, cleared on writes; row limits; Zetaris breaker and 60 s timeout |
-| Read-only by construction | covered in code, **limit** in the database | `sqlguard.py` allows one `SELECT` on whitelisted tables; the Zetaris user itself is not read-only (a read-only Zetaris role needs your OK) |
+| Read-only by construction | covered in code; database role **in progress** | `sqlguard.py` allows one `SELECT` on whitelisted tables; the Zetaris user itself is not read-only (a read-only Zetaris role needs your OK) |
 | Data freshness during a long run | **gap, fixed** | the plant snapshot was loaded once at server start; it now refreshes on a timer and falls back to the last good snapshot |
 
 ## 2. Execution and state (Meterless engines, Nightshift)
@@ -54,7 +54,7 @@ human gate), which is what Track 3 judges.
 | 3. Handoff loss, endless loops | covered | agents pass typed objects, not summaries; every loop is bounded; the router cannot skip the critic or the gate |
 | 4. Blast radius, permissions | covered in code, **limit** in the database | read-only SQL guard; the only writes are journal/log replicas and Lab proposals; a person approves anything risky |
 | 5. Memory drift, self-grading | covered | lessons come only from the deterministic critic's findings, confidence drops when a lesson does not hold; Nightshift's answer memory off |
-| 6. Economic exhaustion | covered, **gap, fixed** | retries, caches, AIMD limits, deadlines; now also an hourly model-call budget: when spent, the agents fall back to the rules plan and a person approves |
+| 6. Economic exhaustion | covered, **gap, fixed** | retries, caches, AIMD limits, deadlines; now also a paced model-call budget (token bucket, at most a quarter of the hour's calls in a burst). Low-value calls are shed first (Monitor summary, then router and evidence critic); a shed call is pacing, not an outage, so the critic-checked rules plan still runs on its own |
 | Prompt injection through free text | **gap, fixed** | the reporter's note goes to the planner as quoted data; text that tries to instruct the agents is flagged and kept out of the prompt |
 
 ## What still needs your OK
