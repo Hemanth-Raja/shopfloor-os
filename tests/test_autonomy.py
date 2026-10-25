@@ -1,5 +1,7 @@
 """Human-in-the-loop gate: Auto / Supervised / Advisory, approve dispatches, reject rolls back."""
 
+import pytest
+
 from app.contracts import Plan, RestraintDecision, Trace
 from app.orchestrator import Orchestrator, gate_reasons
 
@@ -61,6 +63,21 @@ def test_server_approve_dispatches_and_reject_rolls_back(monkeypatch, plant):
     assert rec["gate"] == "rolled_back"
     app.sim.run(60)
     assert moved and all(app.sim.agents[a].pos == start for a, start in moved.items())  # back where they started
+
+
+def test_a_judged_incident_cannot_be_judged_again(monkeypatch, plant):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    app = server.App(offline=True, replay=True)
+    app.bus.publish = lambda *a: None
+    auto = run(app.plant, app.sim, "part_shortage", "F30")
+    app.traces[auto.incident.id] = auto
+    assert auto.gate == "auto_executed"
+    assert app.approve({"incident_id": auto.incident.id, "approve": True})["gate"] == "confirmed"
+    with pytest.raises(ValueError, match="already decided"):
+        app.approve({"incident_id": auto.incident.id, "approve": True})  # a second Confirm records nothing
+    with pytest.raises(ValueError, match="already decided"):
+        app.approve({"incident_id": auto.incident.id, "approve": False})
 
 
 def test_keep_watching_starts_the_next_shift_and_stop_ends_it(monkeypatch):

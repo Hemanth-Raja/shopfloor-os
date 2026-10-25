@@ -48,6 +48,13 @@ WEB = ROOT / "web"
 LOGS = ROOT / "logs"
 APPROVALS = LOGS / "approvals.jsonl"
 TICK_INTERVAL_S = 0.5
+class DuplicateIncident(RuntimeError):
+    def __init__(self, existing: str, msg: str):
+        super().__init__(msg)
+        self.existing = existing
+
+
+FINAL_GATES = ("approved", "rejected", "rolled_back", "confirmed")
 FLOOR_WORKERS = 4  # incidents you run that work at once; more wait in the queue, people at risk jump it
 
 
@@ -276,6 +283,10 @@ class App:
                                                       for e in self.plant.entities("station")):
                 raise ValueError(f"unknown station {req.get('station')!r}")
             open_ids = self._open_ids()
+            dup = self._duplicate_of(req["kind"], req.get("station"), agv, open_ids)
+            if dup:  # one incident per kind and place: a second report of it is the same incident
+                raise DuplicateIncident(dup, f"{dup} is already handling this {req['kind'].replace('_', ' ')} at "
+                                             f"{req.get('agv') or req.get('station')}: opened it instead of a duplicate")
             if linear and open_ids:
                 raise RuntimeError("the linear pipeline is a comparison that runs alone: wait for the open incidents")
             if (req.get("seed") is not None or self.replay) and not open_ids:  # a fresh, seeded floor when idle
@@ -310,6 +321,20 @@ class App:
         floor.submit(inc, detected_tick=self.sim.tick, stall=stall)
         floor.step()  # threaded: admits it now (or queues it behind more urgent ones)
         return inc.id
+
+    def _duplicate_of(self, kind: str, station: str | None, agv: str | None, open_ids: set[str]) -> str | None:
+        """An incident of the same kind at the same place (or on the same AGV) that is still open: running, queued,
+        or waiting for a person."""
+        cands = []
+        for d in (self.floor, self.shift.dispatcher if self._shift_running() else None):
+            if d is not None:
+                with d.lock:
+                    cands += [e["incident"] for e in d.active.values()] + [q[2] for q in d.queue]
+        cands += [t.incident for t in self.traces.values() if t.gate in ("awaiting_approval", "advisory", "timeout_hold")]
+        for inc in cands:
+            if inc.kind == kind and ((agv and getattr(inc, "agv_id", None) == agv) or (not agv and inc.station_id == station)):
+                return inc.id
+        return None
 
     def _shift_running(self) -> bool:
         return self.shift is not None and self.shift_summary is None
@@ -561,7 +586,10 @@ class App:
         since = since[:19] if since else ""
         actions = [ev["data"] for ev in self.audit.events() if ev.get("kind") == "approval"
                    and (ev.get("data") or {}).get("incident") == incident_id and ev.get("ts", "")[:19] >= since[:17]]
-        return {**out, "meta": self.trace_meta.get(incident_id, {}), "human_actions": actions}
+        from app.stepio import step_inputs
+        trace = self.traces.get(incident_id) or self._running_trace(incident_id)
+        return {**out, "meta": self.trace_meta.get(incident_id, {}), "human_actions": actions,
+                "inputs": step_inputs(trace)}
 
     def approve(self, req: dict) -> dict:
         """The human gate. Waiting/advisory plans run only on Approve; an auto-executed plan can be rejected,
@@ -572,6 +600,8 @@ class App:
             raise KeyError("unknown incident")
         approved = bool(req.get("approve"))
         action = "none"
+        if trace.gate in FINAL_GATES:  # judged once: a second click must not record (or dispatch) anything again
+            raise ValueError(f"already decided: {trace.gate.replace('_', ' ')}")
         with self.lock:
             plan = executable_plan(trace)
             stale = self._stale_reason(trace, plan) if trace.gate == "timeout_hold" and approved and plan else None
@@ -593,8 +623,8 @@ class App:
                         if tuple(start) != self.sim.agents[aid].pos:
                             self.sim.assign(aid, tuple(start), 1.0, 0.5 if self.sim.agents[aid].kind == "agv" else None)  # roll back
                 trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
-            elif approved:
-                action = "auto-executed plan confirmed by the human"
+            elif approved and trace.gate in ("auto_executed", "auto_after_timeout"):
+                trace.gate, action = "confirmed", "auto-executed plan confirmed by the human"
             if trace.gate in ("rejected", "rolled_back"):
                 self._release(trace.incident.id)  # the people and robots are free again
         self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
@@ -885,6 +915,8 @@ def make_handler(app: App):
                     return self._send(202, {"status": "running"})
                 if self.path == "/lab/write":
                     return self._send(200, app.lab_write())
+            except DuplicateIncident as err:
+                return self._send(409, {"error": str(err), "existing": err.existing})
             except (KeyError, ValueError, RuntimeError) as err:
                 return self._send(400, {"error": str(err)})
             return self._send(404, {"error": "not found"})

@@ -108,7 +108,9 @@
   @media (max-width: 820px) { dialog.pipe .cols { grid-template-columns: 1fr; } }
   dialog.pipe .side { max-height:70vh; overflow:auto; }
   #incrows tr.r { cursor:pointer; } #incrows tr.r:hover { background:#141b22; } #incrows tr.r.sel { background:#16263a; outline:1px solid #5aa9ff; }
-  #incdetail td { vertical-align:top; } #incdetail details summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  #incdetail td { vertical-align:top; } #incdetail table.hist { table-layout:fixed; } #incdetail td { overflow-wrap:anywhere; }
+  #incdetail table.kvt.io td { padding:1px 4px; font-size:11.5px; } #incdetail table.kvt.io td:first-child { width:38%; white-space:normal; }
+  .incflow { max-width:640px; } .incflow svg { width:100%; height:auto; } #incdetail details summary { cursor:pointer; color:var(--muted); font-size:12px; }
   #shift .inc, #floorlist .inc { cursor:pointer; } #floorlist .inc.sel, #shift .inc.sel { background:#16263a; outline:1px solid #5aa9ff; border-radius:6px; }
   .panel.flash { box-shadow:0 0 0 2px #5aa9ff; transition:box-shadow .3s; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
@@ -265,9 +267,8 @@
           list underneath gives the reason for each hop and who chose it: <b>Nemotron</b> (the router model), <b>rules</b>
           (the rule-based router) or <b>forced</b> (only one legal move). Code decides what is legal, so the critic, the dry run
           and the human gate cannot be skipped. Click a node: where it can come from, its state, and its log for this incident.
-          Ask the floor and the Lab are separate teams; open their flows with the buttons.</p>
+          Ask the floor and the Lab are separate teams: their flows are on their own pages.</p>
         <div class="legend" id="flowlegend"></div>
-        <div class="row" style="margin-top:0"><button class="act" data-pipe="ask">Ask the floor: agent flow</button><button class="act" data-pipe="lab">Lab: agent flow</button></div>
         <div class="row" style="margin-top:0"><label class="note" id="cmplabel" style="display:none"><input type="checkbox" id="cmp"> compare with the previous incident</label>
           <span class="note" id="flowmode"></span></div>
         <div id="flowgraph"></div>
@@ -289,14 +290,13 @@
   <div class="grid2">
     <div>
       <div class="panel">
-        <h2>Ask the floor</h2>
+        <div class="sub"><h2>Ask the floor</h2><button class="act" type="button" data-pipe="ask">How this works: agent flow ↗</button></div>
         <p class="note">A team of agents investigates: a <b>coordinator</b> (Nemotron) splits your question, the <b>SQL agent</b>
           writes read-only SQL that runs on Zetaris across fleet, HR, plant and ops (checked by a SQL guard first), the
           <b>log agent</b> searches the agents' own traces, Nemotron calls and H-MEM lessons, the <b>analyst</b> correlates,
           and the <b>critic</b> drops any claim the returned rows don't back up.</p>
         <form class="ask" id="askform"><input id="askq" maxlength="400" placeholder="e.g. Which shift has the most part shortages at F30?" aria-label="Question"><button class="act primary" type="submit">Ask</button></form>
-        <div class="row" style="margin-top:6px"><button class="act" type="button" data-pipe="ask">How this works: agent flow</button></div>
-        <div class="row">
+        <div class="row" style="align-items:center"><span class="note">Try a sample question:</span>
           <button class="act" data-ask="Why does F10 keep stopping?">Why does F10 keep stopping?</button>
           <button class="act" data-ask="Which AGV is least reliable and when?">Which AGV is least reliable and when?</button>
           <button class="act" data-ask="Are overheat alarms real?">Are overheat alarms real?</button>
@@ -314,10 +314,10 @@
 <section class="view" id="lab">
   <div class="grid2">
     <div class="panel">
-      <h2>Lab level 2: test a policy on history</h2>
+      <div class="sub"><h2>Lab level 2: test a policy on history</h2><button class="act" data-pipe="lab">How this works: agent flow ↗</button></div>
       <p class="note">Nemotron proposes one policy change. The incident history is re-scored with A* walking distances.
         20 seeded replays and a 2,000-sample bootstrap decide, with no LLM inside the replays.</p>
-      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button><button class="act" data-pipe="lab">How this works: agent flow</button></div>
+      <div class="row"><button class="act primary" id="labrun">Run experiment</button><button class="act" id="labwrite" disabled>Save proposal to Zetaris</button></div>
       <div id="labout" class="muted">Not run yet.</div>
     </div>
     <div class="panel"><h2>Seeded replays (mean time to clear)</h2><div id="labreps" class="muted">—</div></div>
@@ -335,11 +335,11 @@
 </dialog>
 
 <section class="view" id="incs">
-  <div class="grid2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)">
+  <div>
     <div class="panel"><h2>Every incident handled <span class="note" id="inccount" style="text-transform:none;letter-spacing:0"></span></h2>
       <p class="note">Newest first: the ones you ran and the autopilot shift incidents. Click a row for its whole history.</p>
-      <div id="incrows" class="muted">loading…</div></div>
-    <div class="panel"><h2 id="inctitle">History</h2><div id="incdetail" class="muted">Click an incident on the left.</div></div>
+      <div id="incrows" class="muted" style="max-height:320px;overflow:auto">loading…</div></div>
+    <div class="panel"><h2 id="inctitle">History</h2><div id="incdetail" class="muted">Click an incident above.</div></div>
   </div>
 </section>
 
@@ -815,6 +815,7 @@ function gateBox(g, reasons) {
   if (g === "awaiting_approval") return `<div class="gate wait"><b>Waiting for you.</b> Nothing moves until you approve. <span class="muted">${r}</span></div>`;
   if (g === "advisory") return `<div class="gate wait"><b>Recommendation only.</b> Dispatch it yourself with the button below. <span class="muted">${r}</span></div>`;
   if (g === "approved") return '<div class="gate done">Approved by you: dispatched.</div>';
+  if (g === "confirmed") return '<div class="gate done">Confirmed by you: the auto-executed plan stands.</div>';
   if (g === "rejected") return '<div class="gate done">Rejected by you: nothing was dispatched.</div>';
   if (g === "rolled_back") return '<div class="gate done">Rolled back by you: agents stopped and sent back.</div>';
   if (g === "auto_after_timeout") return '<div class="gate auto"><b>No answer in time: dispatched automatically.</b> Only the Supervised setting held it; you can still roll it back.</div>';
@@ -865,7 +866,7 @@ async function sendJudgement(incident, approve) {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || r.status);
     return out;
-  } catch (e) { alert("Not recorded: " + e.message + ". Try again."); return null; }
+  } catch (e) { alert(String(e.message).startsWith("already decided") ? `${incident} is ${e.message}.` : "Not recorded: " + e.message + ". Try again."); return null; }
   finally { PENDING.delete(incident); }
 }
 async function judge(approve) {
@@ -876,7 +877,7 @@ async function judge(approve) {
   btn.textContent = label;
   if (out && inc === current) { gate = out.gate; const box = $("decision").querySelector(".gate");
     if (box) box.outerHTML = gateBox(out.gate, []); }
-  setButtons(true);
+  setButtons(inc === current);  // the buttons follow the new gate: a decided incident leaves both off
 }
 $("approve").onclick = () => judge(true); $("reject").onclick = () => judge(false);
 function hideHowto() { $("howto").style.display = "none"; try { localStorage.setItem("howto-hidden", "1"); } catch {} }
@@ -886,7 +887,7 @@ async function startRun(btn, body) {  // locks this button at once; other incide
   if (btn.disabled) return;
   const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = "starting…";
   try { const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body});
-    const j = await r.json(); if (!r.ok) { floorMsg(j.error, true); return; }
+    const j = await r.json(); if (!r.ok) { floorMsg(j.error, true); if (j.existing) openIncident(j.existing); return; }
     floorMsg(""); }
   catch (e) { floorMsg("could not start: " + e.message, true); }
   finally { btn.innerHTML = label; btn.disabled = false; }
@@ -993,7 +994,7 @@ $("autopilot").onsubmit = async e => { e.preventDefault(); const f = e.target;
   if (!r.ok) return alert((await r.json()).error);
   shiftFeed = []; $("shiftpanel").style.display = ""; };
 $("shiftstop").onclick = async () => { const r = await fetch("/shift/stop", {method:"POST"}); if (!r.ok) alert((await r.json()).error); };
-const GATEWORD = {auto_executed:"done", awaiting_approval:"waiting for you", advisory:"advice only", approved:"approved", rejected:"rejected", rolled_back:"rolled back", auto_after_timeout:"auto (no answer)", timeout_hold:"held (no answer)"};
+const GATEWORD = {auto_executed:"done", awaiting_approval:"waiting for you", advisory:"advice only", approved:"approved", rejected:"rejected", rolled_back:"rolled back", confirmed:"confirmed", auto_after_timeout:"auto (no answer)", timeout_hold:"held (no answer)"};
 function showShift(st) {
   if (!st || st.running === undefined || (!st.running && !st.summary)) return;
   $("shiftpanel").style.display = "";
@@ -1033,7 +1034,7 @@ async function openIncident(id) {  // one place to judge any incident: the Decis
 // Incidents tab: every handled incident, and the whole history of one (GET /api/incidents, /api/incident/<id>)
 let incSel = null, incRows = [];
 const GATEWORD2 = g => ({auto_executed:"ran on its own", awaiting_approval:"waiting for you", advisory:"advisory", approved:"approved",
-  rejected:"rejected", rolled_back:"rolled back", timeout_hold:"timed out: held", auto_after_timeout:"ran after timeout"}[g] || g || "-");
+  rejected:"rejected", rolled_back:"rolled back", timeout_hold:"timed out: held", auto_after_timeout:"ran after timeout", confirmed:"confirmed by you"}[g] || g || "-");
 const hhmm = t => t ? new Date(t).toLocaleTimeString() : "-";
 async function incList() {
   try { incRows = await (await fetch("/api/incidents")).json(); } catch { return; }
@@ -1048,6 +1049,25 @@ async function incList() {
     : "No incidents yet. Run one on the Live floor, start a shift, or run the Lab.";
   for (const tr of $("incrows").querySelectorAll("tr.r")) tr.onclick = () => incShow(tr.dataset.id);
 }
+// compact key/value lines for the history table: ids shortened, lists joined, long values cut (full value on hover)
+const ioShort = v => typeof v === "string" ? v.replace(/\b(?:worker|agv|station|machine):[\w-]+:/g, "") : v;
+const ioRoute = r => `${r.agv_id} → ${r.to_station} at ${r.speed_mps} m/s${r.crossing_speed_mps ? ` (${r.crossing_speed_mps} at crossings)` : ""}`;
+function ioVal(v) {
+  if (v === null || v === undefined) return "-";
+  if (Array.isArray(v) && v.length && v.every(x => x && x.agv_id && x.to_station)) return ioShort(v.map(ioRoute).join("; "));
+  if (Array.isArray(v) && v.length && v.every(x => x && x.ref)) return v.map(x => x.ref + (x.title ? ` (${x.title})` : "")).join("; ");
+  if (Array.isArray(v) && v.length && v.every(x => x && x.rule_id)) return v.map(x => `${x.rule_id}: ${ioShort(x.detail || "")}`).join("; ");
+  if (v && typeof v === "object" && Array.isArray(v.assignees))  // a plan: who goes, and how the AGVs drive
+    return ioShort("send " + (v.assignees.join(" + ") || "nobody") + (v.agv_routes ? "; " + v.agv_routes.map(ioRoute).join("; ") : ""));
+  if (Array.isArray(v) && v.every(x => x === null || typeof x !== "object")) return v.length ? v.map(ioShort).join(", ") : "none";
+  return ioShort(typeof v === "object" ? JSON.stringify(v) : String(v));
+}
+function ioTable(d, skip = []) {
+  const rows = Object.entries(d || {}).filter(([k]) => !skip.includes(k));
+  if (!rows.length) return '<div class="note">nothing recorded</div>';
+  return `<table class="kvt io">${rows.map(([k, v]) => { const t = ioVal(v);
+    return `<tr><td>${esc(k)}</td><td title="${esc(t.length > 160 ? t.slice(0, 2000) : "").replace(/"/g, "&quot;")}">${esc(t.length > 160 ? t.slice(0, 160) + "…" : t)}</td></tr>`; }).join("")}</table>`;
+}
 async function incShow(id) {
   incSel = id;  // highlight and say "loading" at once, before the fetch returns
   for (const tr of $("incrows").querySelectorAll("tr.r")) tr.classList.toggle("sel", tr.dataset.id === id);
@@ -1060,11 +1080,15 @@ async function incShow(id) {
   const chip = k => `<span class="kchip" style="background:${KINDS[kindOf(k)][1]}" title="${esc(KINDS[kindOf(k)][0])}">${esc((NODES[k] || [0, 0, k])[2])}</span>`;
   const calls = steps.map(st => { const d = st.detail || {}; return d.model_call || (d.route || {}).model_call; }).filter(c => c && typeof c === "object");
   const model = c => !c ? "" : `<div class="note">${c.requested && c.requested !== c.answering ? `asked ${esc(shortModel(c.requested))}, ` : ""}answered by <b>${esc(shortModel(c.answering) || "-")}</b> · ${c.latency_s ?? "-"} s${c.receipt ? ` · receipt <code>${esc(String(c.receipt).slice(0, 18))}</code>` : ""}</div>`;
+  const inputs = h.inputs || [];
   const rows = steps.map((st, i) => { const d = st.detail || {}, r = d.route || {}, own = d.model_call, rc = r.model_call;
     const [title, text] = narrate(st);
-    return `<tr><td>${d.hop ?? i}</td><td>${chip(st.step)}</td><td><span class="${st.ok ? "ok-t" : "bad-t"}">${st.ok ? "ok" : "failed"}</span><div class="note">${st.ms.toFixed(0)} ms</div></td>
+    return `<tr><td>${d.hop ?? i}</td><td>${chip(st.step)}<div class="note"><span class="${st.ok ? "ok-t" : "bad-t"}">${st.ok ? "ok" : "failed"}</span> · ${st.ms.toFixed(0)} ms</div></td>
       <td>${r.by ? `<b>${esc(r.by)}</b>: ${esc(r.reason || "")}${model(rc)}` : '<span class="muted">' + (h.mode === "linear" ? "fixed order" : "-") + "</span>"}</td>
-      <td>${esc(text || title)}${model(own)}<details><summary>output</summary>${kvTable(d, ["route", "model_call", "hop"])}</details></td></tr>`; }).join("");
+      <td class="io">${ioTable(inputs[i] || {})}</td>
+      <td class="io"><div>${esc(text || title)}</div>${model(own)}${ioTable(d, ["route", "model_call", "hop"])}</td></tr>`; }).join("");
+  const last = {}, rejects = []; steps.forEach((st, i) => { if (st.step === "router") { if ((st.detail || {}).rejected) rejects.push({...st.detail, hop: (st.detail || {}).hop ?? i}); } else last[st.step] = st; });
+  const path = (h.path || []).map((p, i) => ({hop: p.hop ?? i, agent: p.agent, by: p.by || "", reason: p.reason || ""}));
   const acts = h.human_actions || [];
   $("incdetail").classList.remove("muted");
   $("incdetail").innerHTML = `<p><b>${esc(String(inc.kind).replace(/_/g, " "))}</b> at ${esc(inc.station_id || inc.zone_id)} · severity ${esc(inc.severity)} · ${esc(meta.source || "-")} · finished ${esc(hhmm(meta.finished_at))}
@@ -1072,8 +1096,10 @@ async function incShow(id) {
     <p>Decision <b>${esc((h.decision || {}).decision || "-")}</b> · gate <b>${esc(GATEWORD2(h.gate))}</b>${(h.gate_reasons || []).length ? ` (${esc(h.gate_reasons.join("; "))})` : ""}
       · ${steps.length} steps · ${calls.length} model call(s) · ${h.critic_rejections || 0} critic rejection(s) · ${h.replans || 0} re-plan(s)${h.safe_mode ? ' · <span class="bad-t">safe mode</span>' : ""}</p>
     <p><b>Agents called:</b> <span class="chips">${agents.map(chip).join(" ")}</span></p>
-    <h2 style="margin-top:12px">Step by step</h2>
-    <table><tr><th>hop</th><th>agent</th><th>result</th><th>why this agent (chosen by)</th><th>what it did</th></tr>${rows}</table>
+    <h2 style="margin-top:12px">Route</h2><div class="incflow">${graphSVG(path, last, rejects)}</div>
+    <h2 style="margin-top:12px">Step by step: input and output of every agent</h2>
+    <table class="hist"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:20%"><col style="width:30%"><col></colgroup>
+      <tr><th>hop</th><th>agent</th><th>why this agent (chosen by)</th><th>input</th><th>output</th></tr>${rows}</table>
     <h2 style="margin-top:12px">Plan</h2>${h.plan ? kvTable(h.plan) : '<div class="note">no plan</div>'}
     <h2 style="margin-top:12px">People's actions and timeouts</h2>${acts.length ? `<table><tr><th>time</th><th>by</th><th>answer</th><th>gate after</th><th>what happened</th></tr>${acts.map(a =>
       `<tr><td>${esc(hhmm(a.ts))}</td><td>${esc(a.by || "-")}</td><td class="${a.approved ? "ok-t" : "bad-t"}">${a.approved ? "approve" : "reject"}</td><td>${esc(GATEWORD2(a.gate))}</td><td>${esc(a.action || "")}</td></tr>`).join("")}</table>`

@@ -160,4 +160,23 @@ def test_incidents_you_run_work_at_the_same_time(monkeypatch):
     assert app.floor.max_active >= 2  # the second and third started while the first was still working
     app.floor.queue.append((0, 0, app.traces[a].incident, 0, None))  # something still open
     with pytest.raises(RuntimeError, match="runs alone"):
-        app.run({"kind": "spill", "station": "F20", "mode": "linear"})
+        app.run({"kind": "spill", "station": "F10", "mode": "linear"})
+
+
+def test_a_second_report_of_an_open_incident_is_not_a_duplicate_incident(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    app = server.App(offline=True, replay=True)
+    first = app.run({"kind": "spill", "station": "F20"})  # waits for a person: stays open
+    for _ in range(200):
+        if first in app.traces:
+            break
+        time.sleep(0.05)
+    assert app.traces[first].gate == "awaiting_approval"
+    with pytest.raises(server.DuplicateIncident) as dup:
+        app.run({"kind": "spill", "station": "F20"})
+    assert dup.value.existing == first
+    other = app.run({"kind": "spill", "station": "F10"})  # another place is another incident
+    assert other != first
+    app.approve({"incident_id": first, "approve": False})
+    assert app.run({"kind": "spill", "station": "F20"}) not in (first, other)  # judged: a new report is new

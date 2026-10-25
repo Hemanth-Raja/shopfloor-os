@@ -101,7 +101,7 @@ class Trace(Strict):
     safe_mode: bool = False
     autonomy: Literal["auto", "supervised", "advisory"] = "auto"
     gate: Literal["none", "auto_executed", "awaiting_approval", "advisory", "approved", "rejected", "rolled_back",
-                  "auto_after_timeout", "timeout_hold"] = "none"
+                  "auto_after_timeout", "timeout_hold", "confirmed"] = "none"
     data_version: str | None = None  # the plant snapshot this decision saw (hash of the federated query result)
     waiting_since_tick: int | None = None  # when the decision started waiting for a person (approval timeout policy)
     escalations: list[str] = Field(default_factory=list)  # remind, escalate, auto_execute, hold (app/autonomy/approval.py)
