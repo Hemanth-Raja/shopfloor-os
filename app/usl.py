@@ -119,6 +119,7 @@ def activate_sql(name: str) -> str:
 
 
 def deploy(run=run_sql, log=print) -> None:
+    run("CREATE NAMESPACE IF NOT EXISTS lightning.metastore", write=True)  # a fresh Zetaris has no parent either
     run(f"CREATE NAMESPACE IF NOT EXISTS {NAMESPACE}", write=True)
     run(compile_sql(True), write=True)
     log(f"deployed {PREFIX} ({len(TABLES)} tables)")

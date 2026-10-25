@@ -18,8 +18,8 @@ def test_compile_has_every_table_on_its_own_line_with_keys():
 def test_deploy_creates_compiles_activates_then_grants():
     calls = []
     usl.deploy(run=lambda sql, write=False: calls.append((sql.split("\n")[0][:40], write)), log=lambda *_: None)
-    assert calls[0][0].startswith("CREATE NAMESPACE IF NOT EXISTS") and calls[1][0].startswith("COMPILE USL floor DEPLOY")
-    assert [c[0].split(" AS ")[0] for c in calls[2:-1]] == [f"ACTIVATE USL TABLE {usl.PREFIX}.{t}"[:40] for t in usl.TABLES]
+    assert calls[0][0].startswith("CREATE NAMESPACE IF NOT EXISTS lightning") and calls[2][0].startswith("COMPILE USL floor DEPLOY")
+    assert [c[0].split(" AS ")[0] for c in calls[3:-1]] == [f"ACTIVATE USL TABLE {usl.PREFIX}.{t}"[:40] for t in usl.TABLES]
     assert calls[-1][0].startswith("GRANT SELECT ON USL NAMESPACE") and all(w for _, w in calls)  # admin login
 
 
