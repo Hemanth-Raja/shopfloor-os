@@ -368,12 +368,13 @@
     <div id="nemotiles" class="tiles"></div></div>
   <div class="grid2">
     <div class="panel"><h2>What Nemotron decided</h2><div id="nemodec" class="muted">loading…</div></div>
-    <div class="panel"><h2>Why two Nemotron models</h2>
-      <p class="note"><b>Nemotron 3.5 Super VL 120B (12B active)</b> does the reasoning that needs depth: plans with clause citations, SQL over four databases,
-        the analysis of evidence, Lab hypotheses and the shift handover. <b>Nemotron 3.5 Lightning 30B (3B active)</b> takes the many small, fast decisions:
-        the orchestrator's next hop and the monitor's one-line read. Each role has a chain: when its first model fails or is too slow, the second answers,
-        and a breaker per model and per role keeps one slow model from stalling the rest. Nightshift pins each app name to one model lane, so the model
-        that answered is checked against the one asked for on every call.</p></div>
+    <div class="panel"><h2>Why three Nemotron models</h2>
+      <p class="note"><b>Nemotron 3 Ultra 550B</b> takes the hardest reasoning: grounded plans with clause citations, the analysis of evidence and Lab
+        hypotheses. <b>Nemotron 3.5 Super VL 120B (12B active)</b> splits questions, writes SQL over four databases and writes the shift handover, and is
+        the second choice for the Ultra roles. <b>Nemotron 3.5 Lightning 30B (3B active)</b> takes the many small, fast decisions: the orchestrator's next
+        hop, the monitor's one-line read, Sentinel triage and the evidence critic. Each role has a chain: when its first model fails or is too slow, the
+        next answers, and a breaker per model and per role keeps one slow model from stalling the rest. Nightshift pins each app name to one model lane, so
+        the model that answered is checked against the one asked for on every call.</p></div>
   </div>
   <div class="panel"><h2>Every role that calls Nemotron</h2><div id="nemoroles" class="muted">loading…</div></div>
   <div class="panel"><h2>Models: which model serves which agent</h2>

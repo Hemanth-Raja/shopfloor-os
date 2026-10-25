@@ -1,64 +1,61 @@
 <div align="center">
 
-# Shop-Floor OS
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.png">
+  <img alt="Shop-Floor OS. AI agents plan. Robots execute. Humans judge. A multi-agent incident-response and AGV-dispatch system for a car final-assembly hall: agents read the plant through Zetaris, reason with NVIDIA Nemotron through Meterless Nightshift and remember with Meterless engines; code checks every plan against OSHA rules and simulates it before anything moves" src="docs/hero.png" width="100%">
+</picture>
 
-**AI agents plan, robots execute, humans judge.**
-A multi-agent incident-response and AGV-dispatch system for a car final-assembly hall. The agents read the plant
-through Zetaris, reason with NVIDIA Nemotron through Meterless Nightshift, and remember with Meterless engines.
-Code checks every plan against OSHA clauses and simulates it before anything moves, and a person approves
-whatever is risky.
-
-[![Track](https://img.shields.io/badge/Open%20Agent%20Hackathon%202026-Track%203%3A%20Reasoning%20Architecture-1d3550)](#the-problem)
+[![Track](https://img.shields.io/badge/Open%20Agent%20Hackathon%202026-Track%203%3A%20Reasoning%20Architecture-1d3550)](#the-problem-and-our-solution)
 [![Tests](https://img.shields.io/badge/tests-313%20passing-2f6f4a)](tests/)
 [![Chaos](https://img.shields.io/badge/chaos%20scenarios-15%2F15-2f6f4a)](docs/chaos.md)
 [![Unsafe plans executed](https://img.shields.io/badge/unsafe%20plans%20executed-0-2f6f4a)](docs/eval.md)
-[![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C021%2F6%2C021%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
-[![Meterless](https://img.shields.io/badge/Meterless%20engines-World%20Model%20%C2%B7%20H--MEM%20%C2%B7%20Markovian-5b3fa8)](#sponsor-technology)
-[![Zetaris](https://img.shields.io/badge/data-Zetaris%20USL-2b4c7e)](#zetaris-the-data-layer)
+[![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C034%2F6%2C034%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
-[![Data](https://img.shields.io/badge/data-CC%20BY%204.0%20%C2%B7%20ODC--By%20%C2%B7%20public%20domain-555)](DATA_LICENSE.md)
-
-**Track:** 3, Reasoning Architecture · **Sponsor technology:** Zetaris, Meterless (Nightshift, World Model, H-MEM,
-Markovian), NVIDIA Nemotron, built with Cursor and Claude Code · **Run:** `SAMPLE_MODE=true python run.py run
-input_examples/example_1.json`, or `POST /run` on port 8000
 
 **[Replay site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Evaluation](docs/eval.md)** ·
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
 **[Live demo runbook](docs/live-demo.md)**
 
+**Run it in one line, no keys:** `SAMPLE_MODE=true python run.py run input_examples/example_1.json`
+
 </div>
 
-![Live floor: an incident is fenced, the critic rejects an unsafe plan with the OSHA clause, the fixed plan is dispatched](docs/screenshots/00-live-floor.png)
+## See it work
+![Shop-Floor OS running in sample mode: an AGV fault with a stall is fenced, planned, checked and dispatched; the verifier sees the AGV stall and re-plans; the agent flow graph shows every hop and who chose it; Ask the floor answers "Why does F10 keep stopping?" with cited evidence from Zetaris](docs/demo.gif)
 
-## At a glance
+<sub>Recorded from the real app in sample mode (no keys): an AGV fault with a mid-route stall is fenced, planned, checked
+and dispatched; the verifier sees the stall and re-plans; the agent flow shows every hop and who chose it; then
+*Ask the floor* answers a question with cited evidence.</sub>
 
-| | |
-|---|---|
-| **The problem** | A missing kit, a stalled AGV, a spill or an overheating machine stops the line and can put people at risk. A supervisor has seconds to decide who to send, how the robots move, whether the alarm is real and whether acting is safe |
-| **The rule that matters** | Nemotron proposes; code decides what is safe. Every plan passes a deterministic OSHA critic, a simulated dry run and a restraint gate, and a person approves anything that sends someone into a hazard |
-| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
-| **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
-| **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
-| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,021 of 6,021 Ed25519 receipts verify (`run.py receipts --verify`, 25 Oct 2026) |
-| **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
-| **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
+## The problem and our solution
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/problem-solution-dark.png">
+  <img alt="The problem: every stopped minute costs cars (one every 75 s); the facts are scattered over four systems; about a quarter of alarms are noise; acting can hurt someone. Our solution: one view of the plant through Zetaris and the World Model; agents that reason and route with three Nemotron models; code decides what is safe (OSHA critic, dry run, gate, a person approves risk); it learns and proves it (H-MEM, the Lab, signed receipts). Measured: 0 unsafe plans executed, 216 of 216 planted unsafe plans caught, false alarms 235 to 19, 15 of 15 chaos scenarios, 6 of 6 rule-breaking first plans fixed" src="docs/problem-solution.png" width="100%">
+</picture>
 
-## The problem
-In vehicle final assembly, one car leaves the line about every minute. When something goes wrong at a station (a
-kit does not arrive, an AGV stalls in an aisle, coolant spills, a nutrunner reports a bad torque, a weld robot
-faults) the line stops, and every minute of stop costs cars. Some of these events also put people at risk: AGVs
-cross pedestrian walkways, and repairing a robot cell needs lockout/tagout.
+**The problem.** When something goes wrong at a station (a kit does not arrive, an AGV stalls, coolant spills, a
+nutrunner reports a bad torque, a weld robot faults) the line stops, and some of these events put people at risk. The
+facts a supervisor needs sit in four systems, and in seconds they must decide who to send, which robot to re-route,
+whether the alarm is real, whether acting is safe under OSHA rules and the plant's SOPs, and whether to stop the line.
 
-The data a supervisor needs is fragmented across systems: the AGV fleet manager, HR rosters and certifications,
-plant and machine telemetry, and the operations history. Decisions are made under time pressure:
-- who to send, and which robot to re-route;
-- whether an alarm is real or sensor noise;
-- whether acting is safe under OSHA rules and the plant's SOPs;
-- whether to stop the line at all.
+**Our solution.** Shop-Floor OS turns that into a decision that is grounded, checked, simulated and verified. Agents read
+one federated view of the plant, Nemotron plans and routes, deterministic code decides what is safe, a person
+approves anything risky, and the system learns from every outcome.
 
 **Who it is for:** shift supervisors, team leaders and maintenance planners in vehicle assembly.
 **Why it fits Track 3:** it turns data (Zetaris), knowledge (World Model, OSHA clauses), memory (H-MEM) and
 reasoning (Nemotron) into decisions and actions that are checked, simulated, gated and verified.
+
+## Results at a glance
+| Area | Result |
+|---|---|
+| **The rule that matters** | Nemotron proposes; code decides what is safe. Every plan passes a deterministic OSHA critic, a simulated dry run and a restraint gate, and a person approves anything that sends someone into a hazard |
+| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
+| **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
+| **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
+| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,034 of 6,034 Ed25519 receipts verify (`run.py receipts --verify`, 25 Oct 2026) |
+| **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
+| **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
 
 ## How it works
 Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.
@@ -99,7 +96,7 @@ flowchart TD
   L -- "lesson, outcome" --> H
 ```
 
-## What you can try in 2 minutes
+## Try it in 2 minutes
 No accounts, keys, Zetaris or Nightshift needed.
 
 1. **One incident, JSON in and out.**
@@ -135,7 +132,7 @@ No accounts, keys, Zetaris or Nightshift needed.
 | Does the model add anything, and is it safe alone? | [docs/eval.md](docs/eval.md) sections 3 and 4: Nemotron alone vs the full loop |
 
 ## Setup
-### 1. From a clean clone, without Zetaris, Nightshift or keys (sample mode)
+### From a clean clone, without Zetaris, Nightshift or keys
 ```
 git clone <this repo> && cd shopfloor-os
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -152,7 +149,9 @@ restraint gate, executor and verifier. Recorded Nemotron replies ([`logs/fixture
 for that exact input. Otherwise a deterministic rule-based planner stands in, and it is still checked by the
 critic. No output is read from [`output_examples/`](output_examples).
 
-### 2. Live, with Zetaris and Meterless Nightshift
+<details>
+<summary><b>Live setup, with Zetaris and Meterless Nightshift</b></summary>
+
 1. Install and start Zetaris (Docker) and Meterless Nightshift as described in the Participant Setup Guide and
    [zetaris.github.io/getting-started](https://zetaris.github.io/getting-started/).
 2. Put the Zetaris REST URL, org id and API key, and the Nightshift base URL and runtime token, into `.env`
@@ -182,6 +181,8 @@ In Docker, use `host.docker.internal` instead of `localhost` for Zetaris and Nig
 
 Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it starts the UI on a free port). The live demo runbook is [`docs/live-demo.md`](docs/live-demo.md).
 
+</details>
+
 ## Usage
 | Entry point | Command |
 |---|---|
@@ -198,6 +199,9 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | **Shift handover** | `run.py handover [--shifts 3]`: the shift journal read in bounded chunks on the Meterless Markovian engine, then a handover note |
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
 | Static replay page | `python scripts/build_site.py`, then open [`docs/site/index.html`](docs/site/index.html); [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on push |
+
+<details>
+<summary><b>Request and response format</b></summary>
 
 Request:
 ```json
@@ -244,6 +248,8 @@ The response contains:
 Failures return `status: "error"` with a typed `error` (`InvalidInput`, `UpstreamUnavailable`, and so on) rather
 than a crash.
 
+</details>
+
 ### Sample inputs and outputs
 | Input | What happens | Output |
 |---|---|---|
@@ -256,7 +262,9 @@ than a crash.
 | `example_7.json`: pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | `example_7.json` |
 | `example_8.json`: quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | `example_8.json` |
 
-### Logs
+<details>
+<summary><b>Logs and traces: what every run writes, with a real excerpt</b></summary>
+
 **Watch it live:**
 - **Incidents tab** in the web UI: every incident, running ones first, with its agent flow drawn as a graph (numbered hops, who chose each hop and why) and its full history: each agent's input and output, what was sent to Nemotron, the model that answered and the latency, approvals and timeouts.
 - **`python run.py watch`** in a second terminal: one coloured, plain-English line per agent step, Nemotron call and human judgement, for example `12:03:04 PLANNER  1.2s  Nemotron-Super attempt 2 -> send W-18; AGV-5->F30 1.0/0.5 m/s`.
@@ -280,6 +288,8 @@ Other logs:
 - `logs/approvals.jsonl` records human judgements.
 
 None of them contain secrets.
+
+</details>
 
 ## Agents
 | Agent | Role | Model | Can block or retry? |
@@ -332,6 +342,9 @@ floor itself make a whole class of incidents shorter?
 
 <sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
 
+<details>
+<summary><b>How one experiment runs</b></summary>
+
 One *Run experiment* (`run.py lab`, the *Lab* tab):
 1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
    clear, and the walking distance to the nearest spill kit or to the parts supermarket.
@@ -346,32 +359,9 @@ One *Run experiment* (`run.py lab`, the *Lab* tab):
    floor: the map shows it, and every later incident of that kind is measured with and without it
    ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
 
-## Tech stack
-| Component | Technology |
-|---|---|
-| Language | Python 3.11+, mostly the standard library |
-| API and UI | stdlib `http.server` with server-sent events; `POST /run`; a vanilla-JS canvas UI |
-| Orchestration | Our own dynamic orchestrator ([`app/dynamic.py`](app/dynamic.py)), no agent framework; Pydantic contracts with strict JSON between agents |
-| Data access | Zetaris REST API (Lightning SQL), with a Unified Semantic Layer and a read-only agent login |
-| Data stores | Four Postgres 16 databases behind Zetaris; an offline SQLite copy for sample mode |
-| Model runtime | Meterless Nightshift (OpenAI-compatible), signed and verified receipts |
-| Models | NVIDIA Nemotron 3 Ultra 550B, 3.5 Super VL 120B, 3.5 Lightning 30B |
-| Memory and grounding | Meterless World Model, H-MEM and Markovian engines, ported to Python |
-| Simulation | Deterministic 20 x 40 grid, space-time A* with a reservation table, seeded incidents |
-| Logging | JSONL per run in [`logs/`](logs) plus `[INFO]` lines on stdout; hash-chained journal |
-| Tests | pytest, 313 offline tests including the engines' conformance suites and property-based safety fuzzing |
-| Container | Docker (`python:3.13-slim`, 176 MB, sample mode by default) |
-| Development | Cursor and Claude Code |
-
-## Dependencies
-- **Python 3.11+** and [`requirements.txt`](requirements.txt): openai (the OpenAI-compatible client for Nightshift), python-dotenv,
-  requests, pydantic and pytest. The generator, simulator, engines and web server use only the standard library.
-- **Live mode:** Zetaris (local Docker), Postgres 16 (Docker container `shopfloor-pg`, created by
-  [`scripts/start_postgres.sh`](scripts/start_postgres.sh)) and Meterless Nightshift, with NVIDIA's hosted Nemotron models. No GPU is needed.
-- **Optional rebuild of [`data/seed/`](data/seed):** [`requirements-data.txt`](requirements-data.txt) (h5py), used only by [`app/data/fetch_sources.py`](app/data/fetch_sources.py).
+</details>
 
 ## Sponsor technology
-
 ### Zetaris: the data layer
 Every read the agents make goes through Zetaris ([`app/zetaris.py`](app/zetaris.py), the only data access layer), and every Zetaris
 object was created in code through its SQL REST API, so a fresh install is rebuilt by commands, not by clicks.
@@ -415,7 +405,7 @@ Nightshift is the only model provider: every call goes through [`app/llm.py`](ap
   who answers, and a role's chain skips any model that is not really served.
 - **Proof per call.** Each call records the requested and the answering model and the id of Nightshift's signed
   receipt, and the receipt's Ed25519 signature is verified at the moment the answer is used. `run.py receipts
-  --verify` re-checks all of them (6,021 of 6,021 on 25 Oct 2026).
+  --verify` re-checks all of them (6,034 of 6,034 on 25 Oct 2026).
 - **NVIDIA's guidance applied.** Reasoning and the answer share the token budget, so reasoning is switched off
   for the small, frequent decisions (router, monitor, Sentinel triage) and set to medium for the coordinator and
   the SQL agent; the planner, analyst, Lab and handover keep the model's default reasoning with a larger budget.
@@ -436,7 +426,36 @@ client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (se
 - **Zetaris is also the agents' memory of themselves.** Their own steps, model calls and journal are federated
   next to the plant data, so "how often did the critic reject the planner, and why?" is one SQL query.
 
-## Sample mode
+## Built with
+| Component | Technology |
+|---|---|
+| Language | Python 3.11+, mostly the standard library |
+| API and UI | stdlib `http.server` with server-sent events; `POST /run`; a vanilla-JS canvas UI |
+| Orchestration | Our own dynamic orchestrator ([`app/dynamic.py`](app/dynamic.py)), no agent framework; Pydantic contracts with strict JSON between agents |
+| Data access | Zetaris REST API (Lightning SQL), with a Unified Semantic Layer and a read-only agent login |
+| Data stores | Four Postgres 16 databases behind Zetaris; an offline SQLite copy for sample mode |
+| Model runtime | Meterless Nightshift (OpenAI-compatible), signed and verified receipts |
+| Models | NVIDIA Nemotron 3 Ultra 550B, 3.5 Super VL 120B, 3.5 Lightning 30B |
+| Memory and grounding | Meterless World Model, H-MEM and Markovian engines, ported to Python |
+| Simulation | Deterministic 20 x 40 grid, space-time A* with a reservation table, seeded incidents |
+| Logging | JSONL per run in [`logs/`](logs) plus `[INFO]` lines on stdout; hash-chained journal |
+| Tests | pytest, 313 offline tests including the engines' conformance suites and property-based safety fuzzing |
+| Container | Docker (`python:3.13-slim`, 176 MB, sample mode by default) |
+| Development | Cursor and Claude Code |
+
+<details>
+<summary><b>Dependencies</b></summary>
+
+- **Python 3.11+** and [`requirements.txt`](requirements.txt): openai (the OpenAI-compatible client for Nightshift), python-dotenv,
+  requests, pydantic and pytest. The generator, simulator, engines and web server use only the standard library.
+- **Live mode:** Zetaris (local Docker), Postgres 16 (Docker container `shopfloor-pg`, created by
+  [`scripts/start_postgres.sh`](scripts/start_postgres.sh)) and Meterless Nightshift, with NVIDIA's hosted Nemotron models. No GPU is needed.
+- **Optional rebuild of [`data/seed/`](data/seed):** [`requirements-data.txt`](requirements-data.txt) (h5py), used only by [`app/data/fetch_sources.py`](app/data/fetch_sources.py).
+
+</details>
+
+## Reliability and safety
+### Sample mode
 `SAMPLE_MODE=true` (or `"options": {"sample_mode": true}` in a request) runs the whole system with no keys, Zetaris
 or Nightshift: the offline plant and an SQLite copy of the four sources are built from [`data/seed/`](data/seed),
 recorded Nemotron replies ([`logs/fixtures/`](logs/fixtures)) are used where one exists for that exact input, and a
@@ -445,7 +464,7 @@ critic, dry run, restraint, gate, executor and verifier all compute their result
 answer. No final answer is stored or read from [`output_examples/`](output_examples). Tested from a fresh clone with
 an empty `.env`, and in the Docker image.
 
-## Failure handling
+### Failure handling
 | Failure | Behaviour |
 |---|---|
 | A model times out, errors or returns broken JSON | Retry with backoff, JSON repair, one re-ask, then the next Nemotron model in the role's chain |
@@ -459,6 +478,16 @@ an empty `.env`, and in the Docker image.
 
 All 15 failure scenarios are broken on purpose in [docs/chaos.md](docs/chaos.md); the full tables are in
 [docs/reliability.md](docs/reliability.md).
+
+### Autonomy levels
+| Level | Setting | What runs by itself | What waits for a person |
+|---|---|---|---|
+| 0 | (always on) | The reflex: stop nearby AGVs, fence the area, move people without lockout/tagout out; the runtime monitor | Nothing; these only make the floor safer |
+| 1 | Advisory | Detection, investigation and a recommended plan | Every dispatch; a person dispatches |
+| 2 | Supervised | Planning, critic, dry run | Every dispatch is approved first |
+| 3 | Auto (default) | A routine plan that passed the critic and the dry run is dispatched at once; a person can roll it back | A person entering a hazard, a lapsed certificate, an unverifiable rule (default-deny), ESCALATE, SAFE_HOLD or DO_NOTHING |
+
+No level lets the agents send a person into a hazard without approval, and no level skips the critic.
 
 ## Data and licensing
 All plant data is synthetic and labelled as such: the hall, people, incidents and SOPs are generated with seed 42 and
@@ -484,43 +513,6 @@ The README stays short; the details live in `docs/`.
 | [What broke](docs/reliability.md#what-broke-and-how-we-fixed-it) | real failures from the build and how each was fixed |
 | [Evaluation and chaos tests](docs/eval.md) | planted unsafe plans, Monitor calibration, 15 failure scenarios |
 | [Production review](docs/production-readiness.md) | what a real deployment would still need |
-
-## Disclosure
-1. **Models (via Meterless Nightshift):**
-   - `nvidia/nemotron-3-ultra-550b-a55b` first for the planner, analyst and Lab;
-   - `nvidia/nemotron-3.5-super-vl-120b-a12b` (`NEMOTRON_DEEP`) for the coordinator, SQL agent, handover and zone
-     briefing, and as the second choice for the planner, analyst and Lab;
-   - `nvidia/nemotron-3.5-lightning-30b-a3b` for the router, monitor, Sentinel triage and evidence critic, and as
-     the last fallback everywhere.
-   The full map is under *Models*; `logs/llm.jsonl` and the receipts show which model answered each call.
-2. **Agent frameworks:** none. The orchestration is our own code ([`app/dynamic.py`](app/dynamic.py), [`app/orchestrator.py`](app/orchestrator.py)), using Pydantic contracts
-   for strict JSON between agents.
-3. **Integrations:** Zetaris, Meterless (World Model, H-MEM, Markovian, Nightshift) and NVIDIA, as described under Sponsor technology.
-4. **AI coding tools:** Claude Code (Anthropic) wrote most of the code and documentation; Cursor wrote the model
-   layer ([`app/llm.py`](app/llm.py), [`tests/test_llm.py`](tests/test_llm.py)). The team reviewed and tested all of it.
-5. **External libraries:** openai, python-dotenv, requests, pydantic and pytest; h5py and numpy only for the
-   optional data rebuild.
-6. **Data:** the plant, people, incidents and SOPs are synthetic, anchored on public data (see "What is real and
-   what is synthetic").
-7. **Adapted open source:**
-   - [`app/engines/world_model.py`](app/engines/world_model.py) and [`app/engines/hmem.py`](app/engines/hmem.py) are Python ports of the Meterless engine specs and
-     reference code (github.com/Meterless/Meterless, Apache-2.0).
-   - The H-MEM conformance vectors are copied unchanged.
-   - The MovingAI maps are included under ODC-By.
-8. **Known limitations:** see below.
-9. **Fallback behaviour:**
-   - `SAMPLE_MODE=true`: recorded replies plus a rule-based planner, the offline plant and no network.
-   - Circuit-breaker safe mode when Nightshift fails: a rule-based plan and ESCALATE.
-
-## Autonomy levels
-| Level | Setting | What runs by itself | What waits for a person |
-|---|---|---|---|
-| 0 | (always on) | The reflex: stop nearby AGVs, fence the area, move people without lockout/tagout out; the runtime monitor | Nothing; these only make the floor safer |
-| 1 | Advisory | Detection, investigation and a recommended plan | Every dispatch; a person dispatches |
-| 2 | Supervised | Planning, critic, dry run | Every dispatch is approved first |
-| 3 | Auto (default) | A routine plan that passed the critic and the dry run is dispatched at once; a person can roll it back | A person entering a hazard, a lapsed certificate, an unverifiable rule (default-deny), ESCALATE, SAFE_HOLD or DO_NOTHING |
-
-No level lets the agents send a person into a hazard without approval, and no level skips the critic.
 
 ## Limitations
 - **Simulated floor.** The plant is a 2D grid simulation (one 2 m cell per 2 s tick), not a digital twin, and
@@ -553,6 +545,33 @@ No level lets the agents send a person into a hazard without approval, and no le
   the model of the floor, not a field trial.
 - **Detectors.** The Sentinel uses statistics (EWMA, CUSUM, trends) and rules, plus Lightning triage of ambiguous
   signals, not a learned anomaly model; the Bosch vibration features separate faults from noise only weakly.
+
+## Disclosure
+1. **Models (via Meterless Nightshift):**
+   - `nvidia/nemotron-3-ultra-550b-a55b` first for the planner, analyst and Lab;
+   - `nvidia/nemotron-3.5-super-vl-120b-a12b` (`NEMOTRON_DEEP`) for the coordinator, SQL agent, handover and zone
+     briefing, and as the second choice for the planner, analyst and Lab;
+   - `nvidia/nemotron-3.5-lightning-30b-a3b` for the router, monitor, Sentinel triage and evidence critic, and as
+     the last fallback everywhere.
+   The full map is under *Models*; `logs/llm.jsonl` and the receipts show which model answered each call.
+2. **Agent frameworks:** none. The orchestration is our own code ([`app/dynamic.py`](app/dynamic.py), [`app/orchestrator.py`](app/orchestrator.py)), using Pydantic contracts
+   for strict JSON between agents.
+3. **Integrations:** Zetaris, Meterless (World Model, H-MEM, Markovian, Nightshift) and NVIDIA, as described under Sponsor technology.
+4. **AI coding tools:** Claude Code (Anthropic) wrote most of the code and documentation; Cursor wrote the model
+   layer ([`app/llm.py`](app/llm.py), [`tests/test_llm.py`](tests/test_llm.py)). The team reviewed and tested all of it.
+5. **External libraries:** openai, python-dotenv, requests, pydantic and pytest; h5py and numpy only for the
+   optional data rebuild.
+6. **Data:** the plant, people, incidents and SOPs are synthetic, anchored on public data (see "What is real and
+   what is synthetic").
+7. **Adapted open source:**
+   - [`app/engines/world_model.py`](app/engines/world_model.py) and [`app/engines/hmem.py`](app/engines/hmem.py) are Python ports of the Meterless engine specs and
+     reference code (github.com/Meterless/Meterless, Apache-2.0).
+   - The H-MEM conformance vectors are copied unchanged.
+   - The MovingAI maps are included under ODC-By.
+8. **Known limitations:** see below.
+9. **Fallback behaviour:**
+   - `SAMPLE_MODE=true`: recorded replies plus a rule-based planner, the offline plant and no network.
+   - Circuit-breaker safe mode when Nightshift fails: a rule-based plan and ESCALATE.
 
 ## Pre-existing components
 None. The repository was started inside the build window (first commit on 23 October 2026). Open-source

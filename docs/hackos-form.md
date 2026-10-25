@@ -66,7 +66,7 @@ Zetaris. Everything is traced, runs as JSON in and JSON out, and works offline w
     (67% fewer prompt tokens on a live three-shift run).
   - **Meterless Nightshift** is the only model provider. Each Nemotron model is called under its own app, pinned
     to one lane; every call records the requested and the answering model, and each Ed25519 receipt is verified
-    when its answer is used (6,021 of 6,021 verify).
+    when its answer is used (6,034 of 6,034 verify).
 - **Cursor:** used as a development environment. The project rules are in `.cursor/rules/shopfloor.mdc` and
   `AGENTS.md`, and the model layer (`app/llm.py`) and its tests were built in Cursor. Claude Code was also used.
   [YOU: confirm or extend with your own Cursor usage.]
