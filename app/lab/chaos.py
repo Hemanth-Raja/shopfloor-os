@@ -192,8 +192,9 @@ SCENARIOS = [
      "expect": "the answer is used but marked as fallen back (drift is reported in Health)",
      "check": lambda r: r["decision"] is not None and r["planner_fell_back"]},
     {"name": "Runaway loop: the hourly model-call budget is spent", "profile": {}, "calls_per_hour": 2,
-     "expect": "calls are shed without touching Nightshift and without safe mode: the critic-checked rules plan runs",
-     "check": lambda r: r["decision"] is not None and not r["safe_mode"] and not r["unsafe_executed"]},
+     "expect": "calls are shed without touching Nightshift and without safe mode: the critic-checked rules plan auto-executes",
+     "check": lambda r: r["decision"] is not None and not r["safe_mode"] and not r["unsafe_executed"]
+                        and r["gate"] == "auto_executed"},  # low risk still runs on its own, no approval needed
     {"name": "Zetaris down during an overheat check", "profile": {}, "kind": "overheat", "station": "F10",
      "run_sql": zetaris_down, "inject": {"false_alarm": True},
      "expect": "the investigator's queries fail; the incident is still decided from sensors and rules",
