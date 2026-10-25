@@ -8,12 +8,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+COPY config ./config
 COPY web ./web
-COPY data/seed ./data/seed
+COPY data ./data
+COPY docs ./docs
 COPY logs/fixtures ./logs/fixtures
 COPY input_examples ./input_examples
 COPY output_examples ./output_examples
-COPY run.py AGENTS.md README.md metadata.json ./
+COPY run.py AGENTS.md README.md LICENSE metadata.json ./
 RUN mkdir -p /app/logs
 ENV SAMPLE_MODE=true PYTHONUNBUFFERED=1 PORT=8000
 EXPOSE 8000
