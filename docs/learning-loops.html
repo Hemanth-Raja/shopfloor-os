@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Shop-Floor OS learning loops</title>
+<!-- Source of docs/learning-loops.png: google-chrome --headless --screenshot=docs/learning-loops.png
+     --window-size=1140,390 --force-device-scale-factor=2 docs/learning-loops.html -->
+<style>
+  :root { --panel:#fff; --fg:#18211e; --nemo:#3f8f1f; --person:#c2417a; --engine:#b7791f; --data:#2b78b8; --code:#6b7570; }
+  html, body { margin:0; background:#fff; color:var(--fg); font:15px/1.5 "Segoe UI", -apple-system, system-ui, sans-serif; }
+  main { padding:20px; }
+  svg { display:block; width:1100px; height:auto; color:var(--fg); }
+  .legend { display:flex; gap:20px; font-size:13px; color:#5a6762; margin:6px 0 0 30px; }
+  .legend i { display:inline-block; width:14px; height:10px; border:2px solid; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+</style></head><body><main>
+<svg viewBox="0 0 1100 320" role="img" aria-label="Fast loop: an incident is handled, its lesson goes to H-MEM, and the next plan recalls it. Slow loop: handled incidents become history in Zetaris, Nemotron proposes one floor change, code tests it on that history with seeded replays, you save the proposal and apply it, and the incidents that follow measure it.">
+  <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <g font-size="11" fill="currentColor" letter-spacing="1.2" opacity="0.65">
+    <text x="30" y="22">FAST LOOP · EVERY INCIDENT</text><text x="430" y="22">SLOW LOOP · LAB IN THE LOOP, ACROSS MANY INCIDENTS</text>
+  </g>
+  <g fill="var(--panel)" stroke-width="1.6">
+    <rect x="30" y="50" width="150" height="54" rx="8" stroke="var(--code)"/>
+    <rect x="220" y="50" width="150" height="54" rx="8" stroke="var(--engine)"/>
+    <rect x="125" y="200" width="150" height="54" rx="8" stroke="var(--nemo)"/>
+  </g>
+  <g fill="currentColor" text-anchor="middle">
+    <text x="105" y="74" font-size="13" font-weight="600">Incident handled</text><text x="105" y="91" font-size="10.5" opacity="0.72">verifier checks the result</text>
+    <text x="295" y="74" font-size="13" font-weight="600">H-MEM lesson</text><text x="295" y="91" font-size="10.5" opacity="0.72">confidence up or down</text>
+    <text x="200" y="224" font-size="13" font-weight="600">Next plan</text><text x="200" y="241" font-size="10.5" opacity="0.72">playbook or Nemotron</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#ah2)">
+    <line x1="182" y1="77" x2="218" y2="77"/><path d="M295,104 Q300,170 277,214"/><path d="M123,226 Q90,170 100,106"/>
+  </g>
+  <g font-size="10.5" fill="currentColor" opacity="0.8"><text x="200" y="68" text-anchor="middle">learn</text><text x="302" y="165">recall</text><text x="28" y="150">then</text><text x="28" y="164">handled</text></g>
+  <g fill="var(--panel)" stroke-width="1.6">
+    <rect x="430" y="50" width="170" height="54" rx="8" stroke="var(--code)"/>
+    <rect x="660" y="50" width="170" height="54" rx="8" stroke="var(--data)"/>
+    <rect x="890" y="50" width="180" height="54" rx="8" stroke="var(--nemo)"/>
+    <rect x="890" y="200" width="180" height="54" rx="8" stroke="var(--code)"/>
+    <rect x="660" y="200" width="170" height="54" rx="8" stroke="var(--person)"/>
+    <rect x="430" y="200" width="170" height="54" rx="8" stroke="var(--person)"/>
+  </g>
+  <g fill="currentColor" text-anchor="middle">
+    <text x="515" y="74" font-size="13" font-weight="600">Floor runs</text><text x="515" y="91" font-size="10.5" opacity="0.72">incidents, every shift</text>
+    <text x="745" y="74" font-size="13" font-weight="600">History in Zetaris</text><text x="745" y="91" font-size="10.5" opacity="0.72">sf_ops.incidents</text>
+    <text x="980" y="74" font-size="13" font-weight="600">Hypothesis</text><text x="980" y="91" font-size="10.5" opacity="0.72">Nemotron: one change</text>
+    <text x="980" y="224" font-size="13" font-weight="600">Test on history</text><text x="980" y="241" font-size="10.5" opacity="0.72">A* re-score, 20 replays, CI</text>
+    <text x="745" y="224" font-size="13" font-weight="600">You save it</text><text x="745" y="241" font-size="10.5" opacity="0.72">sf_ops.experiments</text>
+    <text x="515" y="224" font-size="13" font-weight="600">Apply to the floor</text><text x="515" y="241" font-size="10.5" opacity="0.72">you press Apply</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#ah2)">
+    <line x1="602" y1="77" x2="658" y2="77"/><line x1="832" y1="77" x2="888" y2="77"/><line x1="980" y1="106" x2="980" y2="198"/>
+    <line x1="888" y1="227" x2="832" y2="227"/><line x1="658" y1="227" x2="602" y2="227"/><line x1="515" y1="198" x2="515" y2="106"/>
+  </g>
+  <g font-size="10.5" fill="currentColor" opacity="0.8">
+    <text x="630" y="70" text-anchor="middle">logged</text><text x="860" y="70" text-anchor="middle">read</text>
+    <text x="988" y="156">if significant</text><text x="860" y="220" text-anchor="middle">proposal</text><text x="523" y="156">new incidents measure it</text>
+  </g>
+  <text x="430" y="285" font-size="11.5" fill="currentColor" opacity="0.8">Apply puts the spill kit or the waiting AGV on the floor map;</text><text x="430" y="301" font-size="11.5" fill="currentColor" opacity="0.8">each incident that follows is measured against the prediction.</text>
+</svg>
+<div class="legend"><span><i style="border-color:var(--nemo)"></i>Nemotron via Meterless Nightshift</span><span><i style="border-color:var(--code)"></i>code, no model</span><span><i style="border-color:var(--engine)"></i>Meterless engine</span><span><i style="border-color:var(--data)"></i>Zetaris data</span><span><i style="border-color:var(--person)"></i>a person decides</span></div>
+</main></body></html>

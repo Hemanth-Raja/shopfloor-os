@@ -117,7 +117,7 @@ No accounts, keys, Zetaris or Nightshift needed.
 |---|---|
 | What happens when it fails? | [Retrieval, context limits and failure handling](#retrieval-context-limits-and-failure-handling), [Resilience](#resilience-what-happens-when-things-go-wrong), [docs/chaos.md](docs/chaos.md) |
 | What does it do without being asked? | [Autopilot](#autopilot-a-whole-shift-many-incidents-at-once) and [Autonomy levels](#autonomy-levels) |
-| How can a person tell afterwards what it did? | per-run traces in `logs/`, the *Incidents* tab, `run.py verify`, `run.py audit`, `run.py handover` |
+| How can a person tell afterwards what it did? | per-run traces in [`logs/`](logs), the *Incidents* tab, `run.py verify`, `run.py audit`, `run.py handover` |
 | Which model answered each call? | `logs/llm.jsonl` (requested and answering model), the *Nemotron at work* tab, `run.py receipts --verify` |
 | Does the model add anything, and is it safe alone? | [docs/eval.md](docs/eval.md) sections 3 and 4: Nemotron alone vs the full loop |
 
@@ -151,15 +151,15 @@ With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000
 tested (176 MB) and defaults to `SAMPLE_MODE=true`.
 
 `SAMPLE_MODE=true` still runs the real agent loop on the offline plant: simulator, A*, critic, dry-run,
-restraint gate, executor and verifier. Recorded Nemotron replies (`logs/fixtures/`) are used where one exists
+restraint gate, executor and verifier. Recorded Nemotron replies ([`logs/fixtures/`](logs/fixtures)) are used where one exists
 for that exact input. Otherwise a deterministic rule-based planner stands in, and it is still checked by the
-critic. No output is read from `output_examples/`.
+critic. No output is read from [`output_examples/`](output_examples).
 
 ### 2. Live, with Zetaris and Meterless Nightshift
 1. Install and start Zetaris (Docker) and Meterless Nightshift as described in the Participant Setup Guide and
    [zetaris.github.io/getting-started](https://zetaris.github.io/getting-started/).
 2. Put the Zetaris REST URL, org id and API key, and the Nightshift base URL and runtime token, into `.env`
-   (see `.env.example`). Choose a Postgres password for `PG_PASSWORD`. The NVIDIA key stays in Nightshift.
+   (see [`.env.example`](.env.example)). Choose a Postgres password for `PG_PASSWORD`. The NVIDIA key stays in Nightshift.
 3. Load the data and register it in Zetaris (fully scripted, no manual steps):
 ```
 bash scripts/start_postgres.sh          # Postgres container on the Zetaris Docker network
@@ -183,7 +183,7 @@ bash scripts/load_data.sh               # generate the plant from data/seed and 
 
 In Docker, use `host.docker.internal` instead of `localhost` for Zetaris and Nightshift.
 
-Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it starts the UI on a free port). The live demo runbook is `docs/live-demo.md`.
+Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it starts the UI on a free port). The live demo runbook is [`docs/live-demo.md`](docs/live-demo.md).
 
 ## Usage
 | Entry point | Command |
@@ -200,7 +200,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | Lab experiment | `run.py lab [--write]` (hypothesis, then 20 seeded replays, then bootstrap CI, then an `sf_ops.experiments` proposal) |
 | **Shift handover** | `run.py handover [--shifts 3]`: the shift journal read in bounded chunks on the Meterless Markovian engine, then a handover note |
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
-| Static replay page | `python scripts/build_site.py`, then open `docs/site/index.html`; `.github/workflows/pages.yml` publishes it to GitHub Pages on push |
+| Static replay page | `python scripts/build_site.py`, then open [`docs/site/index.html`](docs/site/index.html); [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on push |
 
 Request:
 ```json
@@ -229,7 +229,7 @@ than a crash.
 ### Sample inputs and outputs
 | Input | What happens | Output |
 |---|---|---|
-| `input_examples/example_1.json`: part shortage at F30 | The rules plan (v1, optimal assignment) is ready at once. Nemotron's plan (v2) sends AGV-5 at 1.0 m/s through the X-WEST crossing; the critic rejects it under 29 CFR 1910.178(n)(4), so v1 (0.5 m/s at crossings) stays. Result: ACT | `output_examples/example_1.json` |
+| [`input_examples/example_1.json`](input_examples/example_1.json): part shortage at F30 | The rules plan (v1, optimal assignment) is ready at once. Nemotron's plan (v2) sends AGV-5 at 1.0 m/s through the X-WEST crossing; the critic rejects it under 29 CFR 1910.178(n)(4), so v1 (0.5 m/s at crossings) stays. Result: ACT | [`output_examples/example_1.json`](output_examples/example_1.json) |
 | `example_2.json`: AGV-3 fault plus a stall | The replacement AGV-1 stalls mid-route. The verifier detects it and the loop re-plans with AGV-2. Result: ACT | `example_2.json` |
 | `example_3.json`: overheat at F10, false alarm | The temperature is over its threshold, but the Bosch vibration recording is normal, so the sensors disagree. Result: VERIFY (a technician checks; the line keeps running) | `example_3.json` |
 | `example_4.json`: coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | `example_4.json` |
@@ -272,7 +272,7 @@ None of them contain secrets.
 
 ## Ask the floor: investigating what happened
 The incident loop reacts to one incident. *Ask the floor* looks back over everything that happened. A question such
-as "Why does F10 keep stopping?" goes to a team of agents (`app/investigate/`):
+as "Why does F10 keep stopping?" goes to a team of agents ([`app/investigate/`](app/investigate)):
 
 | Agent | Role | Model |
 |---|---|---|
@@ -288,15 +288,15 @@ Independent sub-tasks run in parallel. The answer shows its evidence: the SQL, r
 references, plus the claims the critic dropped and why. Each step streams to the UI and to `run.py watch`, and is
 written to `logs/trace-ask-<id>.jsonl`. Without Nightshift, a rule-based coordinator and analyst use fixed queries.
 In sample mode the three example questions replay recorded Nemotron replies and Zetaris rows; any other question
-runs on an offline SQLite copy of the four sources, built from `data/seed` on first use.
+runs on an offline SQLite copy of the four sources, built from [`data/seed`](data/seed) on first use.
 
-**Asked earlier.** Every answer is kept with its time (`app/askhistory.py`, `GET /api/asks`). Asking the same
+**Asked earlier.** Every answer is kept with its time ([`app/askhistory.py`](app/askhistory.py), `GET /api/asks`). Asking the same
 question again shows what changed since: the old summary, findings that are new or gone, and the evidence row
 counts then and now, because new incidents arrive and the model may write a different query.
 
 ### The agents' own history, in Zetaris
-The JSONL files in `logs/` are the source of truth (they work offline and survive a Zetaris outage). Every 30 s the
-live server also copies new lines into Postgres (`app/logsync.py`, or `run.py logsync`), and Zetaris federates them
+The JSONL files in [`logs/`](logs) are the source of truth (they work offline and survive a Zetaris outage). Every 30 s the
+live server also copies new lines into Postgres ([`app/logsync.py`](app/logsync.py), or `run.py logsync`), and Zetaris federates them
 next to the plant data: `sf_ops.agent_steps` (one row per agent step), `sf_ops.llm_calls` (requested vs answering
 model, latency, tokens) and `sf_ops.journal` (the hash-chained shift journal). Ask the floor sees these tables only
 for questions about the agents, for example:
@@ -306,7 +306,13 @@ for questions about the agents, for example:
 
 ## Lab in the loop: test a floor change, apply it, measure it
 The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
-floor itself make a whole class of incidents shorter? One *Run experiment* (`run.py lab`, the *Lab* tab):
+floor itself make a whole class of incidents shorter?
+
+![Two learning loops. Fast loop, every incident: the handled incident leaves an H-MEM lesson whose confidence goes up or down, and the next plan recalls it. Slow loop, Lab in the loop: incidents are logged as history in Zetaris, Nemotron proposes one change, code tests it on history with A* re-scoring and 20 seeded replays, a person saves it to sf_ops.experiments and applies it, and new incidents measure it](docs/learning-loops.png)
+
+<sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
+
+One *Run experiment* (`run.py lab`, the *Lab* tab):
 1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
    clear, and the walking distance to the nearest spill kit or to the parts supermarket.
 2. **Proposes a change.** Nemotron (the `lab` role) reads the summary, plus the runs already tested and what an
@@ -318,7 +324,7 @@ floor itself make a whole class of incidents shorter? One *Run experiment* (`run
    clear with a 95% interval. No model runs inside the replays, so the same run gives the same answer.
 5. **Apply and measure.** A significant result can be saved to Zetaris (`sf_ops.experiments`) and applied to the
    floor: the map shows it, and every later incident of that kind is measured with and without it
-   (`app/lab/loop.py`), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
+   ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
 
 ## Autopilot: a whole shift, many incidents at once
 `run.py shift --minutes 8 --seed 7 --rate 2.5` runs headless; the **Run shift** form under the map runs it in the UI.
@@ -329,11 +335,11 @@ floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambigu
              --> dispatcher: N incidents at once, each on its own dynamic route
              --> leases on people and AGVs (pre-emption by risk; expiry) --> human gate per autonomy level
 ```
-- **Sentinel** (`app/autonomy/sentinel.py`) watches a stream of floor signals. The stream is generated from the
+- **Sentinel** ([`app/autonomy/sentinel.py`](app/autonomy/sentinel.py)) watches a stream of floor signals. The stream is generated from the
   historical incident mix in `sf_ops.incidents`, deterministic for a seed. The signals are line-side stock, AGV
   status, machine temperature with Bosch vibration, spill cameras, robot controllers, nutrunner torque, proximity
   and quality checks, plus continuous telemetry (machine temperature every 30 s, stock every 20 s).
-  - Adaptive detection (`app/autonomy/detectors.py`): each machine's temperature baseline per shift comes from
+  - Adaptive detection ([`app/autonomy/detectors.py`](app/autonomy/detectors.py)): each machine's temperature baseline per shift comes from
     `sf_plant.machine_telemetry` and then follows the stream by EWMA (learning only from normal readings);
     |z| >= 3 is an anomaly and 2-3 goes to triage; a CUSUM raises an early warning on a slow drift before any
     single reading looks abnormal. Line-side stock is projected from its consumption trend, so a shortage is
@@ -347,13 +353,13 @@ floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambigu
   - A station failing repeatedly in one shift gets a higher severity; a persisting condition is not raised again
     right after its incident is handled unless it gets worse (a hard-limit breach always gets through).
   - Every decision is logged in `logs/sentinel.jsonl`.
-- **Dispatcher** (`app/autonomy/dispatcher.py`) keeps a priority queue and runs several incidents at once, each
+- **Dispatcher** ([`app/autonomy/dispatcher.py`](app/autonomy/dispatcher.py)) keeps a priority queue and runs several incidents at once, each
   with its own orchestrator.
   - An incident that puts people at risk jumps in even when every slot is busy.
   - The orchestrator is a step generator, so incidents interleave hop by hop. This is deterministic in sample
     mode; live, each incident gets a thread, so model calls overlap.
   - Hops that move things on the floor take the floor lock.
-- **Leases** (`app/autonomy/leases.py`) stop two incidents from sending the same person or robot.
+- **Leases** ([`app/autonomy/leases.py`](app/autonomy/leases.py)) stop two incidents from sending the same person or robot.
   - Candidates skip resources held by an equally or more urgent incident, and the critic rejects a plan that uses
     one (`R-LEASE`).
   - A more urgent incident pre-empts a less urgent one, which re-plans. The trace shows this as an `arbiter` step.
@@ -369,15 +375,15 @@ floor signals --> Sentinel (rules; dedupe; correlate; Lightning triage of ambigu
   handed to a person (`run.py audit` verifies the chain).
 - **Runtime safety:** an invariant monitor checks the floor after every tick, independently of the critic.
 
-**Caching** (`app/cache.py`, hit rates in `/health`):
+**Caching** ([`app/cache.py`](app/cache.py), hit rates in `/health`):
 - read-only Zetaris results, 120 s, cleared by any write;
 - incident history per kind, station and 10 minutes;
 - H-MEM clause retrieval;
 - counted replay hits in sample mode.
 
 ## How an incident is handled: a dynamic orchestrator
-There is no fixed pipeline. After the reflex, an **orchestrator agent** (`app/dynamic.py`) chooses which agent runs
-next, hop by hop. At each decision point the router model (role `router` in `config/models.json`) gets a compact
+There is no fixed pipeline. After the reflex, an **orchestrator agent** ([`app/dynamic.py`](app/dynamic.py)) chooses which agent runs
+next, hop by hop. At each decision point the router model (role `router` in [`config/models.json`](config/models.json)) gets a compact
 state and the agents that are legal right now, and returns strict JSON `{next_agent, reason, args}`.
 
 | Agent | What it does | Model |
@@ -405,7 +411,7 @@ state and the agents that are legal right now, and returns strict JSON `{next_ag
 - a hop budget (24) ends a runaway loop with ESCALATE; at most 6 router model calls per incident, and a forced move
   (one legal agent) costs no call.
 
-**Different incidents take different routes** (`output_examples/` shows each one):
+**Different incidents take different routes** ([`output_examples/`](output_examples) shows each one):
 - false alarm: monitor → investigator → check first → critic → VERIFY, with no planner call;
 - a case the floor has handled well before: memory → playbook → critic, with no planner call;
 - ambiguous: investigator before planning;
@@ -430,26 +436,26 @@ Every loop is bounded:
 - Zetaris requests: 60 s;
 - planner calls: 90 s.
 
-Every external dependency sits behind an adapter: `app/zetaris.py` and `app/llm.py`, wrapped by the circuit
-breakers in `app/runtime.py`.
+Every external dependency sits behind an adapter: [`app/zetaris.py`](app/zetaris.py) and [`app/llm.py`](app/llm.py), wrapped by the circuit
+breakers in [`app/runtime.py`](app/runtime.py).
 
 ## Dependencies
-- **Python 3.11+** and `requirements.txt`: openai (the OpenAI-compatible client for Nightshift), python-dotenv,
+- **Python 3.11+** and [`requirements.txt`](requirements.txt): openai (the OpenAI-compatible client for Nightshift), python-dotenv,
   requests, pydantic and pytest. The generator, simulator, engines and web server use only the standard library.
 - **Live mode:** Zetaris (local Docker), Postgres 16 (Docker container `shopfloor-pg`, created by
-  `scripts/start_postgres.sh`) and Meterless Nightshift, with NVIDIA's hosted Nemotron models. No GPU is needed.
-- **Optional rebuild of `data/seed/`:** `requirements-data.txt` (h5py), used only by `app/data/fetch_sources.py`.
+  [`scripts/start_postgres.sh`](scripts/start_postgres.sh)) and Meterless Nightshift, with NVIDIA's hosted Nemotron models. No GPU is needed.
+- **Optional rebuild of [`data/seed/`](data/seed):** [`requirements-data.txt`](requirements-data.txt) (h5py), used only by [`app/data/fetch_sources.py`](app/data/fetch_sources.py).
 
 ## Sponsor technology
 
 ### Zetaris: the data layer
-Every read the agents make goes through Zetaris (`app/zetaris.py`, the only data access layer), and every Zetaris
+Every read the agents make goes through Zetaris ([`app/zetaris.py`](app/zetaris.py), the only data access layer), and every Zetaris
 object was created in code through its SQL REST API, so a fresh install is rebuilt by commands, not by clicks.
 - **Four sources, one query.** Four Postgres databases are registered as the datasources `sf_fleet`, `sf_hr`,
   `sf_plant` and `sf_ops` (`python -m app.zetaris register`). Every incident starts with **one federated Lightning
-  SQL query** across all four (`app/engines/plant_world.py`): stations, machines, workers with their
+  SQL query** across all four ([`app/engines/plant_world.py`](app/engines/plant_world.py)): stations, machines, workers with their
   certifications, AGVs with live position, safety rules and cost history.
-- **Unified Semantic Layer.** `app/usl.py` defines the USL `floor` (9 business entities with primary and foreign
+- **Unified Semantic Layer.** [`app/usl.py`](app/usl.py) defines the USL `floor` (9 business entities with primary and foreign
   keys: zone, station, machine, worker, certification, agv, vibration_sample, safety_rule, incident) over the raw
   sources, and deploys and activates it. `run.py context` reads through it, and falls back to the raw federated
   query if the USL is unavailable (the World Model log records which one was used).
@@ -465,17 +471,17 @@ object was created in code through its SQL REST API, so a fresh install is rebui
 
 ### Meterless engines
 Three engines are implemented in Python from the Meterless specs and each runs a feature, with its conformance tests:
-- **World Model** (`app/engines/world_model.py`) grounds every plan: stable ids, provenance, facts such as
-  `service_overdue`, and `ground()`, which rejects ids that do not exist. `tests/test_world_model.py` ports the
+- **World Model** ([`app/engines/world_model.py`](app/engines/world_model.py)) grounds every plan: stable ids, provenance, facts such as
+  `service_overdue`, and `ground()`, which rejects ids that do not exist. [`tests/test_world_model.py`](tests/test_world_model.py) ports the
   spec's 8 conformance checks.
-- **H-MEM** (`app/engines/hmem.py`) holds the incident playbooks, the critic's lessons with outcome feedback, and
-  the OSHA/SOP clause index that the planner and critic cite. `tests/test_hmem.py` runs all 13 official vectors.
-- **Markovian** (`app/engines/markovian.py`) writes the shift handover (`run.py handover`) by reading a whole
+- **H-MEM** ([`app/engines/hmem.py`](app/engines/hmem.py)) holds the incident playbooks, the critic's lessons with outcome feedback, and
+  the OSHA/SOP clause index that the planner and critic cite. [`tests/test_hmem.py`](tests/test_hmem.py) runs all 13 official vectors.
+- **Markovian** ([`app/engines/markovian.py`](app/engines/markovian.py)) writes the shift handover (`run.py handover`) by reading a whole
   shift's journal in bounded chunks with compressed carryover: 67% fewer prompt tokens on a live three-shift run.
-  `tests/test_markovian.py` covers it.
+  [`tests/test_markovian.py`](tests/test_markovian.py) covers it.
 
 ### Meterless Nightshift and NVIDIA Nemotron
-Nightshift is the only model provider: every call goes through `app/llm.py` and `app/models.py` to
+Nightshift is the only model provider: every call goes through [`app/llm.py`](app/llm.py) and [`app/models.py`](app/models.py) to
 `MODEL_BASE_URL`, and the NVIDIA key stays inside Nightshift. Every model is an NVIDIA Nemotron model.
 - **One app per model.** Nightshift routes by app name, so each model is called under its own app, pinned in
   Nightshift's app policy to exactly one lane: `shopfloor-os-ultra` → Nemotron 3 Ultra 550B, `shopfloor-os` →
@@ -492,8 +498,8 @@ Nightshift is the only model provider: every call goes through `app/llm.py` and 
   Nemotron vs forced by code, plans it wrote, refinements kept or rejected and why, and receipts verified.
 
 ### Cursor
-The project rules live in `.cursor/rules/shopfloor.mdc` and `AGENTS.md` (kept in sync). Cursor built the model
-client (`app/llm.py`) and its tests; Claude Code was also used (see *Disclosure*).
+The project rules live in [`.cursor/rules/shopfloor.mdc`](.cursor/rules/shopfloor.mdc) and [`AGENTS.md`](AGENTS.md) (kept in sync). Cursor built the model
+client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (see *Disclosure*).
 
 ### What is unique
 - **Three Meterless engines work together.** The World Model grounds ids and facts, H-MEM ranks both lessons and
@@ -505,7 +511,7 @@ client (`app/llm.py`) and its tests; Claude Code was also used (see *Disclosure*
   next to the plant data, so "how often did the critic reject the planner, and why?" is one SQL query.
 
 ## Models: which model serves which agent
-`config/models.json` maps each agent role to a chain of models, chosen by capability. `app/models.py` tries the
+[`config/models.json`](config/models.json) maps each agent role to a chain of models, chosen by capability. [`app/models.py`](app/models.py) tries the
 chain in order through Nightshift.
 
 | Role | Model chain (first choice first) | Reasoning | Why |
@@ -528,44 +534,44 @@ request itself, so no role can use it directly.
 - All of this appears in the trace (`model_call`), in `logs/llm.jsonl`, in the *Incidents* tab's agent details,
   and in the *Models* panel on *Nemotron at work*, which shows live latency and breaker states.
 
-`scripts/probe_models.py` asks every NVIDIA model Nightshift lists for a one-word reply. It records who really
-answered in `data/model_probe.json`. **Nightshift, not the model id, decides the route.** For a named app, Nightshift
+[`scripts/probe_models.py`](scripts/probe_models.py) asks every NVIDIA model Nightshift lists for a one-word reply. It records who really
+answered in [`data/model_probe.json`](data/model_probe.json). **Nightshift, not the model id, decides the route.** For a named app, Nightshift
 records the requested model but routes by that app's rule, which is why each model has its own app name
 (`model_apps` in the config) with a one-lane allowlist in Nightshift's app policy. When NVIDIA's endpoint returns an
 error or an empty reply, the chain moves on and the trace says so.
 
 ## Meterless engine: World Model
-Shop-Floor OS implements the **Meterless World Model** engine in Python, in `app/engines/world_model.py`. It is a
+Shop-Floor OS implements the **Meterless World Model** engine in Python, in [`app/engines/world_model.py`](app/engines/world_model.py). It is a
 port of the spec in github.com/Meterless/Meterless `engines/world-model` (Apache-2.0), and a reference copy of the
 spec and conformance runner can be fetched into `data/raw/meterless/`.
 - **The engine:** an event-sourced store of entities, contexts and bitemporal relationships, with stable
   content-derived ids, provenance on every write, banded name resolution (auto-merge at 0.85 or above, review queue
   from 0.82), idempotent ingest, an ordered audit log, and graph, facts, snapshot and timeline views.
 - **The feature:** `run.py context --zone FINAL` sends one federated Zetaris query, and
-  `app/engines/shopfloor_world.py` builds the zone's world from it:
+  [`app/engines/shopfloor_world.py`](app/engines/shopfloor_world.py) builds the zone's world from it:
   - incidents, stations, machines, workers, AGVs and Bosch vibration recordings, with their links;
   - grounded checks, such as whether the responder's lockout/tagout was valid and whether the AGV's service is
     overdue.
 
   The Nemotron prompt receives the world model's structured context payload, not raw rows. `ground()` lets a
   planner reject entity ids that are not in the world.
-- **Tests:** `tests/test_world_model.py` ports the spec's conformance checks (sid-001, sid-002, band-001,
+- **Tests:** [`tests/test_world_model.py`](tests/test_world_model.py) ports the spec's conformance checks (sid-001, sid-002, band-001,
   prov-001, idem-001, idem-002, bitemp-001 and audit-001) plus the reference smoke tests.
-  `tests/test_shopfloor_world.py` covers the shop-floor builder. Run them with `.venv/bin/python -m pytest`.
+  [`tests/test_shopfloor_world.py`](tests/test_shopfloor_world.py) covers the shop-floor builder. Run them with `.venv/bin/python -m pytest`.
 
 ## Meterless engine: H-MEM
-The incident playbooks (`app/engines/playbooks.py`) run on a Python port of the **Meterless H-MEM** engine,
-in `app/engines/hmem.py`. It follows the spec in github.com/Meterless/Meterless `engines/hmem` (Apache-2.0).
+The incident playbooks ([`app/engines/playbooks.py`](app/engines/playbooks.py)) run on a Python port of the **Meterless H-MEM** engine,
+in [`app/engines/hmem.py`](app/engines/hmem.py). It follows the spec in github.com/Meterless/Meterless `engines/hmem` (Apache-2.0).
 - Each critic lesson is stored as an H-MEM record with its source incident, tags and a confidence score.
 - Before planning, the orchestrator recalls lessons with H-MEM's 8-signal hybrid ranking. Every outcome then
   feeds back into the record: helpful when the lesson held, not_helpful when the rule was broken again anyway.
   All of it goes through the append-only trust ledger.
 - Sleep, conflict resolution and dreaming are implemented with the spec's guardrails.
-- `tests/test_hmem.py` runs all 13 official conformance vectors, copied unchanged into `tests/fixtures/`.
+- [`tests/test_hmem.py`](tests/test_hmem.py) runs all 13 official conformance vectors, copied unchanged into [`tests/fixtures/`](tests/fixtures).
 
 ## Meterless engine: Markovian (shift handover)
-The shift handover (`app/handover.py`) runs on a Python port of the **Meterless Markovian** engine, in
-`app/engines/markovian.py`, following the Meterless "Markovian Agent Engine" reference (headless, v1.0).
+The shift handover ([`app/handover.py`](app/handover.py)) runs on a Python port of the **Meterless Markovian** engine, in
+[`app/engines/markovian.py`](app/engines/markovian.py), following the Meterless "Markovian Agent Engine" reference (headless, v1.0).
 - A shift writes hundreds of journal lines. They are cut into slices of 40 compact lines; each chunk sends Nemotron
   3.5 Lightning only a 200-character goal summary, the carried state and one slice, never the earlier slices.
 - The model ends each chunk with `[STATE_CHECKPOINT]` and a state summary (counts, open incident ids, risks);
@@ -579,20 +585,20 @@ The shift handover (`app/handover.py`) runs on a Python port of the **Meterless 
 - Measured on a live run over three shifts (255 journal events, 5 chunks, Nemotron 3.5 Super VL): 8,326 prompt
   tokens sent, against 25,042 if each step had re-sent the earlier slices and answers (67% saved, chars/4 estimate).
   The carried state never went above about 260 tokens.
-- `tests/test_markovian.py` checks config bounds, the marker protocol, the cascade order, the spec's token
+- [`tests/test_markovian.py`](tests/test_markovian.py) checks config bounds, the marker protocol, the cascade order, the spec's token
   formulas, abort and reflection failure, and the handover slicing (no network).
 
 ## What is real and what is synthetic
-**Synthetic.** These are generated by `app/data/generate.py` with seed 42, so every run gives the same data:
+**Synthetic.** These are generated by [`app/data/generate.py`](app/data/generate.py) with seed 42, so every run gives the same data:
 - the layout, stations, machines, AGVs and their tasks and telemetry;
 - the people, certifications and rosters;
-- the plant SOPs in `data/seed/plant_sops.json`, written for this fictional plant;
+- the plant SOPs in [`data/seed/plant_sops.json`](data/seed/plant_sops.json), written for this fictional plant;
 - production, units, incidents, andon pulls and work orders;
 - the cost figures. These are our own assumptions for ranking incidents, not industry figures: $1,500 per minute of line stop, $85 per labour hour and $400 per rework.
 
 No open dataset of car-plant operations (AGVs, andon, downtime) was found under an open licence, so these parts are simulated. Each one is shaped by the real data below.
 
-**Real data used.** The summaries are stored in `data/seed/` and committed. If a file is missing, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which source was used.
+**Real data used.** The summaries are stored in [`data/seed/`](data/seed) and committed. If a file is missing, the generator uses a documented fallback, and the table `sf_ops.data_sources` records which source was used.
 
 | Source | Used for | Licence and credit |
 |---|---|---|
@@ -602,9 +608,9 @@ No open dataset of car-plant operations (AGVs, andon, downtime) was found under 
 | Open-Meteo historical weather, Detroit MI | Hourly outdoor temperature. It heats the machines and drives overheat alarms. | CC BY 4.0. Weather data by Open-Meteo.com |
 | Bosch CNC Machining dataset (UCI 752), 3-axis vibration at 2 kHz from three CNC machines | `vibration_samples`: all 70 recordings labelled abnormal plus a stratified sample of 280 normal ones, summarised per axis (RMS, peak, crest factor, kurtosis). The raw HDF5 files are not kept. Each torque alarm on the wheel nutrunner M-06 cites a recording: an abnormal one for real faults, a normal one for false alarms, so agents can check fault against noise. These are milling-machine signals used as a stand-in for nutrunner vibration. | CC BY 4.0. Tnani, M.-A., Feil, M., Diepold, K. (2022), "Smart Data Collection System for Brownfield CNC Milling Machines: A New Benchmark Dataset for Data-Driven Machine Monitoring", Procedia CIRP 107. github.com/boschresearch/CNC_Machining |
 | MovingAI MAPF benchmarks: 4 warehouse maps | `data/seed/mapf/*.map`, kept for path-planner benchmarks. The 200 matching scenario files are an optional download into `data/raw/mapf/`. | Open Data Commons Attribution License. Stern, R. et al. (2019), "Multi-Agent Pathfinding: Definitions, Variants, and Benchmarks", SoCS. movingai.com/benchmarks/mapf |
-| Meterless H-MEM engine spec and conformance vectors | `app/engines/hmem.py` and `tests/fixtures/hmem_vectors.json` (unchanged copy) | Apache-2.0. github.com/Meterless/Meterless, engines/hmem |
-| Meterless World Model engine spec | `app/engines/world_model.py`, a Python implementation of the spec, with the conformance checks ported to pytest | Apache-2.0. github.com/Meterless/Meterless, engines/world-model |
-| OSHA 29 CFR 1910.22, 1910.147, 1910.178, 1910.212, 1910.217 | Paraphrased rule summaries in `safety_rules`, plus 14 verbatim clause excerpts (`data/seed/osha_1910_excerpts.json`, eCFR) that the critic and planner cite. These are indexed in H-MEM together with 7 synthetic plant SOPs (`data/seed/plant_sops.json`). | Public domain, U.S. Department of Labor, via eCFR (ecfr.gov). No endorsement implied. |
+| Meterless H-MEM engine spec and conformance vectors | [`app/engines/hmem.py`](app/engines/hmem.py) and [`tests/fixtures/hmem_vectors.json`](tests/fixtures/hmem_vectors.json) (unchanged copy) | Apache-2.0. github.com/Meterless/Meterless, engines/hmem |
+| Meterless World Model engine spec | [`app/engines/world_model.py`](app/engines/world_model.py), a Python implementation of the spec, with the conformance checks ported to pytest | Apache-2.0. github.com/Meterless/Meterless, engines/world-model |
+| OSHA 29 CFR 1910.22, 1910.147, 1910.178, 1910.212, 1910.217 | Paraphrased rule summaries in `safety_rules`, plus 14 verbatim clause excerpts ([`data/seed/osha_1910_excerpts.json`](data/seed/osha_1910_excerpts.json), eCFR) that the critic and planner cite. These are indexed in H-MEM together with 7 synthetic plant SOPs ([`data/seed/plant_sops.json`](data/seed/plant_sops.json)). | Public domain, U.S. Department of Labor, via eCFR (ecfr.gov). No endorsement implied. |
 
 ## Patterns in the data (planted, for the agents to find)
 - F10 Wheels and tyres is the hot spot for part shortages, torque faults and defects.
@@ -627,17 +633,17 @@ All people, car models and the plant itself are fictional.
    - `nvidia/nemotron-3.5-lightning-30b-a3b` for the router, monitor, Sentinel triage and evidence critic, and as
      the last fallback everywhere.
    The full map is under *Models*; `logs/llm.jsonl` and the receipts show which model answered each call.
-2. **Agent frameworks:** none. The orchestration is our own code (`app/dynamic.py`, `app/orchestrator.py`), using Pydantic contracts
+2. **Agent frameworks:** none. The orchestration is our own code ([`app/dynamic.py`](app/dynamic.py), [`app/orchestrator.py`](app/orchestrator.py)), using Pydantic contracts
    for strict JSON between agents.
 3. **Integrations:** Zetaris, Meterless (World Model, H-MEM, Markovian, Nightshift) and NVIDIA, as described under Sponsor technology.
 4. **AI coding tools:** Claude Code (Anthropic) wrote most of the code and documentation; Cursor wrote the model
-   layer (`app/llm.py`, `tests/test_llm.py`). The team reviewed and tested all of it.
+   layer ([`app/llm.py`](app/llm.py), [`tests/test_llm.py`](tests/test_llm.py)). The team reviewed and tested all of it.
 5. **External libraries:** openai, python-dotenv, requests, pydantic and pytest; h5py and numpy only for the
    optional data rebuild.
 6. **Data:** the plant, people, incidents and SOPs are synthetic, anchored on public data (see "What is real and
    what is synthetic").
 7. **Adapted open source:**
-   - `app/engines/world_model.py` and `app/engines/hmem.py` are Python ports of the Meterless engine specs and
+   - [`app/engines/world_model.py`](app/engines/world_model.py) and [`app/engines/hmem.py`](app/engines/hmem.py) are Python ports of the Meterless engine specs and
      reference code (github.com/Meterless/Meterless, Apache-2.0).
    - The H-MEM conformance vectors are copied unchanged.
    - The MovingAI maps are included under ODC-By.
@@ -649,7 +655,7 @@ All people, car models and the plant itself are fictional.
 ## Retrieval, context limits and failure handling
 **Retrieval (RAG), without a vector database.** The models never get raw tables or whole documents; each agent
 retrieves what it needs:
-- *Regulations:* OSHA 29 CFR 1910 excerpts (eCFR) and plant SOPs are H-MEM records (`app/engines/citations.py`).
+- *Regulations:* OSHA 29 CFR 1910 excerpts (eCFR) and plant SOPs are H-MEM records ([`app/engines/citations.py`](app/engines/citations.py)).
   The planner is shown the clauses H-MEM ranks for the incident kind, the critic attaches the exact clause to every
   violation, and cited references are resolved back to their text (unknown references are flagged).
 - *Experience:* H-MEM lessons and playbooks are recalled per incident kind and station before planning.
@@ -660,8 +666,8 @@ retrieves what it needs:
 
 **Context limits.** The largest prompt in our logs is about 7.5k tokens. Nemotron 3.5 Lightning has a 262k-token
 window and Super VL 1M. Limits are enforced in code anyway:
-- before each call, `app/models.py` estimates the prompt and skips any model where prompt plus `max_tokens` would
-  exceed half its window (`context_tokens` and `context_fraction` in `config/models.json`);
+- before each call, [`app/models.py`](app/models.py) estimates the prompt and skips any model where prompt plus `max_tokens` would
+  exceed half its window (`context_tokens` and `context_fraction` in [`config/models.json`](config/models.json));
 - each role has a token budget (`max_tokens`) and a time budget (`budget_s`);
 - prompts carry compact state: World Model payloads, at most 15 rows per SQL result, SQL capped at 200 rows, and
   the last 200 model-log lines;
@@ -678,41 +684,41 @@ window and Super VL 1M. Limits are enforced in code anyway:
    `router` and `safe_mode` steps.
 5. `SAMPLE_MODE=true` runs the whole system offline from recorded replies.
 
-Tests cover each path: `tests/test_models.py`, `tests/test_dynamic.py`, `tests/test_agent_loop.py` and
-`tests/test_health.py`.
+Tests cover each path: [`tests/test_models.py`](tests/test_models.py), [`tests/test_dynamic.py`](tests/test_dynamic.py), [`tests/test_agent_loop.py`](tests/test_agent_loop.py) and
+[`tests/test_health.py`](tests/test_health.py).
 
 **When retrieval goes wrong.** Retrieval is treated as untrusted input; nothing retrieved is acted on unchecked.
 
 | Retrieval failure | What happens | Where |
 |---|---|---|
-| The SQL agent writes unsafe or invalid SQL | The guard allows one read-only `SELECT` on whitelisted `sf_*` tables; the rejection reason or Zetaris error goes back for one retry | `app/investigate/sqlguard.py`, `app/investigate/investigator.py` |
-| A query fails or returns nothing useful | The evidence is marked failed; any claim citing it is dropped with the reason | `investigator.py` (evidence critic) |
+| The SQL agent writes unsafe or invalid SQL | The guard allows one read-only `SELECT` on whitelisted `sf_*` tables; the rejection reason or Zetaris error goes back for one retry | [`app/investigate/sqlguard.py`](app/investigate/sqlguard.py), [`app/investigate/investigator.py`](app/investigate/investigator.py) |
+| A query fails or returns nothing useful | The evidence is marked failed; any claim citing it is dropped with the reason | [`investigator.py`](app/investigate/investigator.py) (evidence critic) |
 | The analyst states a number the data does not contain | Every number in a claim must appear in the cited evidence, or the claim is dropped; a Lightning critic then reviews what is left | same |
-| Clause retrieval ranks the wrong regulation | The safety critic is code over `sf_ops.safety_rules`, not over what was retrieved, so a bad ranking cannot approve a plan; a rule the code cannot check blocks automatic action (default-deny) | `app/agents/safety_critic.py` |
-| The planner cites a clause that does not exist | Unknown references are flagged in the trace and dropped from the plan's citations | `app/engines/citations.py` |
-| The model names a person or robot that does not exist | World Model `ground()` rejects the id (GROUNDING violation) and the planner gets the reason | `app/agents/planner.py` |
-| A cached read is stale | Read-only Zetaris results expire (TTL), and any write clears the cache, so agents never read their own stale state | `app/cache.py` |
-| Retrieved lessons are wrong | H-MEM lowers a lesson's confidence when its outcome is not_helpful, and every plan still goes through the critic | `app/engines/playbooks.py` |
+| Clause retrieval ranks the wrong regulation | The safety critic is code over `sf_ops.safety_rules`, not over what was retrieved, so a bad ranking cannot approve a plan; a rule the code cannot check blocks automatic action (default-deny) | [`app/agents/safety_critic.py`](app/agents/safety_critic.py) |
+| The planner cites a clause that does not exist | Unknown references are flagged in the trace and dropped from the plan's citations | [`app/engines/citations.py`](app/engines/citations.py) |
+| The model names a person or robot that does not exist | World Model `ground()` rejects the id (GROUNDING violation) and the planner gets the reason | [`app/agents/planner.py`](app/agents/planner.py) |
+| A cached read is stale | Read-only Zetaris results expire (TTL), and any write clears the cache, so agents never read their own stale state | [`app/cache.py`](app/cache.py) |
+| Retrieved lessons are wrong | H-MEM lowers a lesson's confidence when its outcome is not_helpful, and every plan still goes through the critic | [`app/engines/playbooks.py`](app/engines/playbooks.py) |
 
 ## Resilience: what happens when things go wrong
 | Failure | What the system does | Where |
 |---|---|---|
-| NVIDIA endpoint returns 5xx, 429, an empty reply or times out | Retries on the same model with full-jitter exponential backoff, inside the incident's deadline; then the next model in the role's chain | `app/models.py`, `app/resilience.py` |
+| NVIDIA endpoint returns 5xx, 429, an empty reply or times out | Retries on the same model with full-jitter exponential backoff, inside the incident's deadline; then the next model in the role's chain | [`app/models.py`](app/models.py), [`app/resilience.py`](app/resilience.py) |
 | A model gets slow or overloaded | A per-model AIMD concurrency limit halves on errors or very slow replies and grows back slowly; the router, monitor and Sentinel hedge to the next model after 1.5x their median latency | same |
-| A model keeps failing | Its circuit breaker opens; half-open lets exactly one probe through | `app/agents/health.py` |
-| Nightshift serves a different model than pinned | Startup self-check and live drift rates; the effective chain skips it; Health warns | `app/models.py` |
-| The model's JSON is broken | Mechanical repair first, then one re-ask, then the next model | `app/resilience.py` |
-| The model is slow or down during an incident | Anytime planning: the optimal-assignment plan (v1) is ready in milliseconds; the model's v2 replaces it only if it passes the critic and the dry run and scores better; with Nightshift down, v1 is used and a person approves | `app/agents/assign.py`, `app/dynamic.py` |
-| A plan breaks a safety rule | The critic rejects it with the clause; a rule it cannot check blocks automatic action (default-deny) | `app/agents/safety_critic.py` |
-| Something unsafe happens anyway on the floor | The runtime invariant monitor stops the AGV (AGV in a fence with a person, fast at a crossing) or escalates (no lockout/tagout in a robot-cell area); the fleet layer caps AGVs at 0.5 m/s on crossings whatever the plan says | `app/sim/invariants.py`, `app/sim/sim.py` |
-| Two incidents want the same person or robot | Leases with fencing tokens; higher risk pre-empts, the loser re-plans; a stale holder's command is refused; repeated dispatches are idempotent | `app/autonomy/leases.py`, `app/connectors.py` |
-| The process crashes mid-shift | The hash-chained journal is replayed: interrupted incidents go to a person, their leases are void, tokens resume above the last one | `app/journal.py` |
-| Someone edits the logs | Journal and approvals are hash chains (HMAC with `JOURNAL_HMAC_KEY`); `run.py audit` finds the first bad line | `app/journal.py` |
-| Zetaris is slow or down | Breaker, 60 s timeout, read cache cleared by any write; sample mode runs offline | `app/runtime.py`, `app/cache.py` |
-| Sensors drift slowly | EWMA baselines from history plus CUSUM raise an early warning before any fixed threshold; hard limits never adapt | `app/autonomy/detectors.py` |
+| A model keeps failing | Its circuit breaker opens; half-open lets exactly one probe through | [`app/agents/health.py`](app/agents/health.py) |
+| Nightshift serves a different model than pinned | Startup self-check and live drift rates; the effective chain skips it; Health warns | [`app/models.py`](app/models.py) |
+| The model's JSON is broken | Mechanical repair first, then one re-ask, then the next model | [`app/resilience.py`](app/resilience.py) |
+| The model is slow or down during an incident | Anytime planning: the optimal-assignment plan (v1) is ready in milliseconds; the model's v2 replaces it only if it passes the critic and the dry run and scores better; with Nightshift down, v1 is used and a person approves | [`app/agents/assign.py`](app/agents/assign.py), [`app/dynamic.py`](app/dynamic.py) |
+| A plan breaks a safety rule | The critic rejects it with the clause; a rule it cannot check blocks automatic action (default-deny) | [`app/agents/safety_critic.py`](app/agents/safety_critic.py) |
+| Something unsafe happens anyway on the floor | The runtime invariant monitor stops the AGV (AGV in a fence with a person, fast at a crossing) or escalates (no lockout/tagout in a robot-cell area); the fleet layer caps AGVs at 0.5 m/s on crossings whatever the plan says | [`app/sim/invariants.py`](app/sim/invariants.py), [`app/sim/sim.py`](app/sim/sim.py) |
+| Two incidents want the same person or robot | Leases with fencing tokens; higher risk pre-empts, the loser re-plans; a stale holder's command is refused; repeated dispatches are idempotent | [`app/autonomy/leases.py`](app/autonomy/leases.py), [`app/connectors.py`](app/connectors.py) |
+| The process crashes mid-shift | The hash-chained journal is replayed: interrupted incidents go to a person, their leases are void, tokens resume above the last one | [`app/journal.py`](app/journal.py) |
+| Someone edits the logs | Journal and approvals are hash chains (HMAC with `JOURNAL_HMAC_KEY`); `run.py audit` finds the first bad line | [`app/journal.py`](app/journal.py) |
+| Zetaris is slow or down | Breaker, 60 s timeout, read cache cleared by any write; sample mode runs offline | [`app/runtime.py`](app/runtime.py), [`app/cache.py`](app/cache.py) |
+| Sensors drift slowly | EWMA baselines from history plus CUSUM raise an early warning before any fixed threshold; hard limits never adapt | [`app/autonomy/detectors.py`](app/autonomy/detectors.py) |
 
 Every one of these has tests, including seeded property-based fuzzing of the critic and the runtime monitor
-(`tests/test_fuzz_safety.py`, `FUZZ_SEEDS=25` for a longer run). `python run.py eval` measures them: planted unsafe
+([`tests/test_fuzz_safety.py`](tests/test_fuzz_safety.py), `FUZZ_SEEDS=25` for a longer run). `python run.py eval` measures them: planted unsafe
 plans, random plans judged only by the runtime monitor, Monitor calibration and, with `--live`, a Nemotron-only
 baseline and 3x stability. Results: [docs/eval.md](docs/eval.md).
 
@@ -721,12 +727,12 @@ Things that failed during the build, found by tests, fuzzing, the runtime monito
 
 | What broke | How we found it | Fix |
 |---|---|---|
-| The rule-based fallback plan sent a worker without valid lockout/tagout to a robot-cell fault, and a worker without a torque-audit skill to a torque fault | `run.py eval`: 12 of 54 safe-mode base plans were unsafe (the critic caught all 12, so nothing reached the floor) | The fallback now picks the first candidate who meets what the critic will ask for; 0 of 54 unsafe since (`app/agents/planner.py`) |
-| A plan the critic approved could still cross a pedestrian walkway too fast, because the executed path differed from the critic's estimate | Seeded property-based fuzzing (`tests/test_fuzz_safety.py`) | The fleet layer caps AGVs at 0.5 m/s on crossings whatever the plan says; the critic and the runtime monitor stay as separate layers |
-| The reflex left a person without lockout/tagout inside a robot-cell repair area, and responders walked back into locked-out areas | The runtime invariant monitor (`app/sim/invariants.py`) | The reflex moves such people out; workers route around locked-out areas; new critic rule R-HAZARD-ZONE |
+| The rule-based fallback plan sent a worker without valid lockout/tagout to a robot-cell fault, and a worker without a torque-audit skill to a torque fault | `run.py eval`: 12 of 54 safe-mode base plans were unsafe (the critic caught all 12, so nothing reached the floor) | The fallback now picks the first candidate who meets what the critic will ask for; 0 of 54 unsafe since ([`app/agents/planner.py`](app/agents/planner.py)) |
+| A plan the critic approved could still cross a pedestrian walkway too fast, because the executed path differed from the critic's estimate | Seeded property-based fuzzing ([`tests/test_fuzz_safety.py`](tests/test_fuzz_safety.py)) | The fleet layer caps AGVs at 0.5 m/s on crossings whatever the plan says; the critic and the runtime monitor stay as separate layers |
+| The reflex left a person without lockout/tagout inside a robot-cell repair area, and responders walked back into locked-out areas | The runtime invariant monitor ([`app/sim/invariants.py`](app/sim/invariants.py)) | The reflex moves such people out; workers route around locked-out areas; new critic rule R-HAZARD-ZONE |
 | Planner calls timed out at 20 s | Live runs: the deep lane reasons for 10-40 s before answering | Planner budget 90 s inside a 240 s incident deadline, plus anytime planning: the optimal-assignment plan is ready in milliseconds and the model's plan only replaces it if safer and better |
 | Llama-3.3-Nemotron-Super 49B and, at first, Nemotron 3 Ultra 550B never answered our app (the 49B is a judge lane that refuses requests; Ultra had no lane pinned to our app) | Live calls and the startup self-check | Ultra got its own pinned app (`shopfloor-os-ultra`) and now heads the planner, analyst and Lab chains; the self-check skips any model that fails or is silently served by another |
-| A chain falling back to a second model was refused by the first model's Nightshift lane pin | Live fallback test | Each model goes out under the Nightshift app whose lane allows it (`config/models.json` `model_apps`) |
+| A chain falling back to a second model was refused by the first model's Nightshift lane pin | Live fallback test | Each model goes out under the Nightshift app whose lane allows it ([`config/models.json`](config/models.json) `model_apps`) |
 | Free endpoints throttled (429, empty replies) when several incidents ran at once | Live shifts | Retries with full-jitter backoff, a per-model AIMD limit, hedged requests, breakers; live demos and eval runs pin concurrency at 2 (`MODEL_CONCURRENCY_MAX`) |
 | Headless live shifts ticked faster than the models answered, so incidents were cut off | Live shift runs | The floor clock runs at the UI's pace and the shift waits (capped) for open incidents |
 | Broken JSON from the model | Schema validation on every reply | Mechanical repair first, then one re-ask, then the next model |
@@ -750,8 +756,8 @@ No level lets the agents send a person into a hazard without approval, and no le
 ## Limitations
 - **Simulated floor.** The plant is a 2D grid simulation (one 2 m cell per 2 s tick), not a digital twin, and
   the connectors to fleet manager, MES and PLC are simulator implementations of real interfaces
-  (`app/connectors.py`). Nothing drives real equipment. AGV dispatches are also emitted as VDA 5050 v2.0 orders
-  and states (`app/vda5050.py`, `logs/vda5050.jsonl`), the standard real AGV fleets speak, but no MQTT broker or
+  ([`app/connectors.py`](app/connectors.py)). Nothing drives real equipment. AGV dispatches are also emitted as VDA 5050 v2.0 orders
+  and states ([`app/vda5050.py`](app/vda5050.py), `logs/vda5050.jsonl`), the standard real AGV fleets speak, but no MQTT broker or
   real vehicle is connected.
 - **Synthetic data, real anchors.** Plant, people, incidents and the signal stream are generated, anchored on real
   public data (AI4I, Bosch CNC vibration, OSHA, BLS, Open-Meteo). Patterns were planted for the agents to find;
