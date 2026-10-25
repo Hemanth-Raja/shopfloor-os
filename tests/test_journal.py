@@ -82,3 +82,12 @@ def test_a_shift_journals_queue_leases_and_results(tmp_path, plant, grid):
     assert kinds[0] == "shift_started" and kinds[-1] == "shift_finished" and "lease" in kinds
     assert kinds.count("finished") == out["incidents"] and j.verify()["ok"]
     assert Journal(tmp_path / "j.jsonl").recover()["interrupted"] == []
+
+
+def test_two_writers_on_one_journal_keep_one_chain(tmp_path):
+    a, b = Journal(tmp_path / "j.jsonl"), Journal(tmp_path / "j.jsonl")  # e.g. a live and a replay server
+    for i in range(5):
+        a.append("x", {"i": i})
+        b.append("y", {"i": i})
+    v = Journal(tmp_path / "j.jsonl").verify()
+    assert v["ok"] and v["events"] == 10

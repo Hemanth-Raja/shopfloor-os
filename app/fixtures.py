@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
@@ -51,6 +52,9 @@ def maybe_sample(fn: Callable, kind: str, mode: str | None = None, folder: Path 
         key = _key(kind, lane, messages, schema)
         path = folder / f"{key}.json"
         if mode == "true":
+            if not path.exists():  # the server numbers replay incidents on (SIM-42-002, ...): same scenario as -001
+                canon = json.loads(re.sub(r"SIM-(\d+)-\d{3}", r"SIM-\1-001", json.dumps(messages, ensure_ascii=False)))
+                path = folder / f"{_key(kind, lane, canon, schema)}.json"
             from app.cache import cache
             cache("llm_replay", 0).count(path.exists())
             if not path.exists():

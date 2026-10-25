@@ -109,7 +109,7 @@
   dialog.pipe .side { max-height:70vh; overflow:auto; }
   #incrows tr.r { cursor:pointer; } #incrows tr.r:hover { background:#141b22; } #incrows tr.r.sel { background:#16263a; outline:1px solid #5aa9ff; }
   #incdetail td { vertical-align:top; } #incdetail details summary { cursor:pointer; color:var(--muted); font-size:12px; }
-  #shift .inc { cursor:pointer; } #shift .inc.sel { background:#16263a; outline:1px solid #5aa9ff; border-radius:6px; }
+  #shift .inc, #floorlist .inc { cursor:pointer; } #floorlist .inc.sel, #shift .inc.sel { background:#16263a; outline:1px solid #5aa9ff; border-radius:6px; }
   .panel.flash { box-shadow:0 0 0 2px #5aa9ff; transition:box-shadow .3s; }
   svg.fg .hn circle { fill:#0d1014; stroke:#5aa9ff; } svg.fg .hn text { font:600 10px system-ui; fill:#cfe4ff; }
   .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
@@ -199,7 +199,7 @@
         <div class="note">Robots and people without a yellow ring are normal shift activity: parked AGVs, operators at their stations.</div>
       </div>
       <div class="panel">
-        <div class="sub"><h2>Run an incident</h2><span class="note">each run goes through the full agent loop</span></div>
+        <div class="sub"><h2>Run an incident</h2><span class="note">run several at once: each takes its own route, most urgent first</span></div>
         <div class="row scen">
           <button class="act start" data-run='{"kind":"part_shortage","station":"F30"}'>Part shortage · F30<small>critic loop, AGV kit run</small></button>
           <button class="act" data-run='{"kind":"agv_fault","agv":"AGV-3","station":"F30","stall_after":2}'>AGV-3 fault + stall<small>verifier re-plans</small></button>
@@ -221,6 +221,8 @@
           <button class="act primary" type="submit">Run</button>
         </form>
         <div class="note">Any kind the agents have no playbook for is fenced and escalated to a supervisor, with the reason.</div>
+        <h2 style="margin-top:16px">Your incidents now <span class="note" id="floorcount" style="text-transform:none;letter-spacing:0"></span></h2>
+        <div id="floorlist" class="note">Nothing running. Start one above; start another while it works and both run at once.</div>
       </div>
       <div class="panel">
         <div class="sub"><h2>Autopilot: run a whole shift</h2></div>
@@ -768,8 +770,34 @@ const es = new EventSource("/events");
 es.addEventListener("tick", e => { const s = JSON.parse(e.data); agents = s.agents; fence = s.geofence; involved = s.incident_agents || involved; $("tick").textContent = `tick ${s.tick}`; draw(); });
 es.addEventListener("incident", e => { const i = JSON.parse(e.data); current = i.id; decTitle(i.id, i.kind, i.station_id || i.zone_id, false); $("trace").innerHTML = ""; flowReset(`${i.id}: ${i.kind.replace("_", " ")} at ${i.station_id || i.zone_id}`); $("trace").classList.remove("muted");
   $("decision").innerHTML = `<b>${esc(i.kind.replace("_", " "))}</b> at ${esc(i.station_id || i.zone_id)} · <span class="muted">agents working…</span>`; setButtons(false); });
-es.addEventListener("step", e => addStep(JSON.parse(e.data)));
-es.addEventListener("decision", e => showDecision(JSON.parse(e.data)));
+es.addEventListener("step", e => { const st = JSON.parse(e.data); if (st.incident === current) addStep(st); else floorSoon(); });
+es.addEventListener("decision", e => { const d = JSON.parse(e.data); floorList();
+  if (d.incident === current) showDecision(d); else load(); });
+es.addEventListener("floor", () => floorSoon());
+// the incidents you ran that are open: running, queued, or waiting for you. Click one to watch or judge it
+let floorMsgText = "", floorTimer = null;
+function floorMsg(t, bad) { floorMsgText = t ? `<div class="${bad ? "bad-t" : "ok-t"}" style="margin-bottom:4px">${esc(t)}</div>` : ""; floorList(); }
+function floorSoon() { if (!floorTimer) floorTimer = setTimeout(() => { floorTimer = null; floorList(); }, 300); }
+const WAITING = ["awaiting_approval", "advisory", "timeout_hold"];
+async function floorList() {
+  let f, inc;
+  try { [f, inc] = await Promise.all([fetch("/api/floor").then(r => r.json()), fetch("/api/incidents").then(r => r.json())]); } catch { return; }
+  if (!f.active) f = {active: [], queue: []};
+  const waiting = (Array.isArray(inc) ? inc : []).filter(r => String(r.source).startsWith("you ran it") && WAITING.includes(r.gate));
+  const row = (id, k, where, what, btn) => `<div class="inc${id === current ? " sel" : ""}" data-inc="${esc(id)}"><span class="k"><b>${esc(id)}</b></span>
+    <span>${esc(String(k).replace(/_/g, " "))} at ${esc(where || "")}</span><span class="r">${what}</span>${btn || ""}</div>`;
+  const html = f.active.map(a => row(a.incident, a.kind, a.station, `<span style="color:#5aa9ff">working: ${esc(a.at)}</span> · hop ${a.hops} · risk ${a.risk}`))
+    .concat(f.queue.map(q => row(q.incident, q.kind, q.station, `queued (risk ${q.risk}): starts when a slot frees`)))
+    .concat(waiting.map(w => row(w.incident, w.kind, w.station, `${esc(w.decision || "")} · ${esc(GATEWORD2(w.gate))}`,
+      PENDING.has(w.incident) ? '<span class="note">sending…</span>' : `<button class="act ok" data-review="${esc(w.incident)}">Review ↑</button>`)));
+  $("floorcount").textContent = html.length ? `· ${f.active.length} working · ${f.queue.length} queued · ${waiting.length} waiting for you` : "";
+  $("floorlist").innerHTML = floorMsgText + (html.join("") || "Nothing running. Start one above; start another while it works and both run at once.");
+  for (const r of $("floorlist").querySelectorAll(".inc")) r.onclick = () => openIncident(r.dataset.inc);
+  for (const b of $("floorlist").querySelectorAll("[data-review]")) b.onclick = ev => { ev.stopPropagation(); openIncident(b.dataset.review); };
+  if (f.active.length || f.queue.length) floorSoon2();
+}
+let floorPoll = null;
+function floorSoon2() { if (!floorPoll) floorPoll = setTimeout(() => { floorPoll = null; floorList(); }, 1500); }
 function decTitle(id, kind, where, fromShift) {
   $("dectitle").innerHTML = `Decision · ${esc(id)} <span class="muted" style="text-transform:none;letter-spacing:0">${esc((kind || "").replace("_", " "))} at ${esc(where || "")} · ${fromShift ? "from the autopilot shift" : "you ran it"}</span>`;
   for (const r of document.querySelectorAll("#shift .inc")) r.classList.toggle("sel", r.dataset.inc === id);
@@ -801,6 +829,7 @@ async function restoreLast() {
 }
 es.addEventListener("approval", e => { const a = JSON.parse(e.data);
   fetch("/api/shift").then(r => r.json()).then(showShift);  // the autopilot list shows the new state at once
+  floorList();
   if (a.incident !== current) { load(); return; }  // another incident was judged: only the list changes
   addStep({step: "human", ok: a.approved, ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (${esc(a.by)})`;
   gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(false); load(); });
@@ -814,7 +843,9 @@ for (const b of document.querySelectorAll(".seg button")) b.onclick = async () =
   await fetch("/autonomy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode: b.dataset.mode})}); markMode(b.dataset.mode); };
 es.addEventListener("error", e => { if (!e.data) return; const d = JSON.parse(e.data);
   if (String(d.incident || "").startsWith("ask-")) askIdle();
-  $(String(d.incident || "").startsWith("ask-") ? "askout" : "decision").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; });
+  if (String(d.incident || "").startsWith("ask-")) { $("askout").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; return; }
+  if (d.incident && d.incident !== current && d.incident !== "shift") { floorMsg(`${d.incident}: ${d.error}`, true); return; }
+  $("decision").innerHTML = `<span class="bad-t">${esc(d.error)}</span>`; });
 es.addEventListener("lab_status", () => { labBusy(true); $("labout").innerHTML = '<span class="muted">running: hypothesis, then 20 replays, then bootstrap…</span>'; });
 es.addEventListener("lab", e => showLab(JSON.parse(e.data)));
 es.addEventListener("lab_written", e => { $("labout").insertAdjacentHTML("beforeend", `<div class="ok-t" style="margin-top:8px">Saved ${esc(JSON.parse(e.data).experiment_id)} to sf_ops.experiments via Zetaris</div>`); });
@@ -851,10 +882,18 @@ $("approve").onclick = () => judge(true); $("reject").onclick = () => judge(fals
 function hideHowto() { $("howto").style.display = "none"; try { localStorage.setItem("howto-hidden", "1"); } catch {} }
 $("howto-close").onclick = hideHowto;
 try { if (localStorage.getItem("howto-hidden") === "1") $("howto").style.display = "none"; } catch {}
-for (const b of document.querySelectorAll("[data-run]")) b.onclick = async () => {
+async function startRun(btn, body) {  // locks this button at once; other incidents can start meanwhile
+  if (btn.disabled) return;
+  const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = "starting…";
+  try { const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body});
+    const j = await r.json(); if (!r.ok) { floorMsg(j.error, true); return; }
+    floorMsg(""); }
+  catch (e) { floorMsg("could not start: " + e.message, true); }
+  finally { btn.innerHTML = label; btn.disabled = false; }
+}
+for (const b of document.querySelectorAll("[data-run]")) b.onclick = () => {
   document.querySelectorAll(".start").forEach(x => x.classList.remove("start"));
-  const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body:b.dataset.run});
-  if (!r.ok) alert((await r.json()).error);
+  startRun(b, b.dataset.run);
 };
 
 const KIND_DEFAULT_STATION = {overheat:"F10", spill:"F20", robot_cell_fault:"B10", torque_fault:"F10", near_miss:"F30", quality_defect:"E10"};
@@ -869,8 +908,7 @@ $("custom").kind.onchange = e => { const f = $("custom"), k = e.target.value;
 $("custom").onsubmit = async e => { e.preventDefault(); const f = e.target;
   const body = {kind:f.kind.value, station:f.station.value, severity:f.severity.value || null, note:f.note.value.trim() || null};
   if (body.kind === "agv_fault") body.agv = f.agv.value;
-  const r = await fetch("/run", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-  if (!r.ok) alert((await r.json()).error);
+  startRun(f.querySelector('button[type="submit"]'), JSON.stringify(body));
 };
 
 const ASK_WHO = {coordinator:"Coordinator", sql:"SQL agent", logs:"Log agent", floor:"Floor agent", analyst:"Analyst", critic:"Critic"};
@@ -984,7 +1022,11 @@ async function openIncident(id) {  // one place to judge any incident: the Decis
   const t = await r.json(); current = id; $("trace").innerHTML = "";
   flowReset(`${id}: ${t.incident.kind.replace("_", " ")} at ${t.incident.station_id || t.incident.zone_id}`);
   t.steps.forEach(addStep);
-  showDecision({...t, incident: id, kind: t.incident.kind, where: t.incident.station_id || t.incident.zone_id});
+  if (t.running) { decTitle(id, t.incident.kind, t.incident.station_id || t.incident.zone_id, t.from_shift);
+    $("decision").innerHTML = `<b>${esc(t.incident.kind.replace("_", " "))}</b> at ${esc(t.incident.station_id || t.incident.zone_id)} · <span class="muted">agents working…</span>`;
+    gate = "none"; setButtons(false); }
+  else showDecision({...t, incident: id, kind: t.incident.kind, where: t.incident.station_id || t.incident.zone_id});
+  for (const r of document.querySelectorAll("#floorlist .inc")) r.classList.toggle("sel", r.dataset.inc === id);
   const p = $("dectitle").closest(".panel"); p.scrollIntoView({behavior: "smooth", block: "start"});
   p.classList.add("flash"); setTimeout(() => p.classList.remove("flash"), 1200);
 }
@@ -1164,7 +1206,7 @@ async function poweredBy() {
       + (p.sample_mode ? '<span class="muted">(sample mode: replaying recorded Nemotron replies)</span>' : "");
   } catch { /* keep the previous strip */ }
 }
-flowReset(); load(); health(); restoreLast(); poweredBy(); modelsPanel(); setInterval(health, 15000); setInterval(poweredBy, 10000); setInterval(modelsPanel, 10000);
+flowReset(); load(); floorList(); health(); restoreLast(); poweredBy(); modelsPanel(); setInterval(health, 15000); setInterval(poweredBy, 10000); setInterval(modelsPanel, 10000);
 fetch("/api/lab_last").then(r => r.json()).then(r => { if (r.hypothesis) showLab(r); });
 if (["#lab", "#know", "#flow", "#ask", "#incs"].includes(location.hash)) show(location.hash.slice(1));
 </script>

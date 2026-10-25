@@ -124,19 +124,40 @@ def test_plant_refresh_swaps_the_snapshot_and_keeps_the_last_good_one_on_failure
     assert not out["ok"] and app.plant is fresh and app.health()["plant"]["stale"]
 
 
-def test_replay_runs_with_a_repeated_id_are_all_listed_and_each_has_a_history(monkeypatch):
+def test_replay_runs_get_their_own_ids_and_still_use_the_recorded_replies(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    app = server.App(offline=True, replay=True)
+    ids = []
+    for kind, station in (("part_shortage", "F30"), ("part_shortage", "F30")):
+        ids.append(app.run({"kind": kind, "station": station}))
+        for _ in range(200):
+            if ids[-1] in app.traces:
+                break
+            time.sleep(0.05)
+    assert ids == ["SIM-42-001", "SIM-42-002"]
+    assert {r["incident"] for r in app.incidents()} == set(ids)
+    monitor = [s for s in app.traces["SIM-42-002"].steps if s.step == "monitor"][0]
+    assert "(replay)" in monitor.detail["model_call"]["answering"]  # fixture recorded for -001 still matches
+    assert app.incident_history("SIM-42-001")["steps"]
+
+
+def test_incidents_you_run_work_at_the_same_time(monkeypatch):
     monkeypatch.setenv("SAMPLE_MODE", "true")
     import time
     from app import server
     app = server.App(offline=True, replay=True)
-    for kind, station in (("part_shortage", "F30"), ("spill", "F20")):
-        iid = app.run({"kind": kind, "station": station})
-        for _ in range(200):
-            if not app.busy and iid in app.traces and app.traces[iid].incident.kind == kind:
-                break
-            time.sleep(0.05)
-    rows = app.incidents()
-    assert sorted(r["kind"] for r in rows) == ["part_shortage", "spill"]
-    assert {r["incident"] for r in rows} == {iid, f"{iid} (run 1)"}
-    old = app.incident_history(f"{iid} (run 1)")
-    assert old["incident"]["kind"] == "part_shortage" and old["steps"] and old["human_actions"] == []
+    a = app.run({"kind": "part_shortage", "station": "F30"})
+    b = app.run({"kind": "spill", "station": "F20"})  # no "an incident is already running"
+    c = app.run({"kind": "overheat", "station": "F10", "false_alarm": True})
+    assert len({a, b, c}) == 3
+    for _ in range(400):
+        if all(i in app.traces for i in (a, b, c)) and app.floor.idle():
+            break
+        time.sleep(0.05)
+    assert all(i in app.traces for i in (a, b, c)) and app.floor.idle()
+    assert {app.trace_meta[i]["source"] for i in (a, b, c)} == {"you ran it"}
+    assert app.floor.max_active >= 2  # the second and third started while the first was still working
+    app.floor.queue.append((0, 0, app.traces[a].incident, 0, None))  # something still open
+    with pytest.raises(RuntimeError, match="runs alone"):
+        app.run({"kind": "spill", "station": "F20", "mode": "linear"})

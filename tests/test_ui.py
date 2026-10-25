@@ -55,3 +55,10 @@ def test_incidents_tab_lists_incidents_and_shows_one_history():
 def test_flow_compare_is_hidden_until_a_previous_incident_exists():
     assert 'id="cmplabel" style="display:none"' in HTML
     assert '$("cmplabel").style.display = flowPrev ?' in HTML
+
+
+def test_run_buttons_lock_per_click_and_open_incidents_are_listed():
+    body = HTML.split("async function startRun(")[1].split("\n}\n")[0]
+    assert body.index("btn.disabled = true") < body.index("await fetch")  # locked before the request goes out
+    assert 'id="floorlist"' in HTML and '"/api/floor"' in HTML
+    assert "if (st.incident === current) addStep(st)" in HTML  # each incident's steps stay in its own trace

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import fcntl
 import json
 import os
 import subprocess
@@ -56,16 +57,30 @@ class Journal:
         if replicate:
             threading.Thread(target=self._replicate_loop, daemon=True).start()
 
+    def _resync(self, fh) -> None:
+        """Another process may have appended since our last write: continue from the file's real last line."""
+        fh.seek(0, os.SEEK_END)
+        end = fh.tell()
+        fh.seek(max(0, end - 65536))
+        for line in reversed(fh.read().decode("utf-8", "replace").splitlines()):
+            try:
+                ev = json.loads(line)
+                self.seq, self.prev = ev["seq"], ev["hash"]
+                return
+            except (json.JSONDecodeError, KeyError):
+                continue
+
     def append(self, kind: str, data: dict) -> dict:
-        with self.lock:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.lock, self.path.open("a+b") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)  # two servers (or the CLI) on one journal must not fork the chain
+            self._resync(fh)
             body = {"seq": self.seq + 1, "ts": datetime.now().astimezone().isoformat(), "kind": kind, "data": data}
             ev = {**body, "prev": self.prev, "hash": digest(self.prev, body, self.key),
                   "signed": self.key is not None}
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(ev, default=str) + "\n")
-                fh.flush()
-                os.fsync(fh.fileno())
+            fh.write((json.dumps(ev, default=str) + "\n").encode("utf-8"))
+            fh.flush()
+            os.fsync(fh.fileno())
             self.seq, self.prev = ev["seq"], ev["hash"]
             return ev
 

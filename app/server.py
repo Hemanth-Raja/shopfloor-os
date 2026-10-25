@@ -48,6 +48,7 @@ WEB = ROOT / "web"
 LOGS = ROOT / "logs"
 APPROVALS = LOGS / "approvals.jsonl"
 TICK_INTERVAL_S = 0.5
+FLOOR_WORKERS = 4  # incidents you run that work at once; more wait in the queue, people at risk jump it
 
 
 class Bus:
@@ -108,13 +109,20 @@ class App:
         self.last_ask: dict | None = None
         self.asking = False
         self.autonomy = "auto"
-        self.busy = False
+        self.busy = False  # only the linear comparison pipeline runs alone
+        self.floor = None  # dispatcher for the incidents you run: several at once (_floor_dispatcher)
+        from app.autonomy.leases import LeaseBook
+        from app.sim.sim import TICK_S
+        self.floor_leases = LeaseBook(ttl_s=300.0, clock=lambda: self.sim.tick * TICK_S)  # leases on floor time
+        self.lease_of: dict[str, object] = {}  # incident -> the LeaseBook it took people and AGVs from
+        self.floor_req: dict[str, dict] = {}  # incident -> its /run request (autonomy override)
         self.shift = None  # an autonomous shift in progress (app/autonomy/shift.py)
         self.always_on = None  # the last shift request while "keep watching" is on: the next shift starts by itself
         # durable, hash-chained journal (app/journal.py); approvals get their own chain. On start, recover what a
         # crash left open: interrupted incidents go to a person, their leases are void, fencing tokens move on.
         from app.journal import Journal
-        self.journal = Journal(replicate=not replay and not offline)
+        # replay keeps its own files: a live and a replay server appending to one chain used to break it
+        self.journal = Journal(LOGS / "journal-replay.jsonl" if replay else None, replicate=not replay and not offline)
         self.plant_stale = None  # set when a refresh of the plant snapshot failed: decisions use the last good one
         if not replay and not offline:  # live data changes (a certificate lapses, someone goes home): refresh it
             threading.Thread(target=self._refresh_plant_loop, daemon=True).start()
@@ -124,7 +132,7 @@ class App:
         if not replay:  # model self-check: who really answers each pinned model? (background, ~1 s per model)
             from app import models as _models
             threading.Thread(target=_models.self_check, daemon=True).start()
-        self.audit = Journal(APPROVALS)
+        self.audit = Journal(LOGS / "approvals-replay.jsonl" if replay else APPROVALS)
         rec = self.journal.recover()
         self.recovered = rec
         if rec["interrupted"] or rec["void_leases"] or rec["shift"]:
@@ -156,6 +164,8 @@ class App:
                 self.sim.step()
                 self.bus.publish("tick", self.snapshot(full=False))
             self._approval_timeouts()
+            if self.floor is not None and self.floor.queue:
+                self.floor.step()  # a slot freed up: admit the next most urgent incident
             if self.shift is not None:
                 self._shift_tick()
 
@@ -214,8 +224,7 @@ class App:
                     trace.gate = "auto_after_timeout"
             elif action == "hold":
                 trace.gate = "timeout_hold"
-                if self.shift is not None:
-                    self.shift.leases.release_all(trace.incident.id)
+                self._release(trace.incident.id)
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": None,
                   "by": "approval-timeout policy", "decision": trace.decision.decision if trace.decision else None,
                   "gate": trace.gate, "action": note, "waited_min": round(waited, 1)}
@@ -232,8 +241,11 @@ class App:
                   for a in self.sim.agents.values()]
         last = list(self.traces.values())[-1] if self.traces else None
         involved = sorted(last.dispatch) if last else []
-        if self.shift is not None:  # every resource an open incident holds
-            involved = sorted({l["resource"] for l in self.shift.leases.snapshot()})
+        held = {l["resource"] for l in self.floor_leases.snapshot()}  # every resource an open incident holds
+        if self.shift is not None:
+            held |= {l["resource"] for l in self.shift.leases.snapshot()}
+        if held or self.shift is not None:
+            involved = sorted(held)
         out = {"tick": self.sim.tick, "agents": agents, "geofence": sorted(self.sim.geofence),
                "collisions": len(self.sim.collisions), "incident_agents": involved, "autonomy": self.autonomy}
         if full:
@@ -245,11 +257,13 @@ class App:
         return out
 
     def run(self, req: dict) -> str:
+        """Start an incident you reported. Several run at once: each goes to the floor dispatcher (most urgent first,
+        each on its own dynamic route) and leases the people and AGVs it sends, so two incidents never claim the same
+        one. During an autopilot shift they share the shift's leases. Only the linear comparison pipeline runs alone."""
+        linear = (req.get("mode") or self.mode) == "linear"
         with self.lock:
             if self.busy:
-                raise RuntimeError("an incident is already running")
-            if self.shift is not None and self.shift_summary is None:
-                raise RuntimeError("a shift is running: stop it first, or watch the shift panel")
+                raise RuntimeError("a linear-pipeline comparison run is in progress: it runs alone, wait for it")
             from app.api import KINDS, SEVERITIES
             if req.get("kind") not in KINDS:
                 raise ValueError(f"kind must be one of {list(KINDS)}")
@@ -261,12 +275,19 @@ class App:
             if req["kind"] != "agv_fault" and not any(e["id"].split(":")[-1] == req.get("station")
                                                       for e in self.plant.entities("station")):
                 raise ValueError(f"unknown station {req.get('station')!r}")
-            self.busy = True
+            open_ids = self._open_ids()
+            if linear and open_ids:
+                raise RuntimeError("the linear pipeline is a comparison that runs alone: wait for the open incidents")
+            if (req.get("seed") is not None or self.replay) and not open_ids:  # a fresh, seeded floor when idle
+                seq = self.sim._incident_seq
+                self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
+                self.sim._incident_seq = seq  # ids keep counting, so every incident has its own (replay: see fixtures)
+                self._watch_invariants()
+            for key in list(self.sim.fences):  # fences of incidents that are over go; open incidents keep theirs
+                if key not in open_ids:
+                    self.sim.clear_geofence(key)
+            self.busy = linear
             try:
-                if req.get("seed") is not None or self.replay:
-                    self.sim = Sim.from_plant(self.plant, self.grid, seed=int(req.get("seed") or 42), shift="B")
-                    self._watch_invariants()
-                self.sim.fences.clear()  # one incident at a time here: the new fence replaces the last one
                 inc = self.sim.inject(req["kind"], self.plant, station_id=req.get("station"), agv_id=agv,
                                       false_alarm=bool(req.get("false_alarm")), severity=req.get("severity") or None,
                                       note=req.get("note"))
@@ -279,39 +300,116 @@ class App:
             self.bus.publish("note_flagged", {"incident": inc.id, "original": str(req.get("note"))[:300], "matched": flagged})
             self.journal.append("note_flagged", {"incident": inc.id, "matched": flagged})
         self.bus.publish("incident", inc.model_dump(exclude={"truth_false_alarm"}))
-        threading.Thread(target=self._run, args=(inc, req), daemon=True).start()
+        if linear:
+            threading.Thread(target=self._run, args=(inc, req), daemon=True).start()
+            return inc.id
+        stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
+        self.floor_req[inc.id] = req
+        floor = self._floor_dispatcher()
+        floor.sim = self.sim
+        floor.submit(inc, detected_tick=self.sim.tick, stall=stall)
+        floor.step()  # threaded: admits it now (or queues it behind more urgent ones)
         return inc.id
 
+    def _shift_running(self) -> bool:
+        return self.shift is not None and self.shift_summary is None
+
+    def _open_ids(self) -> set[str]:
+        """Incidents still being worked on, here or in the shift."""
+        ids = set()
+        for d in (self.floor, self.shift.dispatcher if self._shift_running() else None):
+            if d is not None:
+                with d.lock:
+                    ids |= set(d.active) | {q[2].id for q in d.queue}
+        return ids
+
+    def _floor_dispatcher(self):
+        if self.floor is None:
+            from app.autonomy.dispatcher import Dispatcher
+
+            def event(kind, data):
+                if kind == "error":
+                    self.bus.publish("error", data)
+                self.bus.publish("floor", {"kind": kind, **{k: v for k, v in data.items() if k != "route"}})
+            self.floor = Dispatcher(self._make_floor_orch, self.plant.stats, workers=FLOOR_WORKERS, threads=True,
+                                    on_event=event, on_done=self._floor_done, sim=self.sim)
+        return self.floor
+
+    def _make_floor_orch(self, inc, risk):
+        from app.dynamic import DynamicOrchestrator
+        from app.investigate.sources import sql_runner
+        req = self.floor_req.get(inc.id, {})
+        leases = self.shift.leases if self._shift_running() else self.floor_leases
+        self.lease_of[inc.id] = leases
+        llm_json, llm_text = self.llm()
+        orch = DynamicOrchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
+                                   autonomy=req.get("autonomy") or self.autonomy, echo=True,
+                                   on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}),
+                                   router_llm=None if self.replay else llm_json,
+                                   run_sql=sql_runner("true") if self.offline else self.run_sql,
+                                   leases=leases, risk=risk, sim_lock=self.lock)
+        if self._shift_running():
+            orch.fleet, orch.mes = self.shift.fleet, self.shift.mes
+        return orch
+
+    def _floor_done(self, trace, result) -> None:
+        iid = result["incident"]
+        self.floor_req.pop(iid, None)
+        if trace is None or trace.gate != "awaiting_approval":  # a plan waiting for a person keeps its people and AGVs
+            leases = self.lease_of.pop(iid, None)
+            if leases is not None:
+                leases.release_all(iid)
+        if trace is None:
+            return
+        if self.memory is not None:
+            self.memory.record(trace)
+        self._store(trace, "you ran it")
+
+    def _store(self, trace, source: str) -> None:
+        inc = trace.incident
+        if inc.id in self.traces:  # replay rebuilds the sim, so ids repeat: keep the earlier run under its own key
+            n = 1 + sum(k.startswith(inc.id + " (run ") for k in self.traces)
+            self.traces[f"{inc.id} (run {n})"] = self.traces.pop(inc.id)
+            self.trace_meta[f"{inc.id} (run {n})"] = self.trace_meta.pop(inc.id, {})
+        self.traces[inc.id] = trace
+        self.trace_meta[inc.id] = {"source": source, "finished_at": datetime.now().astimezone().isoformat()}
+        self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
+                                      "plan": trace.plan.model_dump() if trace.plan else None,
+                                      "critic_rejections": trace.critic_rejections, "replans": trace.replans,
+                                      "safe_mode": trace.safe_mode, "gate": trace.gate,
+                                      "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy,
+                                      "mode": trace.mode, "path": trace.path, "kind": inc.kind,
+                                      "where": inc.station_id or inc.zone_id})
+
+    def floor_state(self) -> dict:
+        """The incidents you ran that are still open (running or queued), for the Live floor list."""
+        d = self.floor
+        if d is None:
+            return {"active": [], "queue": [], "leases": []}
+        active = []
+        for e in list(d.active.values()):
+            t = getattr(e["orch"], "trace", None)
+            active.append({"incident": e["incident"].id, "kind": e["incident"].kind,
+                           "station": e["incident"].station_id or e["incident"].zone_id, "risk": e["risk"],
+                           "hops": e["hops"], "at": t.steps[-1].step if t and t.steps else "starting"})
+        return {"active": active, "queue": d.queued(), "leases": self.floor_leases.snapshot(), "workers": d.workers}
+
+    def _release(self, iid: str) -> None:
+        leases = self.lease_of.pop(iid, None) or (self.shift.leases if self.shift is not None else None)
+        if leases is not None:
+            leases.release_all(iid)
+
     def _run(self, inc, req) -> None:
+        """The linear comparison pipeline (--linear): one incident, the whole floor locked."""
         try:
             llm_json, llm_text = self.llm()
-            common = dict(memory=self.memory, run_id=inc.id, autonomy=req.get("autonomy") or self.autonomy, echo=True,
-                          on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
-            if (req.get("mode") or self.mode) == "linear":
-                orch, whole_run = Orchestrator(self.plant, self.sim, llm_json, llm_text, **common), self.lock
-            else:
-                from app.dynamic import DynamicOrchestrator
-                from app.investigate.sources import sql_runner
-                orch = DynamicOrchestrator(self.plant, self.sim, llm_json, llm_text, **common,
-                                           router_llm=None if self.replay else llm_json,
-                                           run_sql=sql_runner("true") if self.offline else self.run_sql,
-                                           sim_lock=self.lock)
-                whole_run = contextlib.nullcontext()  # the lock covers floor hops only: Approve never waits on a model call
+            orch = Orchestrator(self.plant, self.sim, llm_json, llm_text, memory=self.memory, run_id=inc.id,
+                                autonomy=req.get("autonomy") or self.autonomy, echo=True,
+                                on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
-            with whole_run:
+            with self.lock:
                 trace = orch.handle(inc, stall=stall)
-            if inc.id in self.traces:  # replay rebuilds the sim, so ids repeat: keep the earlier run under its own key
-                n = 1 + sum(k.startswith(inc.id + " (run ") for k in self.traces)
-                self.traces[f"{inc.id} (run {n})"] = self.traces.pop(inc.id)
-                self.trace_meta[f"{inc.id} (run {n})"] = self.trace_meta.pop(inc.id, {})
-            self.traces[inc.id] = trace
-            self.trace_meta[inc.id] = {"source": "you ran it", "finished_at": datetime.now().astimezone().isoformat()}
-            self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
-                                          "plan": trace.plan.model_dump() if trace.plan else None,
-                                          "critic_rejections": trace.critic_rejections, "replans": trace.replans,
-                                          "safe_mode": trace.safe_mode, "gate": trace.gate,
-                                          "gate_reasons": trace.gate_reasons, "autonomy": trace.autonomy,
-                                          "mode": trace.mode, "path": trace.path})
+            self._store(trace, "you ran it (linear)")
         except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
             self.bus.publish("error", {"incident": inc.id, "error": f"{type(err).__name__}: {err}"[:300]})
         finally:
@@ -325,6 +423,8 @@ class App:
         from app.investigate.sources import sql_runner
         if self.busy or (self.shift is not None and not self.shift.finished()):
             raise RuntimeError("an incident or a shift is already running")
+        if self.floor is not None and not self.floor.idle():  # they lease from another book than the shift's
+            raise RuntimeError("incidents you ran are still open: wait for them (or judge them), then start the shift")
         minutes = min(max(float(req.get("minutes") or 8), 1), 60)
         seed, rate = int(req.get("seed") or 7), min(max(float(req.get("rate") or 2.5), 0.2), 8)
         workers = min(max(int(req.get("workers") or 2), 1), 6)
@@ -417,8 +517,16 @@ class App:
                          for r in done],
                 "summary": {k: v for k, v in (self.shift_summary or {}).items() if k != "results"} or None}
 
+    def _running_trace(self, incident_id: str):
+        for d in (self.floor, self.shift.dispatcher if self.shift is not None else None):
+            e = d.active.get(incident_id) if d is not None else None
+            if e is not None and getattr(e["orch"], "trace", None) is not None:
+                return e["orch"].trace
+        return None
+
     def trace_of(self, incident_id: str) -> dict:
         trace = self.traces.get(incident_id)
+        running = trace is None and (trace := self._running_trace(incident_id)) is not None
         if trace is None:
             raise KeyError("unknown incident")
         return {"incident": trace.incident.model_dump(exclude={"truth_false_alarm"}),
@@ -426,7 +534,7 @@ class App:
                 "decision": trace.decision.model_dump() if trace.decision else None,
                 "plan": trace.plan.model_dump() if trace.plan else None, "gate_reasons": trace.gate_reasons,
                 "safe_mode": trace.safe_mode, "critic_rejections": trace.critic_rejections, "replans": trace.replans,
-                "mode": trace.mode, "from_shift": self.shift is not None and any(
+                "mode": trace.mode, "running": running, "from_shift": self.shift is not None and any(
                     r["incident"] == incident_id for r in self.shift.dispatcher.done)}
 
     def incidents(self) -> list[dict]:
@@ -487,8 +595,8 @@ class App:
                 trace.gate, action = "rolled_back", "auto-executed plan rolled back: agents stopped and sent back"
             elif approved:
                 action = "auto-executed plan confirmed by the human"
-            if self.shift is not None and trace.gate in ("rejected", "rolled_back"):
-                self.shift.leases.release_all(trace.incident.id)  # the people and robots are free again
+            if trace.gate in ("rejected", "rolled_back"):
+                self._release(trace.incident.id)  # the people and robots are free again
         self.bus.publish("gate", {"incident": trace.incident.id, "gate": trace.gate})
         record = {"ts": datetime.now().astimezone().isoformat(), "incident": trace.incident.id, "approved": approved,
                   "by": req.get("by", "supervisor"), "decision": trace.decision.decision if trace.decision else None,
@@ -699,6 +807,8 @@ def make_handler(app: App):
                 return self._send(200, powered(sample_mode=app.replay))
             if self.path == "/api/shift":
                 return self._send(200, app.shift_state())
+            if self.path == "/api/floor":
+                return self._send(200, app.floor_state())
             if self.path == "/api/incidents":
                 return self._send(200, app.incidents())
             if self.path.startswith("/api/incident/"):
