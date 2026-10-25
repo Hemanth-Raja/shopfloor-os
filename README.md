@@ -75,20 +75,28 @@ each step, but only among the moves that code allows (details in
 flowchart TD
   S[Signal or report] --> R[Reflex: fence the area,<br/>stop AGVs, under 100 ms]
   R --> M{Monitor: real<br/>or sensor noise?}
-  M -- noise --> V[Check first: one person<br/>inspects, line keeps running]
-  M -- real --> C[Candidates from the<br/>World Model, via Zetaris]
-  H[H-MEM lessons<br/>and playbooks] --> C
+  M -- "noise" --> V[Check first: one qualified<br/>person inspects, line keeps running]
+  M -- "real" --> C[Candidates from the World Model:<br/>one federated Zetaris query]
+  H[(H-MEM lessons<br/>and playbooks)] --> C
+  C -- "proven playbook fits" --> PB[Reuse the playbook,<br/>no model call]
   C --> P1[Plan v1 at once:<br/>optimal assignment]
   C --> P2[Plan v2 in the background:<br/>Nemotron, strict JSON, cites clauses]
-  P1 --> K{Safety critic}
+  P1 --> K{Safety critic:<br/>OSHA and SOP rules}
   P2 --> K
-  K -- "violation + clause" --> P2
-  K -- ok --> D[Dry run in the sim]
-  D --> G{Restraint and<br/>human gate}
-  G -- ACT --> E[Executor and verifier]
-  G -- "ESCALATE / hazard" --> U[Person approves<br/>or rejects]
-  U --> E
-  E -- lesson --> H
+  PB --> K
+  K -- "rejected: the clause goes back,<br/>up to 3 tries" --> P2
+  K -- "passed" --> D{Dry run in the sim:<br/>collisions, crossings, ETA}
+  D -- "passes" --> RF[Refine: Nemotron's v2 replaces v1 only<br/>if it passes both checks and scores better]
+  D -- "fails" --> G
+  RF --> G{Restraint and gate}
+  G -- "routine ACT" --> E[Executor dispatches<br/>as VDA 5050 orders]
+  G -- "hazard, lapsed certificate,<br/>failed dry run, ESCALATE" --> U{Person approves<br/>or rejects}
+  U -- "approve" --> E
+  U -- "reject" --> X[Area stays fenced;<br/>nothing moves]
+  E --> VF{Verifier: did the floor<br/>change as predicted?}
+  VF -- "no, e.g. AGV stalled:<br/>re-plan without it, up to 3 rounds" --> C
+  VF -- "yes" --> L[Done]
+  L -- "lesson, outcome" --> H
 ```
 
 ## What you can try in 2 minutes
