@@ -579,7 +579,8 @@ class App:
             raise KeyError("run the lab first")
         if self.run_sql is None:
             raise RuntimeError("offline mode: writing needs Zetaris")
-        exp_id = write_zetaris(experiment_row(self.last_lab), self.run_sql)
+        from app.runtime import run_write  # agents read on the read-only login; this one write uses the operator's
+        exp_id = write_zetaris(experiment_row(self.last_lab), run_write)
         self.bus.publish("lab_written", {"experiment_id": exp_id})
         return {"experiment_id": exp_id, "target": "zetaris sf_ops.experiments"}
 

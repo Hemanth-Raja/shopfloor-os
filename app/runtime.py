@@ -14,7 +14,10 @@ BREAKERS = {"nightshift": CircuitBreaker("nightshift", threshold=2, cooldown_s=6
 chat_json = BREAKERS["nightshift"].wrap(models.chat_json)
 chat = BREAKERS["nightshift"].wrap(models.chat)
 # read-only results are cached for 120 s (app/cache.py); a write clears the cache
-run_sql = cached_sql(BREAKERS["zetaris"].wrap(zetaris.run_sql))
+run_sql = cached_sql(BREAKERS["zetaris"].wrap(zetaris.run_sql))  # agent reads: the read-only login when set
+# the operator login, for the few writes we make on purpose (the Lab's experiment row)
+run_write = cached_sql(BREAKERS["zetaris"].wrap(lambda sql, *a, **k: zetaris.run_sql(sql, *a, write=True, **k)),
+                       name="zetaris_write")
 
 PROBES = {"zetaris": lambda: zetaris.run_sql("SELECT 1"), "nightshift": llm.list_models}
 
@@ -23,6 +26,7 @@ def health(sim=None) -> dict:
     out = check_health(BREAKERS, PROBES, sim)
     out["models"] = {m: b.status() for m, b in models.BREAKERS.items()}  # per-model breakers
     out["caches"] = cache_stats()
+    out["zetaris_reader"] = zetaris.reader()  # agents on the read-only role, or still on the operator login
     out["model_budget"] = models.BUDGET.status()  # hourly model-call budget (thundering-herd guard)
     out["model_pins"] = models.pin_report()  # self-check at startup + live drift (answering != pinned)
     return out

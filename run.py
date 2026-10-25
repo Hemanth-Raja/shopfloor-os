@@ -134,7 +134,7 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
 def lab(write: bool, target: str = "zetaris"):
     from app.fixtures import maybe_sample
     from app.lab.experiment import experiment_row, run_experiment, write_local, write_zetaris
-    from app.runtime import chat_json as guarded_json, run_sql as guarded_sql
+    from app.runtime import chat_json as guarded_json, run_sql as guarded_sql, run_write
 
     result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
     h = result["hypothesis"]
@@ -148,7 +148,7 @@ def lab(write: bool, target: str = "zetaris"):
     row = experiment_row(result)
     if write and target == "zetaris":
         try:
-            print(f"Wrote {write_zetaris(row, guarded_sql)} through Zetaris to sf_ops.experiments")
+            print(f"Wrote {write_zetaris(row, run_write)} through Zetaris to sf_ops.experiments")
         except Exception as err:  # noqa: BLE001 - keep the proposal: fall back to the local Postgres path
             print(f"Zetaris write failed ({str(err)[:120]}); writing locally instead")
             print(f"Wrote {write_local(row)} to local Postgres ops.experiments")

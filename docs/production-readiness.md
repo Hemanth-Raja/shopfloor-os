@@ -17,7 +17,7 @@ human gate), which is what Track 3 judges.
 | Query in place, no copy into a vector store | covered | four Postgres sources federated as `sf_*`; one federated query builds the World Model |
 | Token firewall: filter and aggregate at the source | covered | SQL agent aggregates in Zetaris; 15 preview rows per result, 200-row cap; World Model payloads, not tables |
 | Do not overload operational databases | covered | read cache with TTL, cleared on writes; row limits; Zetaris breaker and 60 s timeout |
-| Read-only by construction | covered in code; database role **in progress** | `sqlguard.py` allows one `SELECT` on whitelisted tables; the Zetaris user itself is not read-only (a read-only Zetaris role needs your OK) |
+| Read-only by construction | covered in code and in Zetaris; agent login **waits on one UI step** | `sqlguard.py` allows one `SELECT` on whitelisted tables, and agent reads use their own Zetaris login (`ZETARIS_AGENT_API_KEY`) whose only role, `sf_agent_reader`, has SELECT on the four sf_* datasources (`python -m app.zetaris reader-role`). The operator login is kept for register/refresh and the Lab write. Health shows which login agents use |
 | Data freshness during a long run | **gap, fixed** | the plant snapshot was loaded once at server start; it now refreshes on a timer and falls back to the last good snapshot |
 
 ## 2. Execution and state (Meterless engines, Nightshift)
