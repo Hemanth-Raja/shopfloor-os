@@ -33,7 +33,7 @@ import queue
 import threading
 import time
 import urllib.parse
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -55,6 +55,7 @@ class DuplicateIncident(RuntimeError):
 
 
 FINAL_GATES = ("approved", "rejected", "rolled_back", "confirmed")
+DEDUP_WINDOW_S = 120  # a second report this soon after an incident was handled there is the same incident
 FLOOR_WORKERS = 4  # incidents you run that work at once; more wait in the queue, people at risk jump it
 
 
@@ -324,13 +325,22 @@ class App:
 
     def _duplicate_of(self, kind: str, station: str | None, agv: str | None, open_ids: set[str]) -> str | None:
         """An incident of the same kind at the same place (or on the same AGV) that is still open: running, queued,
-        or waiting for a person."""
+        waiting for a person, or dispatched with its responders still on the way (or finished moments ago)."""
         cands = []
         for d in (self.floor, self.shift.dispatcher if self._shift_running() else None):
             if d is not None:
                 with d.lock:
                     cands += [e["incident"] for e in d.active.values()] + [q[2] for q in d.queue]
         cands += [t.incident for t in self.traces.values() if t.gate in ("awaiting_approval", "advisory", "timeout_hold")]
+        now = datetime.now().astimezone()
+        for iid, t in list(self.traces.items()):  # dispatched: the response is still under way on the floor
+            if t.gate not in ("auto_executed", "approved", "confirmed", "auto_after_timeout"):
+                continue
+            on_way = any(a in self.sim.agents and self.sim.agents[a].status in ("moving", "stalled") for a in t.dispatch)
+            done = (self.trace_meta.get(iid) or {}).get("finished_at")
+            recent = done and (now - datetime.fromisoformat(done)).total_seconds() < DEDUP_WINDOW_S
+            if on_way or recent:
+                cands.append(t.incident)
         for inc in cands:
             if inc.kind == kind and ((agv and getattr(inc, "agv_id", None) == agv) or (not agv and inc.station_id == station)):
                 return inc.id
@@ -388,16 +398,18 @@ class App:
             return
         if self.memory is not None:
             self.memory.record(trace)
-        self._store(trace, "you ran it")
+        self._store(trace, "you ran it", result.get("seconds"))
 
-    def _store(self, trace, source: str) -> None:
+    def _store(self, trace, source: str, seconds: float | None = None) -> None:
         inc = trace.incident
         if inc.id in self.traces:  # replay rebuilds the sim, so ids repeat: keep the earlier run under its own key
             n = 1 + sum(k.startswith(inc.id + " (run ") for k in self.traces)
             self.traces[f"{inc.id} (run {n})"] = self.traces.pop(inc.id)
             self.trace_meta[f"{inc.id} (run {n})"] = self.trace_meta.pop(inc.id, {})
         self.traces[inc.id] = trace
-        self.trace_meta[inc.id] = {"source": source, "finished_at": datetime.now().astimezone().isoformat()}
+        now = datetime.now().astimezone()
+        self.trace_meta[inc.id] = {"source": source, "finished_at": now.isoformat(), "seconds": seconds,
+                                   "started_at": (now - timedelta(seconds=seconds)).isoformat() if seconds else None}
         self.bus.publish("decision", {"incident": inc.id, "decision": trace.decision.model_dump() if trace.decision else None,
                                       "plan": trace.plan.model_dump() if trace.plan else None,
                                       "critic_rejections": trace.critic_rejections, "replans": trace.replans,
@@ -432,9 +444,10 @@ class App:
                                 autonomy=req.get("autonomy") or self.autonomy, echo=True,
                                 on_step=lambda iid, st: self.bus.publish("step", {"incident": iid, **st.model_dump()}))
             stall = (0, int(req["stall_after"])) if req.get("stall_after") not in (None, "") else None
+            started = time.perf_counter()
             with self.lock:
                 trace = orch.handle(inc, stall=stall)
-            self._store(trace, "you ran it (linear)")
+            self._store(trace, "you ran it (linear)", round(time.perf_counter() - started, 2))
         except Exception as err:  # noqa: BLE001 - report to the UI and keep serving
             self.bus.publish("error", {"incident": inc.id, "error": f"{type(err).__name__}: {err}"[:300]})
         finally:
@@ -483,8 +496,10 @@ class App:
             original(trace, result)
             if trace is not None:
                 self.traces[trace.incident.id] = trace
-                self.trace_meta[trace.incident.id] = {"source": "autopilot shift",
-                                                      "finished_at": datetime.now().astimezone().isoformat()}
+                now = datetime.now().astimezone()
+                self.trace_meta[trace.incident.id] = {"source": "autopilot shift", "finished_at": now.isoformat(),
+                                                      "seconds": result.get("seconds"),
+                                                      "started_at": (now - timedelta(seconds=result.get("seconds") or 0)).isoformat()}
 
         self.shift.dispatcher.on_done = done
         self.bus.publish("shift_event", {"kind": "shift_started", "minutes": minutes, "seed": seed,
@@ -572,7 +587,8 @@ class App:
             meta = self.trace_meta.get(iid, {})
             out.append({"incident": iid, "kind": t.incident.kind, "station": t.incident.station_id or t.incident.zone_id,
                         "severity": t.incident.severity, "source": meta.get("source", "-"),
-                        "finished_at": meta.get("finished_at"), "decision": t.decision.decision if t.decision else None,
+                        "finished_at": meta.get("finished_at"), "started_at": meta.get("started_at"),
+                        "wall_s": meta.get("seconds"), "decision": t.decision.decision if t.decision else None,
                         "gate": t.gate, "steps": len(t.steps), "hops": len(t.path), "model_calls": len(calls),
                         "ms": round(sum(st.ms for st in t.steps)), "safe_mode": t.safe_mode,
                         "critic_rejections": t.critic_rejections})

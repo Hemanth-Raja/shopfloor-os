@@ -337,7 +337,7 @@
 <section class="view" id="incs">
   <div>
     <div class="panel"><h2>Every incident handled <span class="note" id="inccount" style="text-transform:none;letter-spacing:0"></span></h2>
-      <p class="note">Newest first: the ones you ran and the autopilot shift incidents. Click a row for its whole history.</p>
+      <p class="note">Newest first: the ones you ran and the autopilot shift incidents. <i>took</i> is wall-clock time from start to decision (waiting for models included). Click a row for its whole history.</p>
       <div id="incrows" class="muted" style="max-height:320px;overflow:auto">loading…</div></div>
     <div class="panel"><h2 id="inctitle">History</h2><div id="incdetail" class="muted">Click an incident above.</div></div>
   </div>
@@ -1041,11 +1041,12 @@ async function incList() {
   if (!Array.isArray(incRows)) { $("incrows").innerHTML = '<div class="note">This server does not list incidents yet: restart it.</div>'; return; }
   $("inccount").textContent = `· ${incRows.length}`;
   $("incrows").classList.toggle("muted", !incRows.length);
-  $("incrows").innerHTML = incRows.length ? `<table><tr><th>finished</th><th>incident</th><th>where</th><th>source</th><th>decision</th><th>gate</th><th>hops</th><th>model calls</th><th>s</th></tr>${incRows.map(r =>
-    `<tr class="r${r.incident === incSel ? " sel" : ""}" data-id="${esc(r.incident)}"><td>${esc(hhmm(r.finished_at))}</td><td><b>${esc(r.incident)}</b><div class="note">${esc(String(r.kind).replace(/_/g, " "))} · sev ${esc(r.severity)}</div></td>
+  $("incrows").innerHTML = incRows.length ? `<table><tr><th>started</th><th>finished</th><th>took</th><th>incident</th><th>where</th><th>source</th><th>decision</th><th>gate</th><th>hops</th><th>model calls</th></tr>${incRows.map(r =>
+    `<tr class="r${r.incident === incSel ? " sel" : ""}" data-id="${esc(r.incident)}"><td>${esc(hhmm(r.started_at))}</td><td>${esc(hhmm(r.finished_at))}</td>
+      <td title="wall-clock time from start to decision; agents' own work ${(r.ms / 1000).toFixed(1)} s">${r.wall_s != null ? r.wall_s.toFixed(1) + " s" : "-"}</td><td><b>${esc(r.incident)}</b><div class="note">${esc(String(r.kind).replace(/_/g, " "))} · sev ${esc(r.severity)}</div></td>
       <td>${esc(r.station)}</td><td>${esc(r.source)}</td><td>${esc(r.decision || "-")}${r.safe_mode ? ' <span class="bad-t">safe mode</span>' : ""}</td>
       <td class="${["rejected", "rolled_back", "timeout_hold"].includes(r.gate) ? "bad-t" : r.gate === "awaiting_approval" ? "" : "ok-t"}">${esc(GATEWORD2(r.gate))}</td>
-      <td>${r.hops}${r.critic_rejections ? `<div class="note">${r.critic_rejections} critic reject</div>` : ""}</td><td>${r.model_calls}</td><td>${(r.ms / 1000).toFixed(1)}</td></tr>`).join("")}</table>`
+      <td>${r.hops}${r.critic_rejections ? `<div class="note">${r.critic_rejections} critic reject</div>` : ""}</td><td>${r.model_calls}</td></tr>`).join("")}</table>`
     : "No incidents yet. Run one on the Live floor, start a shift, or run the Lab.";
   for (const tr of $("incrows").querySelectorAll("tr.r")) tr.onclick = () => incShow(tr.dataset.id);
 }
@@ -1091,7 +1092,7 @@ async function incShow(id) {
   const path = (h.path || []).map((p, i) => ({hop: p.hop ?? i, agent: p.agent, by: p.by || "", reason: p.reason || ""}));
   const acts = h.human_actions || [];
   $("incdetail").classList.remove("muted");
-  $("incdetail").innerHTML = `<p><b>${esc(String(inc.kind).replace(/_/g, " "))}</b> at ${esc(inc.station_id || inc.zone_id)} · severity ${esc(inc.severity)} · ${esc(meta.source || "-")} · finished ${esc(hhmm(meta.finished_at))}
+  $("incdetail").innerHTML = `<p><b>${esc(String(inc.kind).replace(/_/g, " "))}</b> at ${esc(inc.station_id || inc.zone_id)} · severity ${esc(inc.severity)} · ${esc(meta.source || "-")} · started ${esc(hhmm(meta.started_at))} · finished ${esc(hhmm(meta.finished_at))}${meta.seconds != null ? ` · took ${meta.seconds.toFixed(1)} s` : ""}
       <button class="act" id="incopen" style="margin-left:8px">Open on the Live floor ↗</button></p>
     <p>Decision <b>${esc((h.decision || {}).decision || "-")}</b> · gate <b>${esc(GATEWORD2(h.gate))}</b>${(h.gate_reasons || []).length ? ` (${esc(h.gate_reasons.join("; "))})` : ""}
       · ${steps.length} steps · ${calls.length} model call(s) · ${h.critic_rejections || 0} critic rejection(s) · ${h.replans || 0} re-plan(s)${h.safe_mode ? ' · <span class="bad-t">safe mode</span>' : ""}</p>

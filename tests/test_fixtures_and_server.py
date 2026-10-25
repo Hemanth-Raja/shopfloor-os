@@ -128,8 +128,12 @@ def test_replay_runs_get_their_own_ids_and_still_use_the_recorded_replies(monkey
     monkeypatch.setenv("SAMPLE_MODE", "true")
     from app import server
     app = server.App(offline=True, replay=True)
+    monkeypatch.setattr(server, "DEDUP_WINDOW_S", 0)
     ids = []
     for kind, station in (("part_shortage", "F30"), ("part_shortage", "F30")):
+        for t in app.traces.values():  # the first response is over, so the second report is a new incident
+            for a in t.dispatch:
+                app.sim.stop(a, "idle")
         ids.append(app.run({"kind": kind, "station": station}))
         for _ in range(200):
             if ids[-1] in app.traces:
@@ -180,3 +184,24 @@ def test_a_second_report_of_an_open_incident_is_not_a_duplicate_incident(monkeyp
     assert other != first
     app.approve({"incident_id": first, "approve": False})
     assert app.run({"kind": "spill", "station": "F20"}) not in (first, other)  # judged: a new report is new
+
+
+def test_a_report_while_the_last_response_is_still_under_way_is_the_same_incident(monkeypatch):
+    monkeypatch.setenv("SAMPLE_MODE", "true")
+    from app import server
+    app = server.App(offline=True, replay=True)
+    first = app.run({"kind": "part_shortage", "station": "F30"})  # auto-executes: AGV and worker on their way
+    for _ in range(200):
+        if first in app.traces:
+            break
+        time.sleep(0.05)
+    assert app.traces[first].gate == "auto_executed"
+    row = [r for r in app.incidents() if r["incident"] == first][0]
+    assert row["wall_s"] is not None and row["started_at"] <= row["finished_at"]  # real start-to-decision time
+    with pytest.raises(server.DuplicateIncident) as dup:
+        app.run({"kind": "part_shortage", "station": "F30"})
+    assert dup.value.existing == first
+    monkeypatch.setattr(server, "DEDUP_WINDOW_S", 0)
+    for a in app.traces[first].dispatch:
+        app.sim.stop(a, "idle")  # the response is over: a new report is a new incident
+    assert app.run({"kind": "part_shortage", "station": "F30"}) != first
