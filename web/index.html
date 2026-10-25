@@ -932,8 +932,8 @@ es.addEventListener("approval_timeout", e => { const a = JSON.parse(e.data);
   addStep({step: "timeout", ok: a.gate !== "timeout_hold", ms: 0, detail: {}}); $("trace").lastChild.innerHTML += ` ${esc(a.action)} (after ${a.waited_min} min)`;
   gate = a.gate; const box = $("decision").querySelector(".gate"); if (box) box.outerHTML = gateBox(a.gate, []); setButtons(true); });
 es.addEventListener("autonomy", e => markMode(JSON.parse(e.data).mode));
-function markMode(m) { document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); }
-for (const b of document.querySelectorAll(".seg button")) b.onclick = async () => {
+function markMode(m) { document.querySelectorAll(".seg button[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); }
+for (const b of document.querySelectorAll(".seg button[data-mode]")) b.onclick = async () => {
   await fetch("/autonomy", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode: b.dataset.mode})}); markMode(b.dataset.mode); };
 es.addEventListener("error", e => { if (!e.data) return; const d = JSON.parse(e.data);
   if (String(d.incident || "").startsWith("ask-")) askIdle();

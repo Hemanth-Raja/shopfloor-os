@@ -81,3 +81,8 @@ def test_incidents_filter_never_shows_a_hidden_incidents_flow_and_keeps_the_sele
     body = HTML.split("async function incList(")[1].split("// compact key/value")[0]
     assert "incClear(" in body and "filterChanged && !listed" in body and "scrollTop = keep" in body
     assert "incScroll();" in HTML.split("async function incShow(")[1].split("await fetch")[0]
+
+
+def test_autonomy_switch_handlers_leave_other_segmented_buttons_alone():
+    # an unscoped ".seg button" handler hijacked the Nemotron period and Incidents filter buttons
+    assert 'querySelectorAll(".seg button")' not in HTML and HTML.count('.seg button[data-mode]') == 2
