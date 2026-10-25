@@ -89,6 +89,15 @@ class Bus:
                 self.clients.remove(q)
 
 
+
+def _finished_after(meta: dict | None, since: datetime) -> bool:
+    """An incident counts in a period when it finished in it (one without a finish time only counts under 'all')."""
+    try:
+        return datetime.fromisoformat((meta or {})["finished_at"]) >= since
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 class App:
     def __init__(self, offline: bool = False, replay: bool = False):
         self.bus = Bus()
@@ -940,18 +949,23 @@ class App:
         return ask_id
 
     def nemotron(self, hours: float | None = 24) -> dict:
-        """The Nemotron scorecard (app/scorecard.py): calls per role from logs/llm.jsonl, decisions from the traces."""
+        """The Nemotron scorecard (app/scorecard.py) for the last `hours` (None: everything): calls per role from
+        logs/llm.jsonl, decisions from the incidents finished in the period, receipts signed in it."""
         from app.scorecard import scorecard
-        now = time.monotonic()
-        if now - getattr(self, "_receipts_at", -1e9) > 30:  # verifying every signature is a file scan: 30 s cache
+        now, cache = time.monotonic(), getattr(self, "_receipts", {})
+        if now - cache.get(hours, (-1e9, None))[0] > 30:  # verifying every signature is a file scan: 30 s cache
             try:
                 from app.receipts import verify_all
-                r = verify_all()
-                self._receipts = {"verified": r["verified"], "total": r["total"], "keys": r["keys"]}
+                r = verify_all(since_ms=int((time.time() - hours * 3600) * 1000) if hours else None)
+                cache[hours] = (now, {"verified": r["verified"], "total": r["total"], "keys": r["keys"]})
             except Exception:  # noqa: BLE001
-                self._receipts = {}
-            self._receipts_at = now
-        return scorecard(list(self.traces.values()), self._receipts, hours=hours)
+                cache[hours] = (now, {})
+            self._receipts = cache
+        traces = list(self.traces.values())
+        if hours:
+            since = datetime.now().astimezone() - timedelta(hours=hours)
+            traces = [t for iid, t in self.traces.items() if _finished_after(self.trace_meta.get(iid), since)]
+        return scorecard(traces, cache[hours][1], hours=hours)
 
     def _save_lab(self) -> None:
         if self.lab_file is None:
@@ -1044,7 +1058,8 @@ def make_handler(app: App):
             return json.loads(self.rfile.read(n) or b"{}")
 
         def do_GET(self):  # noqa: N802
-            self.path = self.path.split("?", 1)[0]  # ignore query strings (e.g. /?shot)
+            self.query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            self.path = self.path.split("?", 1)[0]  # routes match without the query string (e.g. /?shot)
             if self.path in ("/", "/index.html"):
                 return self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
             if self.path == "/api/state":
@@ -1079,9 +1094,8 @@ def make_handler(app: App):
                 rec = app.asks.get(urllib.parse.unquote(self.path.split("/api/ask/", 1)[1]))
                 return self._send(200, rec) if rec else self._send(404, {"error": "no such answer"})
             if self.path.startswith("/api/nemotron"):
-                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 try:
-                    hours = float(q.get("hours", ["24"])[0])
+                    hours = float(self.query.get("hours", ["24"])[0])
                 except ValueError:
                     hours = 24.0
                 return self._send(200, app.nemotron(hours or None))

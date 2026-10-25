@@ -33,7 +33,8 @@ def verify_envelope(env: dict) -> bool:
         return False
 
 
-def verify_all(path: Path | None = None, app: str = APP, cache_path: Path | None = CACHE) -> dict:
+def verify_all(path: Path | None = None, app: str = APP, cache_path: Path | None = CACHE,
+               since_ms: int | None = None) -> dict:
     from app.powered import receipts_path
     path = path or receipts_path()
     out = {"app": app, "total": 0, "verified": 0, "failed": [], "keys": {}, "file": str(path) if path else None}
@@ -57,6 +58,8 @@ def verify_all(path: Path | None = None, app: str = APP, cache_path: Path | None
             except (ValueError, KeyError, TypeError):
                 continue
             if not str(rc.get("app") or "").startswith(app):
+                continue
+            if since_ms and int(rc.get("created_at") or 0) < since_ms:  # the scorecard's period
                 continue
             out["total"] += 1
             sig = env.get("sig_b64", "")

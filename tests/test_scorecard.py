@@ -61,3 +61,11 @@ def test_why_v1_was_kept_is_split_so_agreement_is_not_a_loss():
         st(chosen="v1", v1=v1, v2={"assignees": ["w:2", "agv:5"], "score": 150.0, "violations": []})])
     r = decisions([t])["refine"]
     assert r["v1_kept"] == 4 and r["v2_agreed"] == r["v2_rejected"] == r["v2_same_score"] == r["v1_better"] == 1
+
+
+def test_incidents_count_in_the_period_they_finished_in():
+    from app.server import _finished_after
+    since = datetime(2026, 10, 25, 12, tzinfo=timezone.utc)
+    assert _finished_after({"finished_at": "2026-10-25T13:30:00+01:00"}, since)
+    assert not _finished_after({"finished_at": "2026-10-25T12:30:00+01:00"}, since)
+    assert not _finished_after({}, since) and not _finished_after(None, since)
