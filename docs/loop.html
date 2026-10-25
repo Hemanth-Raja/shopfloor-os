@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Shop-Floor OS loop</title>
+<!-- Source of docs/loop.png and docs/loop-dark.png:
+     google-chrome --headless --screenshot=docs/loop.png --window-size=1080,780 --force-device-scale-factor=2 docs/loop.html
+     google-chrome --headless --screenshot=docs/loop-dark.png --window-size=1080,780 --force-device-scale-factor=2 "docs/loop.html?dark" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root { --bg:#ffffff; --panel:#ffffff; --fg:#18211e; --nemo:#3f8f1f; --person:#c2417a; --engine:#b7791f; --data:#2b78b8; --code:#6b7570; }
+  :root[data-theme="dark"] { --bg:#161b19; --panel:#161d1a; --fg:#e3ebe7; --nemo:#7cc94f; --person:#ef7fae; --engine:#e2a94b; --data:#62aee8; --code:#9aa6a0; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font-family:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
+  main { padding:20px; }
+  svg { display:block; width:1040px; height:620px; overflow:visible; color:var(--fg); font-family:inherit; }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.dataset.theme = "dark";</script>
+</head><body><main>
+<svg viewBox="0 0 1040 620" role="img" aria-label="Clockwise loop. Nemotron with H-MEM proposes plans and policies into the complex space of the assembly hall. Agents try each plan on the digital twin, the floor simulation, before acting. The Lab replays history to test floor changes. Lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans are rejected and fixed, lessons gain or lose confidence.">
+  <defs>
+    <marker id="ah3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+  </defs>
+  <g fill="none" stroke="currentColor" stroke-width="2.4" marker-end="url(#ah3)">
+    <path d="M150,230 Q170,95 330,78"/>
+    <path d="M610,90 Q690,120 705,215"/>
+    <path d="M705,390 Q690,500 520,525"/>
+    <path d="M300,525 Q160,505 140,390"/>
+  </g>
+  <g font-size="11" fill="currentColor" opacity="0.8">
+    <text x="40" y="170">plans, one policy</text><text x="40" y="185">change at a time</text>
+    <text x="712" y="150">try before acting</text>
+    <text x="650" y="530">what worked</text>
+    <text x="96" y="480">lessons and</text><text x="96" y="495">test results</text>
+  </g>
+  <g>
+    <rect x="40" y="250" width="200" height="120" rx="12" fill="var(--panel)" stroke="var(--nemo)" stroke-width="2"/>
+    <text x="140" y="285" text-anchor="middle" font-size="17" font-weight="600" fill="currentColor">Model</text>
+    <text x="140" y="307" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">Nemotron via Nightshift</text>
+    <text x="140" y="325" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">+ H-MEM memory</text>
+    <text x="140" y="349" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">plans, routes, hypotheses</text>
+  </g>
+  <g>
+    <rect x="340" y="24" width="270" height="110" rx="12" fill="var(--panel)" stroke="var(--data)" stroke-width="2"/>
+    <text x="475" y="56" text-anchor="middle" font-size="17" font-weight="600" fill="currentColor">Complex space</text>
+    <text x="475" y="78" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">the assembly hall, as the World Model</text>
+    <text x="475" y="96" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">stations, AGVs, people, certificates,</text>
+    <text x="475" y="114" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">OSHA rules, 2,071 past incidents</text>
+  </g>
+  <g>
+    <rect x="300" y="215" width="34" height="110" rx="3" fill="var(--person)" opacity="0.85"/>
+    <rect x="344" y="270" width="34" height="55" rx="3" fill="var(--engine)" opacity="0.85"/>
+    <rect x="388" y="300" width="34" height="25" rx="3" fill="var(--nemo)" opacity="0.85"/>
+    <line x1="290" y1="326" x2="432" y2="326" stroke="currentColor" stroke-width="2"/>
+    <text x="300" y="352" font-size="16" font-weight="600" fill="currentColor">Self-improving search</text>
+    <text x="300" y="372" font-size="11.5" fill="currentColor" opacity="0.8">unsafe plans rejected with the clause, then fixed</text>
+    <text x="300" y="388" font-size="11.5" fill="currentColor" opacity="0.8">(6 of 27 first plans, all 6 fixed); lessons gain</text>
+    <text x="300" y="404" font-size="11.5" fill="currentColor" opacity="0.8">or lose confidence; false dispatches 235 → 19</text>
+  </g>
+  <g>
+    <line x1="705" y1="302" x2="760" y2="220" stroke="currentColor" stroke-dasharray="5 4" opacity="0.6"/>
+    <line x1="705" y1="302" x2="760" y2="390" stroke="currentColor" stroke-dasharray="5 4" opacity="0.6"/>
+    <circle cx="705" cy="302" r="16" fill="var(--panel)" stroke="currentColor" stroke-width="2.4"/>
+    <rect x="760" y="200" width="260" height="210" rx="14" fill="var(--panel)" stroke="currentColor" stroke-width="1.6"/>
+    <rect x="778" y="226" width="90" height="56" rx="9" fill="none" stroke="var(--nemo)" stroke-width="1.8"/>
+    <text x="823" y="250" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">Agents</text>
+    <text x="823" y="268" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">orchestrator</text>
+    <rect x="900" y="300" width="104" height="70" rx="9" fill="none" stroke="var(--code)" stroke-width="1.8"/>
+    <text x="952" y="326" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">Digital twin</text>
+    <text x="952" y="343" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">floor sim, A* paths</text>
+    <text x="952" y="358" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">AGVs and people</text>
+    <g fill="none" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah3)">
+      <path d="M870,240 Q950,236 954,296"/>
+      <path d="M898,350 Q820,356 820,286"/>
+    </g>
+    <text x="912" y="232" font-size="10.5" fill="currentColor" opacity="0.8">dry run the plan</text>
+    <text x="778" y="378" font-size="10.5" fill="currentColor" opacity="0.8">collisions, crossings,</text>
+    <text x="778" y="392" font-size="10.5" fill="currentColor" opacity="0.8">who arrives when</text>
+  </g>
+  <g>
+    <rect x="310" y="455" width="210" height="124" rx="12" fill="var(--panel)" stroke="currentColor" stroke-width="2"/>
+    <g fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.7">
+      <circle cx="335" cy="478" r="6"/><circle cx="355" cy="478" r="6"/><circle cx="375" cy="478" r="6"/><circle cx="395" cy="478" r="6"/><circle cx="415" cy="478" r="6"/><circle cx="435" cy="478" r="6"/><circle cx="455" cy="478" r="6"/><circle cx="475" cy="478" r="6"/><circle cx="495" cy="478" r="6"/>
+      <circle cx="335" cy="496" r="6"/><circle cx="355" cy="496" r="6"/><circle cx="375" cy="496" r="6"/><circle cx="395" cy="496" r="6"/><circle cx="415" cy="496" r="6"/><circle cx="435" cy="496" r="6"/><circle cx="455" cy="496" r="6"/><circle cx="475" cy="496" r="6"/><circle cx="495" cy="496" r="6"/>
+    </g>
+    <g stroke="none">
+      <circle cx="375" cy="478" r="6" fill="var(--nemo)"/><circle cx="435" cy="478" r="6" fill="var(--nemo)"/><circle cx="355" cy="496" r="6" fill="var(--person)"/><circle cx="475" cy="496" r="6" fill="var(--nemo)"/><circle cx="415" cy="496" r="6" fill="var(--engine)"/>
+    </g>
+    <text x="415" y="528" text-anchor="middle" font-size="17" font-weight="600" fill="currentColor">Lab in the loop</text>
+    <text x="415" y="548" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.8">20 seeded replays of real history,</text>
+    <text x="415" y="562" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.8">95% CI; you save what works</text>
+  </g>
+</svg>
+</main></body></html>

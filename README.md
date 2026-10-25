@@ -307,6 +307,16 @@ the `memory`, `candidates` and handover steps. Retries and feedback: `status: ne
 answer: the `restraint` and `gate` steps, returned as `output.decision`.
 
 ## Lab in the loop: test a floor change, apply it, measure it
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
+  <img alt="The loop, read clockwise: the model (Nemotron via Nightshift with H-MEM memory) proposes plans and one policy change at a time into the complex space of the assembly hall (the World Model: stations, AGVs, people, certificates, OSHA rules, 2,071 past incidents); the agents try each plan on the digital twin before acting (collisions, crossings, who arrives when); what worked goes to the Lab in the loop (20 seeded replays of real history, 95% CI, you save what works); lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans rejected with the clause and fixed (6 of 27 first plans, all 6 fixed), lessons gain or lose confidence, false dispatches 235 to 19" src="docs/loop.png">
+</picture>
+
+<sub>Read it clockwise. A model proposes, the agents try the idea on a digital twin of the hall before anything real
+moves, the Lab tests changes against history, and what was learned flows back to the model. A person sits on two
+edges: approving risky plans before the twin's result reaches the floor, and saving a Lab proposal. Source:
+[docs/loop.html](docs/loop.html).</sub>
+
 The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
 floor itself make a whole class of incidents shorter?
 
