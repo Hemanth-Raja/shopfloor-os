@@ -784,6 +784,12 @@ None. The repository was started inside the build window (first commit on 23 Oct
 components used: the Meterless engine specs (Apache-2.0), the Zetaris getting-started kit (used as
 documentation only), and the public datasets listed above.
 
+## Team
+| Name | GitHub |
+|---|---|
+| Hemanth Raja Guttikonda | [@Hemanth-Raja](https://github.com/Hemanth-Raja) |
+| Poojitha Katta | [@Poojitha-Katta](https://github.com/Poojitha-Katta) |
+
 ## License
 Apache-2.0, see [LICENSE](LICENSE). The Meterless engine ports follow the Apache-2.0 Meterless specs, and the data
 sources keep their own licences (see *What is real and what is synthetic*).

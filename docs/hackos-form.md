@@ -8,7 +8,7 @@ Fill in the fields marked **[YOU]**. Check every claim against the final reposit
 
 **Track (exactly one):** 3, Reasoning Architecture
 
-**Team members:** [YOU] (confirm the roster before creating the submission; the team locks at the first
+**Team members:** Hemanth Raja Guttikonda (@Hemanth-Raja) and Poojitha Katta (@Poojitha-Katta). (Confirm the roster before creating the submission; the team locks at the first
 submission)
 
 **GitHub repository (public):** [YOU] (the repository has to be made public before the deadline)

@@ -4,7 +4,7 @@ The screenshots are in `docs/screenshots/`. Keep one idea per slide.
 
 ## 1. Title
 **Shop-Floor OS: AI agents plan, robots execute, humans judge.** Open Agent Hackathon 2026, Track 3: Reasoning
-Architecture. Team name and members.
+Architecture. Team: Hemanth Raja Guttikonda and Poojitha Katta.
 Visual: `01-part-shortage-critic.png`, cropped to the map.
 
 ## 2. The problem and target users (point 1)
