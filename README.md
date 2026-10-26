@@ -6,7 +6,7 @@
 </picture>
 
 [![Track](https://img.shields.io/badge/Open%20Agent%20Hackathon%202026-Track%203%3A%20Reasoning%20Architecture-1d3550)](#the-problem-and-our-solution)
-[![Tests](https://img.shields.io/badge/tests-319%20passing-2f6f4a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-322%20passing-2f6f4a)](tests/)
 [![Chaos](https://img.shields.io/badge/chaos%20scenarios-15%2F15-2f6f4a)](docs/chaos.md)
 [![Unsafe plans executed](https://img.shields.io/badge/unsafe%20plans%20executed-0-2f6f4a)](docs/eval.md)
 [![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C215%2F6%2C215%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
@@ -237,7 +237,7 @@ Lab replays and the Markovian chunking.
    before dispatch, the human gate was respected, the plant data is the same snapshot, and the hash-chained journal
    holds the same outcome. (`run.py verify SIM-42-003` does the same from the command line for incidents a live
    server saved.)
-9. **Tests.** `.venv/bin/python -m pytest -q`: 319 passed, 1 skipped, in about 30 s.
+9. **Tests.** `.venv/bin/python -m pytest -q`: 322 passed, 1 skipped, in about 25 s.
 
 ### What sample mode covers
 | Feature | Command | Offline? | Replayed | Computed |
@@ -271,7 +271,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 319 offline tests (1 skipped)
+.venv/bin/python -m pytest -q                          # 322 offline tests (1 skipped)
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (176 MB) and defaults to `SAMPLE_MODE=true`.
@@ -676,7 +676,7 @@ client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (se
 | Memory and grounding | Meterless World Model, H-MEM and Markovian engines, ported to Python |
 | Simulation | Deterministic 20 x 40 grid, space-time A* with a reservation table, seeded incidents |
 | Logging | JSONL per run in [`logs/`](logs) plus `[INFO]` lines on stdout; hash-chained journal |
-| Tests | pytest, 319 offline tests including the engines' conformance suites and property-based safety fuzzing |
+| Tests | pytest, 322 offline tests including the engines' conformance suites and property-based safety fuzzing |
 | Container | Docker (`python:3.13-slim`, 176 MB, sample mode by default) |
 | Development | Cursor and Claude Code |
 
@@ -754,6 +754,7 @@ The README stays short; the details live in `docs/`.
 | [User guide](docs/USER_GUIDE.md) | the web UI tab by tab, for a floor lead or safety officer |
 | [Output examples explained](output_examples/README.md) | each of the 8 examples: input, what the agents did, the decision, what the floor lead does next |
 | [Sponsor technology](docs/sponsors/README.md) | one page each for [Zetaris](docs/sponsors/ZETARIS.md), [Meterless](docs/sponsors/METERLESS.md), [NVIDIA](docs/sponsors/NVIDIA.md) and [Cursor](docs/sponsors/CURSOR.md) |
+| [Hand-coded vs Zetaris](docs/sponsors/ZETARIS.md#2a-time-saved-by-the-usl-compared-with-hand-coding) | one zone read built by hand from the four databases ([compare/hand-coded/](compare/hand-coded/zone_read.py)): identical rows, 7 queries and 36 lines vs 1 query and 16 lines |
 | [Zetaris queries and results](zetaris/queries/RESULTS.md) | three exploratory queries per source and four on the USL, with real rows; the USL DDL in [zetaris/usl/](zetaris/usl/floor.ddl.sql) |
 
 ## Limitations
