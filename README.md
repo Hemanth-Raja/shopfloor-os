@@ -485,7 +485,7 @@ Lab replays and the Markovian chunking.
    ```bash
    mkdir -p out && for f in input_examples/*.json; do SAMPLE_MODE=true .venv/bin/python run.py run "$f" --out "out/$(basename "$f")" > /dev/null; done; ls out
    ```
-   Eight JSON files, one per incident kind, each on its own route: the critic rejects Nemotron's plan (1, 6), the
+   Eight JSON files in about 10 s, one per incident kind, each on its own route: the critic rejects Nemotron's plan (1, 6), the
    verifier re-plans after a stall (2), a false alarm ends in VERIFY with no planner (3), a person must approve a
    hazard (4, 5, 7), and routine work runs on its own (8). See [Sample inputs and outputs](#sample-inputs-and-outputs).
 3. **Ask the floor.** `SAMPLE_MODE=true .venv/bin/python run.py ask "Why does F10 keep stopping?"`
@@ -510,7 +510,8 @@ Lab replays and the Markovian chunking.
    An overheat at F10 whose vibration evidence says sensor noise: `"decision": "VERIFY"`, the line keeps running.
    With Docker: `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os`.
 8. **Re-check a decision without any model.** With the server from step 7, run an incident under the map, then
-   open http://127.0.0.1:8000/api/verify/SIM-42-001: verdict `CONFIRMED`, 5 of 5 checks pass, 0 model calls.
+   open http://127.0.0.1:8000/api/verify/SIM-42-001: verdict `CONFIRMED`, 0 model calls. Four
+   checks pass; for an incident run by hand, the journal check shows n/a until a person judges it.
    Code alone re-derives the decision from the saved trace: the plan passes the critic again, a plan had passed
    before dispatch, the human gate was respected, the plant data is the same snapshot, and the hash-chained journal
    holds the same outcome. (`run.py verify SIM-42-003` does the same from the command line for incidents a live

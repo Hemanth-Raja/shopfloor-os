@@ -51,12 +51,17 @@ class Grid:
 
     @classmethod
     def load(cls, run_sql=None) -> "Grid":
-        """Cache first; otherwise one read-only Zetaris query, then cache it under data/cache/."""
+        """Cache first; otherwise one read-only Zetaris query, then cache it under data/cache/. A cache that does not
+        parse as floor cells is dropped and rebuilt, and only rows that make a grid are ever cached."""
         if CACHE.exists():
-            return cls.from_rows(json.loads(CACHE.read_text()))
+            try:
+                return cls.from_rows(json.loads(CACHE.read_text()))
+            except (ValueError, TypeError, IndexError):  # a bad cache must not stop the floor from loading
+                CACHE.unlink(missing_ok=True)
         if run_sql is None:
             return cls.from_generator()
         rows = run_sql("SELECT x, y, cell FROM sf_ops.floor_cells ORDER BY y, x")
+        grid = cls.from_rows(rows)
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         CACHE.write_text(json.dumps(rows))
-        return cls.from_rows(rows)
+        return grid

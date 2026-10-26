@@ -140,7 +140,8 @@ def lab(write: bool, target: str = "zetaris"):
     offline = sample_mode() in ("true", "record")
     if offline:  # as the Lab tab offline: generator history; a recorded Nemotron hypothesis replays, else a rule picks
         from app.lab.offline import offline_run_sql
-        result = run_experiment(offline_run_sql, maybe_sample(guarded_json, "json"))
+        from app.sim.grid import Grid
+        result = run_experiment(offline_run_sql, maybe_sample(guarded_json, "json"), Grid.from_generator())
     else:
         result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
     h = result["hypothesis"]
