@@ -62,7 +62,7 @@ Folders marked (planned) do not exist yet; create them when the first module nee
    Nightshift unless they are marked as integration tests.
 9. **Prefer the standard library.** Ask before adding any dependency. Runtime dependencies go in
    `requirements.txt`; the optional data rebuild uses `requirements-data.txt`.
-10. **Git is local only.** Commit locally when asked; never push, add a remote or use GitHub.
+10. **Git is local only.** Commit locally when asked; never push, add a remote or use GitHub. Team commits: the author is whoever is working (Hemanth Raja Guttikonda <hemanthraja777@gmail.com> or Poojitha Katta <kpoojitha95@gmail.com>, set with `git -c user.name=... -c user.email=...` or `--author`), and every commit message ends with a `Co-authored-by:` line for the other teammate.
 11. **Ask first** before installing packages, starting or removing containers, or downloading data. Never run
     `docker compose down -v` or touch Docker volumes. Leave `~/hackathon/zetaris-platform`,
     `~/hackathon/getting-started` and `~/hackathon/open-agent-hack` unchanged.
