@@ -12,10 +12,13 @@ it re-sent all earlier slices and answers. Sizes use the engine's characters/4 e
 from __future__ import annotations
 
 import json
+import re
+from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
-from app.engines.markovian import ChunkConfig, MarkovianEngine, register_mode, tokens
+from app.engines.markovian import STATE, ChunkConfig, MarkovianEngine, register_mode, tokens
 from app.journal import Journal
 
 LOGS_DIR = Path(__file__).resolve().parents[1] / "logs"
@@ -112,6 +115,42 @@ def handover(chat: Callable, journal_path: Path | None = None, events: list[dict
     if shift_log_dir is not None and out["note"]:  # the human-readable shift log, one file per day
         out["shift_log"] = str(write_shift_log(out, shift_log_dir))
     return out
+
+
+def rule_based_note(events: list[dict]) -> str:
+    """The handover note computed from the journal by code: what SAMPLE_MODE writes instead of Nemotron's note."""
+    finished = [e["data"] for e in events if e["kind"] == "finished"]
+    kinds = Counter(d.get("kind", "?") for d in finished)
+    judged = {e["data"].get("incident") for e in events if e["kind"] == "approval"}
+    waiting = [d.get("incident") for d in finished if d.get("gate") == "awaiting_approval" and d.get("incident") not in judged]
+    auto = sum(1 for d in finished if d.get("gate") == "auto_executed")
+    rejected = sum(1 for e in events if e["kind"] == "approval" and not e["data"].get("approved"))
+    count = lambda kind: sum(1 for e in events if e["kind"] == kind)  # noqa: E731
+    usage = Counter(e["data"].get("resource", "?").split(":")[-1] for e in events if e["kind"] == "lease")
+    return (f"Rule-based handover (sample mode, no model call). 1) {len(finished)} incidents finished "
+            f"({', '.join(f'{k} {n}' for k, n in kinds.most_common()) or 'none'}); {auto} ran on their own. "
+            f"2) Waiting for a person: {', '.join(waiting) if waiting else 'none'}. "
+            f"3) Rejected by a person: {rejected}; approvals timed out: {count('approval_timeout')}; "
+            f"pre-emptions: {count('preempt')}; recovered after a restart: {count('recovered')}. "
+            f"4) Busiest: {', '.join(f'{r} {n}' for r, n in usage.most_common(3)) or 'no leases'}.")
+
+
+def rule_based_chat(events: list[dict]) -> Callable:
+    """SAMPLE_MODE stand-in for chat(): no model. Each chunk note counts the journal lines of its slice, and the
+    final note is rule_based_note(); the Markovian engine (slices, carryover, token accounting) still runs."""
+    seen: Counter = Counter()
+
+    def chat(lane, messages, role=None, **_):
+        prompt = messages[-1]["content"]
+        if role == "handover_reflect":
+            text = rule_based_note(events)
+        else:
+            lines = Counter(m.group(1) for m in re.finditer(r"^#\S+ (\w+)", prompt, re.M))
+            seen.update(lines)
+            text = (f"Slice: {', '.join(f'{k} {n}' for k, n in lines.most_common()) or 'no journal lines'}. "
+                    f"{STATE} So far: {', '.join(f'{k} {n}' for k, n in seen.most_common())}")
+        return SimpleNamespace(text=text, model="rule-based (sample mode)")
+    return chat
 
 
 def write_shift_log(out: dict, folder: Path) -> Path:

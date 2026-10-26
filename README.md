@@ -6,13 +6,13 @@
 </picture>
 
 [![Track](https://img.shields.io/badge/Open%20Agent%20Hackathon%202026-Track%203%3A%20Reasoning%20Architecture-1d3550)](#the-problem-and-our-solution)
-[![Tests](https://img.shields.io/badge/tests-313%20passing-2f6f4a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-319%20passing-2f6f4a)](tests/)
 [![Chaos](https://img.shields.io/badge/chaos%20scenarios-15%2F15-2f6f4a)](docs/chaos.md)
 [![Unsafe plans executed](https://img.shields.io/badge/unsafe%20plans%20executed-0-2f6f4a)](docs/eval.md)
-[![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C034%2F6%2C034%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
+[![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C215%2F6%2C215%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
 
-**[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Slide deck](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing)** · **[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
+**[▶ Run it in 2 minutes](#try-it-in-2-minutes)** · **[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Slide deck](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing)** · **[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
 **[Live demo runbook](docs/live-demo.md)**
 
@@ -66,10 +66,90 @@ reasoning (Nemotron) into decisions and actions that are checked, simulated, gat
 | **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
 | **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
 
+## See it decide: 3 incidents, 3 questions, 1 Lab run
+Screenshots from the real web UI in sample mode (`SAMPLE_MODE=true python -m app.server`, no keys), taken on
+26 Oct 2026. Each incident graph is the route the orchestrator took: numbered arrows in the order taken, and
+arrows going back where work was returned. The hop tables come from `output.path` in the JSON output. The UI
+runs with H-MEM memory on, so its graphs have one extra `memory` hop that the JSON examples (memory off) do not.
+
+### Incident 1: part shortage at F30, where the critic stops Nemotron's plan
+![Agent flow for a part shortage at F30: reflex, monitor, memory, candidates, planner, safety critic, dry run, refine, restraint, human gate, executor, verifier, with the critic checking two plan versions](docs/screenshots/10-flow-part-shortage.png)
+
+**What happened.** A kit is short at F30. The planner's rules plan (v1: worker W-18 and AGV-5, 0.5 m/s at
+crossings) is ready at once. Nemotron's recorded plan (v2) sends AGV-5 through the X-WEST crossing at 1.0 m/s. The
+safety critic rejects v2 under 29 CFR 1910.178(n)(4), refine keeps v1, the routine plan runs on its own, and the
+verifier sees the floor move as predicted. **ACT, auto-executed.**
+
+| Hop | Agent | Chosen by | Work sent back? |
+|---|---|---|---|
+| 0 | reflex | code (always first) | |
+| 1 | monitor | forced (only legal move) | |
+| 2–3 | candidates, planner | rules router | |
+| 4–5 | critic, dry run (on v1) | forced | v1 passes both |
+| 6 | refine | forced | **yes: the critic rejects Nemotron's v2 (R-CROSSING); v2 is dropped, v1 kept** |
+| 7–10 | restraint, gate, executor, verifier | forced | |
+
+Input: [`input_examples/example_1.json`](input_examples/example_1.json) · Output: [`output_examples/example_1.json`](output_examples/example_1.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
+
+### Incident 2: AGV-3 fault and a stall, where the verifier re-plans
+![Agent flow for an AGV fault at F30: after the executor the verifier finds the AGV stalled and sends work back to candidates, then planner, critic, dry run, refine, restraint, gate, executor and verifier run a second round](docs/screenshots/11-flow-agv-stall-replan.png)
+
+**What happened.** AGV-3 faults on the way to F30. The first plan sends AGV-1, which stalls mid-route. The verifier
+sees AGV-1 five cells short of where it should be and sends the work back to candidates without AGV-1. The second
+round sends AGV-2 and the verifier confirms it. **ACT, 1 re-plan.**
+
+| Hop | Agent | Chosen by | Work sent back? |
+|---|---|---|---|
+| 0–1 | reflex, monitor | code, forced | |
+| 2–3 | candidates, planner | rules router | |
+| 4–9 | critic, dry run, refine, restraint, gate, executor | forced | |
+| 10 | verifier | forced | **yes: AGV-1 stalled; back to candidates without it** |
+| 11–12 | candidates, planner | rules router ("re-pick people and robots without the ones that failed") | |
+| 13–19 | critic, dry run, refine, restraint, gate, executor, verifier | forced | |
+
+Input: [`input_examples/example_2.json`](input_examples/example_2.json) · Output: [`output_examples/example_2.json`](output_examples/example_2.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
+
+### Incident 3: overheat at F10 that is sensor noise, where nothing is dispatched
+![Agent flow for an overheat at F10: monitor, investigator, candidates, check first, safety critic, dry run, restraint and human gate; the planner, executor and verifier are not used](docs/screenshots/12-flow-overheat-verify.png)
+
+**What happened.** The temperature is over its threshold, but the Bosch vibration recording is normal, so the
+sensors disagree. The router sends the incident to the investigator (history first), then to *check first*: one
+qualified person inspects. No planner and no model call. **VERIFY; the line keeps running and a person confirms.**
+
+| Hop | Agent | Chosen by | Work sent back? |
+|---|---|---|---|
+| 0–1 | reflex, monitor | code, forced | |
+| 2 | investigator | rules router ("the alarm is ambiguous: look at the history before planning") | |
+| 3 | candidates | forced | |
+| 4 | check first (`verify_plan`) | rules router ("sensors disagree: one person checks first, no planner needed") | |
+| 5–7 | critic, dry run, restraint | forced | |
+| 8 | gate | forced | **waits for a person** |
+
+Input: [`input_examples/example_3.json`](input_examples/example_3.json) · Output: [`output_examples/example_3.json`](output_examples/example_3.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
+
+### Ask the floor: three questions
+| | |
+|---|---|
+| ![Ask the floor answer: F10 keeps stopping mainly because of part shortages and nutrunner torque faults, with five cited findings](docs/screenshots/13-ask-f10.png) | **"Why does F10 keep stopping?"** The coordinator splits the question into three SQL tasks over `sf_ops.incidents` (27 rows), `sf_ops.andon_events` (17) and `sf_plant.machine_telemetry` (47); the log agent adds the agents' own history and the World Model adds floor facts. Five findings, each citing its evidence; the critic drops none. Answer: part shortages and nutrunner torque faults. |
+| ![Ask the floor answer: AGV-3 is the least reliable AGV](docs/screenshots/14-ask-agv.png) | **"Which AGV is least reliable and when?"** Four SQL tasks (three on `sf_fleet`, one on `sf_ops.incidents`) plus logs and floor facts. AGV-3 has 84 faults in 90 days against 25 for the next AGV, the lowest battery health (62%) and overdue service. Recommendation: pull AGV-3 for service. |
+| ![Ask the floor answer: most overheat alarms lack telemetry confirmation; one claim struck through by the evidence critic](docs/screenshots/15-ask-overheat.png) | **"Are overheat alarms real?"** Four SQL tasks across `sf_ops.incidents` and `sf_plant.machine_telemetry`, one joining both. The analyst wrote five claims; **the evidence critic dropped one** ("26 false alarms") because the cited rows show 74. Answer: only 4 of 100 overheat incidents match a telemetry heat failure. |
+
+In sample mode these three questions replay recorded Nemotron replies (the buttons in the UI). Other questions
+get a rule-based summary, not a real answer (see [What sample mode covers](#what-sample-mode-covers)).
+
+### Lab: one experiment
+![Lab run: hypothesis an extra spill kit at F20, 82 incidents re-scored, mean time to clear 531.5 s to 488.2 s, effect -8.2% with 95% CI -11.1% to -5.3%, status proposed](docs/screenshots/16-lab-run.png)
+
+**What happened.** The Lab reads spill and part-shortage history, proposes one floor change (an extra spill kit at
+F20), re-walks all 82 past spills with A* with and without it, runs 20 seeded replays and a 2,000-sample bootstrap:
+**-8.2% time to clear (95% CI -11.1% to -5.3%), significant, status *proposed*.** A person decides whether to save
+it to Zetaris and apply it to the floor. In sample mode the hypothesis comes from a fixed rule, and the page says so
+in red; live, Nemotron proposes it.
+
 ## How it works
 Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.
 
-![Architecture: people use four agent teams (incident response, autopilot, Ask the floor, Lab in the loop); the teams use the Meterless engines, every plan goes through deterministic safety code before the simulated floor moves, data comes from Zetaris and every model call goes through Meterless Nightshift to NVIDIA Nemotron](docs/architecture.png)
+![Architecture: people use four agent teams (incident response, autopilot, Ask the floor, Lab in the loop), each with its feedback loops; the teams use the Meterless engines, every plan goes through deterministic safety code before the simulated floor moves, data comes from Zetaris and every model call goes through Meterless Nightshift to NVIDIA Nemotron](docs/architecture.png)
 
 <sub>Source: [docs/architecture.html](docs/architecture.html).</sub>
 
@@ -106,7 +186,14 @@ flowchart TD
 ```
 
 ## Try it in 2 minutes
-No accounts, keys, Zetaris or Nightshift needed.
+No accounts, keys, Zetaris or Nightshift needed. Every step below runs offline with `SAMPLE_MODE=true` and,
+unless noted, finishes in under a second (timed on 26 Oct 2026 in a fresh venv).
+
+**What is replayed and what is computed.** Where a step needs Nemotron, sample mode replays a recorded Nemotron
+reply from [`logs/fixtures/`](logs/fixtures) (128 files) when one exists for that exact input. Otherwise a
+deterministic rule-based stand-in answers, and the output says so (`rule-based`). Everything else runs for real:
+reflex, monitor, candidates, critic, dry run, restraint, gate, executor, verifier, SQL guard, Sentinel, leases,
+Lab replays and the Markovian chunking.
 
 1. **One incident, JSON in and out.**
    ```bash
@@ -117,20 +204,56 @@ No accounts, keys, Zetaris or Nightshift needed.
    to `result.json`. A bad request returns `"status": "error"` with a message, and exit code 1.
    A part shortage at F30. The rules plan is ready at once; Nemotron's recorded plan sends AGV-5 through a
    pedestrian crossing at 1.0 m/s, the critic rejects it under 29 CFR 1910.178(n)(4), and the safe plan runs.
-2. **The whole floor in a browser.** `SAMPLE_MODE=true .venv/bin/python -m app.server`, then open
-   http://127.0.0.1:8000. Report an incident under the map, watch the agents in *Incidents*, ask
-   "Why does F10 keep stopping?" in *Ask the floor*, and run an experiment in *Lab*.
-   With Docker: `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os`.
-3. **The judges' API check.**
+2. **All eight examples.**
+   ```bash
+   mkdir -p out && for f in input_examples/*.json; do SAMPLE_MODE=true .venv/bin/python run.py run "$f" --out "out/$(basename "$f")" > /dev/null; done; ls out
+   ```
+   Eight JSON files, one per incident kind, each on its own route: the critic rejects Nemotron's plan (1, 6), the
+   verifier re-plans after a stall (2), a false alarm ends in VERIFY with no planner (3), a person must approve a
+   hazard (4, 5, 7), and routine work runs on its own (8). See [Sample inputs and outputs](#sample-inputs-and-outputs).
+3. **Ask the floor.** `SAMPLE_MODE=true .venv/bin/python run.py ask "Why does F10 keep stopping?"`
+   prints the investigation steps, five cited findings and the SQL behind each. Only the three questions on the UI
+   buttons are recorded; any other question gets a rule-based summary of fixed queries, not a real answer.
+4. **Autopilot shift.** `SAMPLE_MODE=true .venv/bin/python run.py shift --minutes 2 --seed 7`: the Sentinel
+   raises 5 incidents from 66 signals, up to 3 run at once, 4 resolve on their own and 1 waits for a person,
+   0 runtime-invariant violations.
+5. **Lab.** `SAMPLE_MODE=true .venv/bin/python run.py lab`: a spill kit at F20, 82 past spills re-scored, 20 seeded
+   replays, -8.2% time to clear (95% CI -11.1% to -5.3%). The hypothesis is rule-based in sample mode, and
+   `--write` writes nothing.
+6. **Shift handover (Meterless Markovian).** `SAMPLE_MODE=true .venv/bin/python run.py handover` reads the
+   journal that step 4 wrote, in bounded chunks with carryover, and prints a handover note that says
+   "Rule-based handover (sample mode, no model call)". Run step 4 first: a fresh clone has an empty journal.
+7. **The web UI and the judges' API check.** `SAMPLE_MODE=true .venv/bin/python -m app.server`, open
+   http://127.0.0.1:8000 and use *Live floor*, *Incidents*, *Ask the floor* and *Lab* as in the screenshots above.
+   In a second terminal:
    ```bash
    curl -X POST http://localhost:8000/run -H "Content-Type: application/json" -d @input_examples/example_3.json
    ```
-   An overheat at F10 whose vibration evidence says sensor noise: the answer is VERIFY, and the line keeps running.
-4. **Re-check a decision without any model.** Report an incident in the UI, then open
-   `http://127.0.0.1:8000/api/verify/SIM-42-001` (live: `.venv/bin/python run.py verify SIM-42-003`). Code alone
-   re-derives the decision from the saved trace: the plan passes the critic again, a plan had passed before
-   dispatch, the human gate was respected, the plant data is the same snapshot, and the hash-chained journal holds
-   the same outcome.
+   An overheat at F10 whose vibration evidence says sensor noise: `"decision": "VERIFY"`, the line keeps running.
+   With Docker: `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os`.
+8. **Re-check a decision without any model.** With the server from step 7, run an incident under the map, then
+   open http://127.0.0.1:8000/api/verify/SIM-42-001: verdict `CONFIRMED`, 5 of 5 checks pass, 0 model calls.
+   Code alone re-derives the decision from the saved trace: the plan passes the critic again, a plan had passed
+   before dispatch, the human gate was respected, the plant data is the same snapshot, and the hash-chained journal
+   holds the same outcome. (`run.py verify SIM-42-003` does the same from the command line for incidents a live
+   server saved.)
+9. **Tests.** `.venv/bin/python -m pytest -q`: 319 passed, 1 skipped, in about 30 s.
+
+### What sample mode covers
+| Feature | Command | Offline? | Replayed | Computed |
+|---|---|---|---|---|
+| One incident, JSON in and out | `run.py run input_examples/example_N.json` | Yes, all 8 | Nemotron replies recorded for the 8 example inputs; a rule-based planner for other inputs | reflex, monitor, candidates, planner v1, critic, dry run, refine, restraint, gate, executor, verifier |
+| Incident trace | `run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2` | Yes | as above | as above, including the verifier's re-plan |
+| Ask the floor | `run.py ask "..."`, *Ask the floor* tab | Yes, 3 recorded questions | coordinator, SQL agent, analyst and evidence critic replies for those 3 | intake, SQL guard, log agent, the critic's rule checks; any other question gets a rule-based summary over an offline SQLite copy |
+| Autopilot shift | `run.py shift --minutes 2 --seed 7` | Yes | recorded replies where they exist | Sentinel detectors, dispatcher, leases, arbiter, each incident's loop |
+| Lab | `run.py lab`, *Lab* tab | Yes | nothing: the hypothesis is rule-based | history from the generator, A* re-scoring, 20 seeded replays, bootstrap CI |
+| Shift handover | `run.py handover` | Yes | nothing: the note is rule-based | Markovian chunks, carryover, token accounting |
+| Re-check a decision | `GET /api/verify/<id>` | Yes | – | critic, gate, data snapshot and journal checks |
+| Evaluation | `run.py eval` | Yes (5 s) | – | 216 planted unsafe plans, Monitor calibration; `--live` needs Nightshift |
+| Chaos tests | `run.py chaos` | Yes (13 s, 15 of 15 pass) | a fake Nightshift that fails on purpose | everything above the HTTP call |
+| `run.py verify <id>` | | **No** | – | reads `logs/incidents.jsonl`, which only a live server writes; use `/api/verify` offline |
+| Zone briefing | `run.py context --zone FINAL` | **No** | – | needs Zetaris and Nightshift |
+| Receipts | `run.py receipts --verify` | **No** | – | needs receipts saved from live Nightshift calls |
 
 | Question | Where it is answered |
 |---|---|
@@ -148,7 +271,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
 SAMPLE_MODE=true .venv/bin/python -m app.server       # web UI on http://127.0.0.1:8000
-.venv/bin/python -m pytest -q                          # 313 offline tests
+.venv/bin/python -m pytest -q                          # 319 offline tests (1 skipped)
 ```
 With Docker: `docker build -t shopfloor-os .` then `docker run --rm -p 8000:8000 shopfloor-os`. The image is
 tested (176 MB) and defaults to `SAMPLE_MODE=true`.
@@ -304,20 +427,108 @@ the critic rejecting Nemotron Ultra's v2 plan) as recorded live on 26 Oct 2026, 
 </details>
 
 ## Agents
-| Agent | Role | Model | Can block or retry? |
-|---|---|---|---|
-| reflex | Geofences the incident and stops or re-routes AGVs, in under 100 ms | none (rules) | Acts first; cannot be skipped |
-| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | `monitor` role (summary only) | Yes: noise sends one person to check instead of a dispatch |
-| memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) | No |
-| candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none | Yes: only certified people and healthy AGVs get through |
-| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | `planner` role | Retries up to 3 times with the critic's clauses |
-| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none | Yes: blocks any plan that breaks a rule, with the clause |
-| dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none | Yes: a collision or late ETA sends the plan back |
-| restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none | Yes: can hold, verify or escalate instead of acting |
-| executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none | Yes: a mismatch triggers a re-plan |
-| health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none | Yes: opens breakers and switches to safe mode |
-| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | `lab` role (hypothesis only) | Only proposes; a person applies |
-| orchestrator | Chooses the next agent at each decision point, within the legal moves (see below) | `router` role | Routes only among legal moves; code overrides an illegal pick |
+### How the agents work together
+There is no fixed chain. In an incident, the orchestrator sits in the middle and picks the next agent among the
+moves that code allows; agents send work back when a check fails. Every arrow is labelled with the condition that
+sends work along it. Code: [`app/dynamic.py`](app/dynamic.py) (legal moves), [`app/autonomy/`](app/autonomy),
+[`app/investigate/`](app/investigate), [`app/lab/`](app/lab).
+
+**Incident response: a hub with feedback loops**
+
+```mermaid
+flowchart TB
+  ZT[("Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops")]
+  WM[("World Model")]
+  HM[("H-MEM lessons and playbooks")]
+  O{{"Orchestrator: picks the next agent among the moves code allows"}}
+  MON["Monitor"]
+  MEM["Memory"]
+  CAND["Candidates"]
+  PLAN["Planner: v1 at once, Nemotron v2"]
+  CRIT["Safety critic"]
+  DRY["Dry run"]
+  RG["Restraint and gate"]
+  EXE["Executor"]
+  VER["Verifier"]
+  PER(["Person"])
+  FEN["Area stays fenced"]
+  ARB["Arbiter and leases"]
+  ZT -->|"one federated query"| WM
+  O <-->|"legal move, result"| MON
+  O <-->|"legal move, result"| MEM
+  O <-->|"legal move, result"| CAND
+  O <-->|"legal move, result"| PLAN
+  HM -->|"lessons, proven playbook"| MEM
+  WM -->|"qualified people, healthy AGVs"| CAND
+  WM -->|"rejects invented ids"| PLAN
+  CAND --> PLAN
+  PLAN -->|"plan"| CRIT
+  CRIT -->|"rejected: the clause goes back, up to 3 tries"| PLAN
+  CRIT -->|"rejected: re-pick people and robots"| CAND
+  CRIT -->|"violation becomes a lesson"| HM
+  CRIT -->|"passed"| DRY
+  DRY -->|"Nemotron v2 collides or is late: keep v1"| PLAN
+  DRY -->|"checked"| RG
+  RG -->|"routine ACT"| EXE
+  RG -->|"hazard, lapsed certificate, failed dry run, ESCALATE"| PER
+  PER -->|"approve"| EXE
+  PER -->|"reject"| FEN
+  EXE -->|"lease request"| ARB
+  ARB -->|"taken by a more urgent incident: re-plan without it"| CAND
+  EXE --> VER
+  VER -->|"floor not as predicted: re-plan without the failed AGV, up to 3 rounds"| CAND
+  VER -->|"outcome raises or lowers confidence"| HM
+```
+
+**The other three teams, each its own loop**
+
+```mermaid
+flowchart TB
+  ZT[("Zetaris")]
+  WM[("World Model")]
+  O{{"Incident orchestrator"}}
+  subgraph AUTO["Autopilot"]
+    SEN["Sentinel"] -->|"raises an incident"| DISP["Dispatcher: priority queue"]
+  end
+  subgraph ASK["Ask the floor"]
+    CO["Coordinator"] -->|"sub-tasks"| SQL["SQL agent"]
+    CO -->|"questions about the agents"| LOGA["Log agent"]
+    SQL -->|"query"| GRD["SQL guard"]
+    GRD -->|"refused: the reason goes back, 1 retry"| SQL
+    GRD -->|"allowed: rows"| AN["Analyst"]
+    LOGA -->|"traces and lessons"| AN
+    AN -->|"findings with evidence ids"| EC["Evidence critic"]
+    EC -->|"claim not backed by the rows: dropped"| AN
+  end
+  subgraph LAB["Lab in the loop"]
+    HYP["Hypothesis: Nemotron"] -->|"one floor change"| REP["20 seeded replays, bootstrap CI"]
+    REP -->|"significant"| APP(["Person saves and applies"])
+    APP --> MEAS["Later incidents measured"]
+    MEAS -->|"predicted vs measured"| HYP
+    REP -->|"every run is listed for the next hypothesis"| HYP
+  end
+  DISP -->|"one orchestrator per incident, most urgent first"| O
+  O -->|"each finished incident"| MEAS
+  GRD <-->|"read-only SQL"| ZT
+  WM -->|"floor facts"| AN
+  ZT -->|"incident history"| HYP
+```
+
+### Every agent
+| Agent | Role | Model | Can block or retry? | Sends work back to |
+|---|---|---|---|---|
+| reflex | Geofences the incident and stops or re-routes AGVs, in under 100 ms | none (rules) | Acts first; cannot be skipped | Nobody: it acts first and nothing returns to it |
+| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | `monitor` role (summary only) | Yes: noise sends one person to check instead of a dispatch | *Check first* (one person inspects) instead of the planner, when the sensors disagree |
+| memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) | No | The playbook step, skipping the planner, when a proven playbook fits |
+| candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none | Yes: only certified people and healthy AGVs get through | Nobody directly; with no qualified person or healthy AGV the incident ends in ESCALATE |
+| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | `planner` role | Retries up to 3 times with the critic's clauses | The critic, with every new version |
+| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none | Yes: blocks any plan that breaks a rule, with the clause | The planner with the clause (up to 3 tries), or candidates to re-pick; after 3 tries, restraint |
+| dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none | Yes: a collision or late ETA fails the plan | Refine keeps v1 when Nemotron's v2 collides or is late; a failed v1 goes to restraint, which holds or escalates to a person |
+| restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none | Yes: can hold, verify or escalate instead of acting | A person, through the gate, for VERIFY, SAFE_HOLD, ESCALATE or a hazard |
+| executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none | Yes: a mismatch triggers a re-plan | Candidates without the failed AGV (up to 3 rounds); the arbiter re-plans when a lease is lost |
+| health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none | Yes: opens breakers and switches to safe mode | Safe mode instead of the planner when Nightshift is down |
+| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | `lab` role (hypothesis only) | Only proposes; a person applies | A person, who saves and applies the change; later incidents measure it for the next hypothesis |
+| orchestrator | Chooses the next agent at each decision point, within the legal moves (see below) | `router` role | Routes only among legal moves; code overrides an illegal pick | Any legal agent; an illegal pick goes to the rule-based router |
 
 ## What makes this an agent system
 | Pattern | Where it happens |
@@ -375,6 +586,8 @@ One *Run experiment* (`run.py lab`, the *Lab* tab):
 
 ## Sponsor technology
 ### Zetaris: the data layer
+Full write-up: [docs/sponsors/ZETARIS.md](docs/sponsors/ZETARIS.md) (use case, three queries per source with real results, the USL and its data-quality rule, time saved, a product requirement).
+
 Every read the agents make goes through Zetaris ([`app/zetaris.py`](app/zetaris.py), the only data access layer), and every Zetaris
 object was created in code through its SQL REST API, so a fresh install is rebuilt by commands, not by clicks.
 - **Four sources, one query.** Four Postgres databases are registered as the datasources `sf_fleet`, `sf_hr`,
@@ -396,6 +609,8 @@ object was created in code through its SQL REST API, so a fresh install is rebui
   be questioned about their own behaviour with the same SQL as the plant.
 
 ### Meterless engines
+Full write-up: [docs/sponsors/METERLESS.md](docs/sponsors/METERLESS.md) (each engine, the feature it powers, its conformance test and result; Nightshift and signed receipts).
+
 Three engines are implemented in Python from the Meterless specs and each runs a feature, with its conformance tests:
 - **World Model** ([`app/engines/world_model.py`](app/engines/world_model.py)) grounds every plan: stable ids, provenance, facts such as
   `service_overdue`, and `ground()`, which rejects ids that do not exist. [`tests/test_world_model.py`](tests/test_world_model.py) ports the
@@ -415,6 +630,8 @@ Result on 26 Oct 2026: `39 passed in 0.06s`.
 Details, including the conformance checks: [docs/models-and-engines.md](docs/models-and-engines.md).
 
 ### Meterless Nightshift and NVIDIA Nemotron
+Full write-up: [docs/sponsors/NVIDIA.md](docs/sponsors/NVIDIA.md) (model per role and why, calls, tokens and latency per role, Nemotron alone vs the full loop) and [docs/sponsors/METERLESS.md](docs/sponsors/METERLESS.md#nightshift-the-only-model-provider).
+
 Nightshift is the only model provider: every call goes through [`app/llm.py`](app/llm.py) and [`app/models.py`](app/models.py) to
 `MODEL_BASE_URL`, and the NVIDIA key stays inside Nightshift. Every model is an NVIDIA Nemotron model.
 - **One app per model.** Nightshift routes by app name, so each model is called under its own app, pinned in
@@ -432,6 +649,8 @@ Nightshift is the only model provider: every call goes through [`app/llm.py`](ap
   Nemotron vs forced by code, plans it wrote, refinements kept or rejected and why, and receipts verified.
 
 ### Cursor
+Full write-up: [docs/sponsors/CURSOR.md](docs/sponsors/CURSOR.md).
+
 The project rules live in [`.cursor/rules/shopfloor.mdc`](.cursor/rules/shopfloor.mdc) and [`AGENTS.md`](AGENTS.md) (kept in sync). Cursor built the model
 client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (see *Disclosure*).
 
@@ -457,7 +676,7 @@ client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (se
 | Memory and grounding | Meterless World Model, H-MEM and Markovian engines, ported to Python |
 | Simulation | Deterministic 20 x 40 grid, space-time A* with a reservation table, seeded incidents |
 | Logging | JSONL per run in [`logs/`](logs) plus `[INFO]` lines on stdout; hash-chained journal |
-| Tests | pytest, 313 offline tests including the engines' conformance suites and property-based safety fuzzing |
+| Tests | pytest, 319 offline tests including the engines' conformance suites and property-based safety fuzzing |
 | Container | Docker (`python:3.13-slim`, 176 MB, sample mode by default) |
 | Development | Cursor and Claude Code |
 
@@ -531,6 +750,11 @@ The README stays short; the details live in `docs/`.
 | [What broke](docs/reliability.md#what-broke-and-how-we-fixed-it) | real failures from the build and how each was fixed |
 | [Evaluation and chaos tests](docs/eval.md) | planted unsafe plans, Monitor calibration, 15 failure scenarios |
 | [Production review](docs/production-readiness.md) | what a real deployment would still need |
+| [Architecture](docs/ARCHITECTURE.md) | the architecture image, the agent collaboration diagrams and links to every design page |
+| [User guide](docs/USER_GUIDE.md) | the web UI tab by tab, for a floor lead or safety officer |
+| [Output examples explained](output_examples/README.md) | each of the 8 examples: input, what the agents did, the decision, what the floor lead does next |
+| [Sponsor technology](docs/sponsors/README.md) | one page each for [Zetaris](docs/sponsors/ZETARIS.md), [Meterless](docs/sponsors/METERLESS.md), [NVIDIA](docs/sponsors/NVIDIA.md) and [Cursor](docs/sponsors/CURSOR.md) |
+| [Zetaris queries and results](zetaris/queries/RESULTS.md) | three exploratory queries per source and four on the USL, with real rows; the USL DDL in [zetaris/usl/](zetaris/usl/floor.ddl.sql) |
 
 ## Limitations
 - **Simulated floor.** The plant is a 2D grid simulation (one 2 m cell per 2 s tick), not a digital twin, and

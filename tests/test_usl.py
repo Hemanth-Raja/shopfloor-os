@@ -35,3 +35,18 @@ def test_zone_query_reads_the_semantic_layer_and_falls_back_to_the_sources():
         return []
     sw.zone_world("FINAL", run)
     assert len(seen) == 2 and sw.LAST_SOURCE == "sources"
+
+
+def test_dq_registers_each_rule_with_the_operator_login_then_reads_failures():
+    calls = []
+
+    def run(sql, write=False):
+        calls.append((sql, write))
+        if sql.startswith("REGISTER DQ"):
+            raise RuntimeError("rule cert_in_date already exists")  # re-running keeps the rule
+        return [["W-21:forklift", "W-21", "forklift"]] if sql.startswith("SHOW DQ INVALID") else []
+    out = usl.dq(run=run, log=lambda *_: None)
+    assert calls[0] == (f"REGISTER DQ cert_in_date TABLE {usl.PREFIX}.certification AS "
+                        "expires_date IS NOT NULL AND expires_date >= DATE '2026-10-16'", True)
+    assert calls[1] == (f"LIST DQ USL {usl.PREFIX}", False) and not calls[2][1]  # reads on the agents' login
+    assert out["invalid"]["cert_in_date"] == [["W-21:forklift", "W-21", "forklift"]]

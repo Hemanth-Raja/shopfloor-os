@@ -133,11 +133,16 @@ def incident(kind, station, agv, seed, false_alarm, stall_after, use_memory=True
 
 
 def lab(write: bool, target: str = "zetaris"):
-    from app.fixtures import maybe_sample
+    from app.fixtures import maybe_sample, sample_mode
     from app.lab.experiment import experiment_row, run_experiment, write_local, write_zetaris
     from app.runtime import chat_json as guarded_json, run_sql as guarded_sql, run_write
 
-    result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
+    offline = sample_mode() == "true"
+    if offline:  # as the Lab tab offline: generator history, rule-based hypothesis, no Zetaris or Nightshift
+        from app.lab.offline import offline_run_sql
+        result = run_experiment(offline_run_sql, None)
+    else:
+        result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
     h = result["hypothesis"]
     print(f"Hypothesis ({result['source']}): {h['hypothesis']}")
     print(f"Policy {h['policy']} | expected {h['expected_effect_pct']}%")
@@ -147,7 +152,9 @@ def lab(write: bool, target: str = "zetaris"):
     print(f"Effect {result['effect_pct']}% (95% CI {result['ci_low_pct']}% to {result['ci_high_pct']}%), "
           f"{result['baseline_mean_s']} s -> {result['treatment_mean_s']} s | {result['status']}")
     row = experiment_row(result)
-    if write and target == "zetaris":
+    if write and offline:
+        print("SAMPLE_MODE: nothing written (no Zetaris or Postgres). Proposal:", json.dumps(row))
+    elif write and target == "zetaris":
         try:
             print(f"Wrote {write_zetaris(row, run_write)} through Zetaris to sf_ops.experiments")
         except Exception as err:  # noqa: BLE001 - keep the proposal: fall back to the local Postgres path
@@ -186,7 +193,14 @@ def shift_handover(shifts: int, as_json: bool):
     def show(phase, detail):
         if not as_json:
             print(f"  {phase:<12} {detail}", flush=True)
-    out = handover(chat, shifts=shifts, on_phase=show)
+    from app.fixtures import sample_mode
+    if sample_mode() == "true":  # no Nightshift: a rule-based note from the journal, still read in Markovian chunks
+        from app.handover import last_shift, rule_based_chat
+        from app.journal import Journal
+        events = last_shift(Journal().events(), shifts)
+        out = handover(rule_based_chat(events), events=events, shifts=shifts, on_phase=show)
+    else:
+        out = handover(chat, shifts=shifts, on_phase=show)
     if as_json:
         print(json.dumps(out, indent=2, default=str))
         return
@@ -241,6 +255,8 @@ def ask(question: str, as_json: bool = False):
     for e in result["evidence"]:
         if e["type"] == "sql":
             print(f"\n{e['id']} SQL ({'ok, %s rows' % e['rows'] if e.get('ok') else 'failed: ' + str(e.get('error'))}):\n{e.get('sql', '')}")
+        elif e["type"] == "floor":  # World Model facts about the live floor: rows, no summary
+            print(f"\n{e['id']} floor: {e.get('task', '')} ({e.get('rows')} rows)")
         else:
             print(f"\n{e['id']} logs: {json.dumps(e['summary'], default=str)[:400]}")
     print(f"\nmodels {result['models']} | trace {result['log_file']} | {result['execution_time_seconds']} s")

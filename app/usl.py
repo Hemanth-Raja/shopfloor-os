@@ -9,6 +9,8 @@ every query. Query a table as lightning.metastore.shopfloor.floor.<table>.
     .venv/bin/python -m app.usl compile    # check the model, store nothing (admin login)
     .venv/bin/python -m app.usl deploy     # create namespace, deploy, activate, grant SELECT to the agents' role
     .venv/bin/python -m app.usl status     # tables and activation flags (agents' login)
+    .venv/bin/python -m app.usl dq         # register the data-quality rules, show the records that fail them
+    .venv/bin/python -m app.usl ddl        # print the COMPILE and ACTIVATE statements (no Zetaris call)
 """
 
 from __future__ import annotations
@@ -138,12 +140,53 @@ def status(run=run_sql) -> list:
     return run(f"SHOW NAMESPACES OR TABLES IN {NAMESPACE}.{USL}")
 
 
+# Zetaris data-quality rules: name -> (USL table, boolean expression a valid record satisfies). The plant's data is
+# dated 16 Oct 2026 (the World Model's `today`), so "in date" is checked against that day, not the wall clock.
+DQ_RULES: dict[str, tuple[str, str]] = {
+    "cert_in_date": ("certification", "expires_date IS NOT NULL AND expires_date >= DATE '2026-10-16'"),
+}
+
+
+def dq_sql() -> list[str]:
+    return [f"REGISTER DQ {name} TABLE {PREFIX}.{table} AS {expr}" for name, (table, expr) in DQ_RULES.items()]
+
+
+def dq(run=run_sql, log=print) -> dict:
+    """Register the rules (operator login; re-running keeps an existing rule), then list them and show the records
+    that fail each one (agents' login)."""
+    for sql in dq_sql():
+        try:
+            run(sql, write=True)
+            log(sql)
+        except RuntimeError as err:
+            if "exist" not in str(err).lower():
+                raise
+            log(f"{sql}  (already registered)")
+    out = {"rules": run(f"LIST DQ USL {PREFIX}"), "invalid": {}}
+    for name, (table, _) in DQ_RULES.items():
+        out["invalid"][name] = run(f"SHOW DQ INVALID RECORD {name} TABLE {PREFIX}.{table}")
+    return out
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1:] or ["status"]
     if cmd == ["compile"]:
         print(str(run_sql(compile_sql(False), write=True))[:2000])
     elif cmd == ["deploy"]:
         deploy()
+    elif cmd == ["ddl"]:
+        print(compile_sql(True))
+        for name in TABLES:
+            print(f"\n{activate_sql(name)}")
+    elif cmd == ["dq"]:
+        res = dq()
+        print("LIST DQ USL:")
+        for row in res["rules"]:
+            print(" ", row)
+        for name, rows in res["invalid"].items():
+            print(f"{name}: {len(rows)} invalid record(s)")
+            for row in rows:
+                print(" ", row)
     else:
         for row in status():
             print(row)

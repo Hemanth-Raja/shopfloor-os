@@ -33,6 +33,9 @@
   .mini { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px; }
   .mini div { font-size:12.5px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 8px; line-height:1.35; }
   .mini div b { display:block; font-size:13px; }
+  .loops { margin-top:10px; border-top:1px dashed var(--line); padding-top:8px; }
+  .loops div { font-size:12.5px; line-height:1.4; color:#2c3a4c; margin-top:3px; }
+  .loops div::before { content:"\21BA"; color:var(--code); font-weight:700; margin-right:6px; }
   .foot { margin-top:18px; color:var(--mut); font-size:12.5px; display:flex; justify-content:space-between; }
 </style></head>
 <body><div class="page">
@@ -47,13 +50,13 @@
 
   <div class="lbl">Agent teams</div>
   <div class="band grid4">
-    <div class="box team"><h3>Incident response</h3><p>A dynamic orchestrator picks the next agent among the moves code allows: reflex, monitor, memory, investigator, candidates, playbook, planner (v1 at once, Nemotron v2 in the background), refine, executor, verifier.</p><span class="tag t-nemo">router · planner</span></div>
-    <div class="box team"><h3>Autopilot</h3><p>Sentinel watches floor signals (EWMA, CUSUM, trends) and triages the ambiguous ones; a priority dispatcher runs several incidents at once with leases on people and AGVs.</p><span class="tag t-nemo">sentinel triage</span></div>
-    <div class="box team"><h3>Ask the floor</h3><p>Intake works out what was asked; a coordinator splits it; a SQL agent queries Zetaris behind a guard; a log agent reads the agents' traces; an analyst writes findings; two critics drop unsupported claims.</p><span class="tag t-nemo">coordinator · SQL · analyst</span></div>
-    <div class="box team"><h3>Lab in the loop</h3><p>Nemotron proposes one floor change from history; seeded replays and a bootstrap CI test it with no model; a significant change is applied and measured on later incidents.</p><span class="tag t-nemo">lab hypothesis</span></div>
+    <div class="box team"><h3>Incident response</h3><p>A dynamic orchestrator picks the next agent among the moves code allows: reflex, monitor, memory, investigator, candidates, playbook, planner (v1 at once, Nemotron v2 in the background), refine, executor, verifier.</p><span class="tag t-nemo">router · planner</span><div class="loops"><div>critic rejects the plan: the clause goes back to the planner or to candidates (3 tries)</div><div>Nemotron v2 fails critic or dry run: refine keeps v1</div><div>verifier sees a stalled AGV: re-plan without it (3 rounds)</div><div>risky or failed dry run: a person approves or rejects</div></div></div>
+    <div class="box team"><h3>Autopilot</h3><p>Sentinel watches floor signals (EWMA, CUSUM, trends) and triages the ambiguous ones; a priority dispatcher runs several incidents at once with leases on people and AGVs.</p><span class="tag t-nemo">sentinel triage</span><div class="loops"><div>Sentinel raises incidents; each runs its own orchestrator loop</div><div>a more urgent incident takes a lease: the arbiter makes the other re-plan</div><div>lease refused at dispatch: back to candidates</div></div></div>
+    <div class="box team"><h3>Ask the floor</h3><p>Intake works out what was asked; a coordinator splits it; a SQL agent queries Zetaris behind a guard; a log agent reads the agents' traces; an analyst writes findings; two critics drop unsupported claims.</p><span class="tag t-nemo">coordinator · SQL · analyst</span><div class="loops"><div>SQL guard or Zetaris refuses a query: the reason goes back to the SQL agent (1 retry)</div><div>evidence critic drops claims the rows do not back</div></div></div>
+    <div class="box team"><h3>Lab in the loop</h3><p>Nemotron proposes one floor change from history; seeded replays and a bootstrap CI test it with no model; a significant change is applied and measured on later incidents.</p><span class="tag t-nemo">lab hypothesis</span><div class="loops"><div>a person saves and applies the change</div><div>later incidents measure it; the result goes back into the next hypothesis</div></div></div>
   </div>
 
-  <div class="flow"><span><b>↔</b> facts, lessons, clauses</span><span><b>↓</b> every plan goes through code</span><span><b>↓</b> only what passed moves</span></div>
+  <div class="flow"><span><b>↔</b> facts, lessons, clauses; outcomes update H-MEM</span><span><b>⇅</b> every plan goes through code; rejected with the clause</span><span><b>↓</b> only what passed moves</span></div>
 
   <div class="band grid3">
     <div class="box met"><div class="lbl" style="color:var(--met)">Meterless engines</div>
