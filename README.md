@@ -12,7 +12,7 @@
 [![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C034%2F6%2C034%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
 
-**[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
+**[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Slide deck](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing)** · **[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
 **[Live demo runbook](docs/live-demo.md)**
 
@@ -26,6 +26,8 @@
 [![Shop-Floor OS demo video: the safety critic rejects Nemotron's plan, recorded live](https://img.youtube.com/vi/YExRZBpAkTA/maxresdefault.jpg)](https://youtu.be/YExRZBpAkTA)
 
 Backup copy: [Google Drive](https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing) (same video, English captions).
+
+Slide deck (PDF): [Google Drive](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing) · [in this repo](docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf)
 
 ## See it work
 ![Shop-Floor OS running in sample mode: an AGV fault with a stall is fenced, planned, checked and dispatched; the verifier sees the AGV stall and re-plans; the agent flow graph shows every hop and who chose it; Ask the floor answers "Why does F10 keep stopping?" with cited evidence from Zetaris](docs/demo.gif)

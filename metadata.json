@@ -140,6 +140,8 @@
   "demo": {
     "video": "https://youtu.be/YExRZBpAkTA",
     "video_backup": "https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing",
+    "deck": "https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing",
+    "deck_pdf": "docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf",
     "offline": "SAMPLE_MODE=true python -m app.server  (replays recorded Nemotron replies; no keys, no Zetaris)",
     "cases": [
       "part_shortage at F30 (critic rejection then retry)",
