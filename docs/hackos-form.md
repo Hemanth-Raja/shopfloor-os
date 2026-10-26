@@ -1,6 +1,6 @@
 # HackOS submission form: paste-ready answers
 
-Fill in the fields marked **[YOU]**. Check every claim against the final repository before you submit.
+All fields are filled. Numbers were re-measured on 26 Oct 2026 (313 offline tests pass; 6,215 of 6,215 Nightshift receipts verify).
 
 **Project name:** Shop-Floor OS
 
@@ -8,14 +8,13 @@ Fill in the fields marked **[YOU]**. Check every claim against the final reposit
 
 **Track (exactly one):** 3, Reasoning Architecture
 
-**Team members:** Hemanth Raja Guttikonda (@Hemanth-Raja) and Poojitha Katta (@Poojitha-Katta). (Confirm the roster before creating the submission; the team locks at the first
-submission)
+**Team members:** Team Spartans: Hemanth Raja Guttikonda (@Hemanth-Raja) and Poojitha Katta (@Poojitha-Katta)
 
-**GitHub repository (public):** https://github.com/Hemanth-Raja/shopfloor-os (make it public before the deadline)
+**GitHub repository (public):** https://github.com/Hemanth-Raja/shopfloor-os
 
-**Demo video (1–4 min):** [YOU] (upload link)
+**Demo video (1–4 min):** https://youtu.be/YExRZBpAkTA (backup: https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing)
 
-**Slide deck:** [YOU] (link; the outline is in `docs/deck-outline.md`)
+**Slide deck:** https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing (PDF in the repository: `docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf`)
 
 **Colab links:** not applicable (no Colab)
 
@@ -66,10 +65,9 @@ Zetaris. Everything is traced, runs as JSON in and JSON out, and works offline w
     (67% fewer prompt tokens on a live three-shift run).
   - **Meterless Nightshift** is the only model provider. Each Nemotron model is called under its own app, pinned
     to one lane; every call records the requested and the answering model, and each Ed25519 receipt is verified
-    when its answer is used (6,034 of 6,034 verify).
+    when its answer is used (6,215 of 6,215 verify, 26 Oct 2026).
 - **Cursor:** used as a development environment. The project rules are in `.cursor/rules/shopfloor.mdc` and
   `AGENTS.md`, and the model layer (`app/llm.py`) and its tests were built in Cursor. Claude Code was also used.
-  [YOU: confirm or extend with your own Cursor usage.]
 - **NVIDIA:** three Nemotron models through Nightshift, chosen per agent role (`config/models.json`).
   - `nvidia/nemotron-3-ultra-550b-a55b` plans, analyses evidence and proposes Lab changes.
   - `nvidia/nemotron-3.5-super-vl-120b-a12b` coordinates investigations, writes SQL and the shift handover, and
@@ -88,7 +86,7 @@ Zetaris. Everything is traced, runs as JSON in and JSON out, and works offline w
 **Pre-existing components:** None. The repository was created on 23 October 2026, inside the build window.
 Open-source used: the Meterless engine specs (Apache-2.0), ported to Python; public datasets (UCI AI4I 2020,
 OSHA Severe Injury Reports, BLS SOII, Open-Meteo, Bosch CNC Machining, MovingAI MAPF, eCFR text), credited in the
-README. [YOU: also declare any data or code you prepared before 22 October, if there is any.]
+README. No data or code was prepared before the build window.
 
 **How to run (for judges):**
 - `pip install -r requirements.txt && SAMPLE_MODE=true python run.py run input_examples/example_1.json`. This needs no keys

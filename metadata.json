@@ -3,6 +3,19 @@
   "tagline": "AI agents plan, robots execute, humans judge.",
   "event": "Open Agent Hackathon 2026",
   "track": "Track 3: Reasoning Architecture",
+  "team": {
+    "name": "Team Spartans",
+    "members": [
+      {
+        "name": "Hemanth Raja Guttikonda",
+        "github": "Hemanth-Raja"
+      },
+      {
+        "name": "Poojitha Katta",
+        "github": "Poojitha-Katta"
+      }
+    ]
+  },
   "domain": "Fictional car final-assembly hall: incident response and AGV dispatch",
   "meterless_engines": [
     {
@@ -181,12 +194,12 @@
   "sample_mode": "SAMPLE_MODE=true: offline plant, recorded Nemotron replies where available, rule-based planner otherwise; real agent logic, no network",
   "sponsors": {
     "zetaris": "data layer: one federated query per incident over sf_fleet, sf_hr, sf_plant, sf_ops; lab writes via INSERT",
-    "meterless": "World Model + H-MEM engines (Python ports, conformance-tested); Nightshift is the only model provider",
-    "nvidia": "Nemotron 3.5 super-vl-120b (deep) and lightning-30b (fast) via Nightshift",
+    "meterless": "World Model, H-MEM and Markovian engines (Python ports, conformance-tested: tests/test_world_model.py, tests/test_hmem.py, tests/test_markovian.py); Nightshift is the only model provider",
+    "nvidia": "nvidia/nemotron-3-ultra-550b-a55b (planner, analyst, Lab), nvidia/nemotron-3.5-super-vl-120b-a12b (NEMOTRON_DEEP: coordinator, SQL agent, handover) and nvidia/nemotron-3.5-lightning-30b-a3b (NEMOTRON_FAST: router, monitor, Sentinel, evidence critic), all via Meterless Nightshift",
     "cursor": ".cursor/rules/shopfloor.mdc + AGENTS.md; app/llm.py built in Cursor"
   },
   "pre_existing_components": "none (repository started 2026-10-23, inside the build window)",
-  "repository": "to be made public on GitHub before submission",
+  "repository": "https://github.com/Hemanth-Raja/shopfloor-os (public)",
   "investigation": {
     "entry_points": [
       "python run.py ask \"Why does F10 keep stopping?\"",

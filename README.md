@@ -62,7 +62,7 @@ reasoning (Nemotron) into decisions and actions that are checked, simulated, gat
 | **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
 | **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
 | **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
-| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,034 of 6,034 Ed25519 receipts verify (`run.py receipts --verify`, 25 Oct 2026) |
+| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,215 of 6,215 Ed25519 receipts verify (`run.py receipts --verify`, 26 Oct 2026) |
 | **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
 | **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
 
@@ -298,6 +298,9 @@ Other logs:
 
 None of them contain secrets.
 
+A real live-mode trace: [docs/live-run/](docs/live-run/README.md) holds incident `SIM-42-008` (part shortage at F30,
+the critic rejecting Nemotron Ultra's v2 plan) as recorded live on 26 Oct 2026, with its four Nightshift calls and receipts.
+
 </details>
 
 ## Agents
@@ -403,6 +406,12 @@ Three engines are implemented in Python from the Meterless specs and each runs a
   shift's journal in bounded chunks with compressed carryover: 67% fewer prompt tokens on a live three-shift run.
   [`tests/test_markovian.py`](tests/test_markovian.py) covers it.
 
+Run the three conformance suites (no network, no Zetaris, no Nightshift):
+```bash
+.venv/bin/python -m pytest -q tests/test_world_model.py tests/test_hmem.py tests/test_markovian.py
+```
+Result on 26 Oct 2026: `39 passed in 0.06s`.
+
 Details, including the conformance checks: [docs/models-and-engines.md](docs/models-and-engines.md).
 
 ### Meterless Nightshift and NVIDIA Nemotron
@@ -414,7 +423,7 @@ Nightshift is the only model provider: every call goes through [`app/llm.py`](ap
   who answers, and a role's chain skips any model that is not really served.
 - **Proof per call.** Each call records the requested and the answering model and the id of Nightshift's signed
   receipt, and the receipt's Ed25519 signature is verified at the moment the answer is used. `run.py receipts
-  --verify` re-checks all of them (6,034 of 6,034 on 25 Oct 2026).
+  --verify` re-checks all of them (6,215 of 6,215 on 26 Oct 2026).
 - **NVIDIA's guidance applied.** Reasoning and the answer share the token budget, so reasoning is switched off
   for the small, frequent decisions (router, monitor, Sentinel triage) and set to medium for the coordinator and
   the SQL agent; the planner, analyst, Lab and handover keep the model's default reasoning with a larger budget.
@@ -588,6 +597,8 @@ components used: the Meterless engine specs (Apache-2.0), the Zetaris getting-st
 documentation only), and the public datasets listed above.
 
 ## Team
+**Team Spartans**
+
 | Name | GitHub |
 |---|---|
 | Hemanth Raja Guttikonda | [@Hemanth-Raja](https://github.com/Hemanth-Raja) |
