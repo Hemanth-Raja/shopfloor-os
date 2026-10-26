@@ -16,6 +16,8 @@
 **[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
 **[Live demo runbook](docs/live-demo.md)**
 
+**For judges:** [Zetaris](docs/sponsors/ZETARIS.md) (USL, live queries, data quality rule, hand-coded comparison) · [Meterless](docs/sponsors/METERLESS.md) (3 engines, Nightshift, signed receipts) · [NVIDIA Nemotron](docs/sponsors/NVIDIA.md) (model per role, per-call evidence) · [Cursor](docs/sponsors/CURSOR.md)
+
 **Run it in one line, no keys:** `SAMPLE_MODE=true python run.py run input_examples/example_1.json`
 
 </div>
@@ -353,6 +355,8 @@ seeded replays and a 2,000-sample bootstrap. **Mean time to clear 807 s → 799.
 small but significant, status *proposed*.** A person decides whether to save it to Zetaris and apply it to the
 floor; later part shortages are then measured against the prediction. This run was recorded live through Nightshift
 on 26 Oct 2026 (Ultra answered in 2.9 s), and sample mode replays that reply, so the same run appears offline.
+
+An earlier live run, shown in the slide deck, proposed a loaded kitting AGV at F10: -7.2% time to clear (95% CI -8.0% to -6.4%). Nemotron's proposal differs between runs; the Lab tests each one on history before anyone applies it.
 
 How it works (code: [`app/lab/`](app/lab)):
 
