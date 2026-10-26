@@ -29,11 +29,18 @@ flowchart TB
   FEN["Area stays fenced"]
   ARB["Arbiter and leases"]
   ZT -->|"one federated query"| WM
+  RX["Reflex: fence the area, stop AGVs, under 100 ms"] -->|"always first, in code"| O
   O <-->|"legal move, result"| MON
   O <-->|"legal move, result"| MEM
   O <-->|"legal move, result"| CAND
   O <-->|"legal move, result"| PLAN
   HM -->|"lessons, proven playbook"| MEM
+  CHK["Check first: one person inspects"]
+  PB["Playbook"]
+  O -->|"sensors disagree: no planner"| CHK
+  O -->|"proven playbook fits: no model call"| PB
+  CHK --> CRIT
+  PB --> CRIT
   WM -->|"qualified people, healthy AGVs"| CAND
   WM -->|"rejects invented ids"| PLAN
   CAND --> PLAN

@@ -66,7 +66,141 @@ reasoning (Nemotron) into decisions and actions that are checked, simulated, gat
 | **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
 | **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
 
-## See it decide: 3 incidents, 3 questions, 1 Lab run
+## How it works
+Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.
+
+![Architecture: people use four agent teams (incident response, autopilot, Ask the floor, Lab in the loop), each with its feedback loops; the teams use the Meterless engines, every plan goes through deterministic safety code before the simulated floor moves, data comes from Zetaris and every model call goes through Meterless Nightshift to NVIDIA Nemotron](docs/architecture.png)
+
+<sub>Source: [docs/architecture.html](docs/architecture.html).</sub>
+
+### How the agents work together
+There is no fixed pipeline. In an incident, the orchestrator sits in the middle and picks the next agent among the
+moves that code allows; agents send work back when a check fails. Every arrow is labelled with the condition that
+sends work along it. Code: [`app/dynamic.py`](app/dynamic.py) (legal moves), [`app/autonomy/`](app/autonomy),
+[`app/investigate/`](app/investigate), [`app/lab/`](app/lab). Details: [How an incident is handled](docs/agents.md#how-an-incident-is-handled-a-dynamic-orchestrator).
+
+**Incident response: a hub with feedback loops**
+
+```mermaid
+flowchart TB
+  ZT[("Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops")]
+  WM[("World Model")]
+  HM[("H-MEM lessons and playbooks")]
+  O{{"Orchestrator: picks the next agent among the moves code allows"}}
+  MON["Monitor"]
+  MEM["Memory"]
+  CAND["Candidates"]
+  PLAN["Planner: v1 at once, Nemotron v2"]
+  CRIT["Safety critic"]
+  DRY["Dry run"]
+  RG["Restraint and gate"]
+  EXE["Executor"]
+  VER["Verifier"]
+  PER(["Person"])
+  FEN["Area stays fenced"]
+  ARB["Arbiter and leases"]
+  ZT -->|"one federated query"| WM
+  RX["Reflex: fence the area, stop AGVs, under 100 ms"] -->|"always first, in code"| O
+  O <-->|"legal move, result"| MON
+  O <-->|"legal move, result"| MEM
+  O <-->|"legal move, result"| CAND
+  O <-->|"legal move, result"| PLAN
+  HM -->|"lessons, proven playbook"| MEM
+  CHK["Check first: one person inspects"]
+  PB["Playbook"]
+  O -->|"sensors disagree: no planner"| CHK
+  O -->|"proven playbook fits: no model call"| PB
+  CHK --> CRIT
+  PB --> CRIT
+  WM -->|"qualified people, healthy AGVs"| CAND
+  WM -->|"rejects invented ids"| PLAN
+  CAND --> PLAN
+  PLAN -->|"plan"| CRIT
+  CRIT -->|"rejected: the clause goes back, up to 3 tries"| PLAN
+  CRIT -->|"rejected: re-pick people and robots"| CAND
+  CRIT -->|"violation becomes a lesson"| HM
+  CRIT -->|"passed"| DRY
+  DRY -->|"Nemotron v2 collides or is late: keep v1"| PLAN
+  DRY -->|"checked"| RG
+  RG -->|"routine ACT"| EXE
+  RG -->|"hazard, lapsed certificate, failed dry run, ESCALATE"| PER
+  PER -->|"approve"| EXE
+  PER -->|"reject"| FEN
+  EXE -->|"lease request"| ARB
+  ARB -->|"taken by a more urgent incident: re-plan without it"| CAND
+  EXE --> VER
+  VER -->|"floor not as predicted: re-plan without the failed AGV, up to 3 rounds"| CAND
+  VER -->|"outcome raises or lowers confidence"| HM
+```
+
+**The other three teams, each its own loop**
+
+```mermaid
+flowchart TB
+  ZT[("Zetaris")]
+  WM[("World Model")]
+  O{{"Incident orchestrator"}}
+  subgraph AUTO["Autopilot"]
+    SEN["Sentinel"] -->|"raises an incident"| DISP["Dispatcher: priority queue"]
+  end
+  subgraph ASK["Ask the floor"]
+    CO["Coordinator"] -->|"sub-tasks"| SQL["SQL agent"]
+    CO -->|"questions about the agents"| LOGA["Log agent"]
+    SQL -->|"query"| GRD["SQL guard"]
+    GRD -->|"refused: the reason goes back, 1 retry"| SQL
+    GRD -->|"allowed: rows"| AN["Analyst"]
+    LOGA -->|"traces and lessons"| AN
+    AN -->|"findings with evidence ids"| EC["Evidence critic"]
+    EC -->|"claim not backed by the rows: dropped"| AN
+  end
+  subgraph LAB["Lab in the loop"]
+    HYP["Hypothesis: Nemotron"] -->|"one floor change"| REP["20 seeded replays, bootstrap CI"]
+    REP -->|"significant"| APP(["Person saves and applies"])
+    APP --> MEAS["Later incidents measured"]
+    MEAS -->|"predicted vs measured"| HYP
+    REP -->|"every run is listed for the next hypothesis"| HYP
+  end
+  DISP -->|"one orchestrator per incident, most urgent first"| O
+  O -->|"each finished incident"| MEAS
+  GRD <-->|"read-only SQL"| ZT
+  WM -->|"floor facts"| AN
+  ZT -->|"incident history"| HYP
+```
+
+### Every agent
+| Agent | Role | Model | Can block or retry? | Sends work back to |
+|---|---|---|---|---|
+| reflex | Geofences the incident and stops or re-routes AGVs, in under 100 ms | none (rules) | Acts first; cannot be skipped | Nobody: it acts first and nothing returns to it |
+| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | `monitor` role (summary only) | Yes: noise sends one person to check instead of a dispatch | *Check first* (one person inspects) instead of the planner, when the sensors disagree |
+| memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) | No | The playbook step, skipping the planner, when a proven playbook fits |
+| candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none | Yes: only certified people and healthy AGVs get through | Nobody directly; with no qualified person or healthy AGV the incident ends in ESCALATE |
+| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | `planner` role | Retries up to 3 times with the critic's clauses | The critic, with every new version |
+| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none | Yes: blocks any plan that breaks a rule, with the clause | The planner with the clause (up to 3 tries), or candidates to re-pick; after 3 tries, restraint |
+| dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none | Yes: a collision or late ETA fails the plan | Refine keeps v1 when Nemotron's v2 collides or is late; a failed v1 goes to restraint, which holds or escalates to a person |
+| restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none | Yes: can hold, verify or escalate instead of acting | A person, through the gate, for VERIFY, SAFE_HOLD, ESCALATE or a hazard |
+| executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none | Yes: a mismatch triggers a re-plan | Candidates without the failed AGV (up to 3 rounds); the arbiter re-plans when a lease is lost |
+| health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none | Yes: opens breakers and switches to safe mode | Safe mode instead of the planner when Nightshift is down |
+| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | `lab` role (hypothesis only) | Only proposes; a person applies | A person, who saves and applies the change; later incidents measure it for the next hypothesis |
+| orchestrator | Chooses the next agent at each decision point, within the legal moves (see below) | `router` role | Routes only among legal moves; code overrides an illegal pick | Any legal agent; an illegal pick goes to the rule-based router |
+
+### What makes this an agent system
+| Pattern | Where it happens |
+|---|---|
+| **Dynamic delegation** | The orchestrator picks the next agent hop by hop; the router model chooses only among the moves code allows, so incidents take different routes ([`output_examples/`](output_examples)) |
+| **Critique loop** | The safety critic rejects a plan with the OSHA or SOP clause; the planner gets the clause and tries again (up to 3 times); the evidence critic drops any claim the cited rows do not back |
+| **Retry logic** | Model calls retry with backoff, then the next model; a refused SQL query goes back with the guard's reason for one retry; a stalled AGV makes the verifier re-plan |
+| **Shared state** | All agents read and write one incident state and the Meterless World Model built from one federated Zetaris query; H-MEM is shared memory across incidents |
+| **Escalation** | No playbook, no qualified person, a lapsed certificate or a failed model chain ends in ESCALATE or SAFE_HOLD, and a person decides |
+| **Role authority** | The critic, dry run and human gate can block dispatch; nothing reaches the floor without passing all three |
+| **Non-linear flow** | Branches on alarm confidence (VERIFY vs ACT), risk (human gate), resources taken by another incident (arbiter) and the world not changing as predicted (re-plan) |
+
+**Where to look.** Agent decisions: `output.path` in every response, with who chose each hop and why. Zetaris:
+[`app/zetaris.py`](app/zetaris.py) and the `sql` and `candidates` steps. Meterless: [`app/engines/`](app/engines) and
+the `memory`, `candidates` and handover steps. Retries and feedback: `status: needs_revision`, `retry_count` and
+`replans` in the trace. Fallback to sample data: `SAMPLE_MODE=true`. Logs: [`logs/`](logs) and stdout. The final
+answer: the `restraint` and `gate` steps, returned as `output.decision`.
+
+## Examples: 3 incidents, 3 questions, 1 Lab run
 Screenshots from the real web UI in sample mode (`SAMPLE_MODE=true python -m app.server`, no keys), taken on
 26 Oct 2026. Each incident graph is the route the orchestrator took: numbered arrows in the order taken, and
 arrows going back where work was returned. The hop tables come from `output.path` in the JSON output. The UI
@@ -127,6 +261,17 @@ qualified person inspects. No planner and no model call. **VERIFY; the line keep
 
 Input: [`input_examples/example_3.json`](input_examples/example_3.json) · Output: [`output_examples/example_3.json`](output_examples/example_3.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
 
+### Sample inputs and outputs
+Examples 1 to 3 are shown above with their screenshots. The other five, each a different incident kind, run the same way (`run.py run input_examples/example_N.json`); [output_examples/README.md](output_examples/README.md) explains all eight in plain English.
+
+| Input | What happens | Output |
+|---|---|---|
+| [`input_examples/example_4.json`](input_examples/example_4.json): coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | [`output_examples/example_4.json`](output_examples/example_4.json) |
+| [`input_examples/example_5.json`](input_examples/example_5.json): robot-cell fault at B10 (weld robots) | The cell is fenced. Only a technician with in-date lockout/tagout and a robot-cell card may enter (29 CFR 1910.147, SOP-ROBOT-02). ACT, but it waits for a person to approve | [`output_examples/example_5.json`](output_examples/example_5.json) |
+| [`input_examples/example_6.json`](input_examples/example_6.json): nutrunner torque fault at F10 | v1 sends a tool technician and the torque auditor. Nemotron's v2 sends only the technician; the critic rejects it (SOP-TORQUE-01: joints since the last good torque must be re-audited), so v1 stays. A single NOK with `false_alarm` gives VERIFY | [`output_examples/example_6.json`](output_examples/example_6.json) |
+| [`input_examples/example_7.json`](input_examples/example_7.json): pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | [`output_examples/example_7.json`](output_examples/example_7.json) |
+| [`input_examples/example_8.json`](input_examples/example_8.json): quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | [`output_examples/example_8.json`](output_examples/example_8.json) |
+
 ### Ask the floor: three questions
 | | |
 |---|---|
@@ -146,44 +291,90 @@ F20), re-walks all 82 past spills with A* with and without it, runs 20 seeded re
 it to Zetaris and apply it to the floor. In sample mode the hypothesis comes from a fixed rule, and the page says so
 in red; live, Nemotron proposes it.
 
-## How it works
-Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.
+## Outputs: what a run returns and writes
+Every run returns one JSON result and writes a trace, so a person can check afterwards what the agents did and why.
 
-![Architecture: people use four agent teams (incident response, autopilot, Ask the floor, Lab in the loop), each with its feedback loops; the teams use the Meterless engines, every plan goes through deterministic safety code before the simulated floor moves, data comes from Zetaris and every model call goes through Meterless Nightshift to NVIDIA Nemotron](docs/architecture.png)
+<details>
+<summary><b>Request and response format</b></summary>
 
-<sub>Source: [docs/architecture.html](docs/architecture.html).</sub>
-
-**One incident, start to finish.** There is no fixed pipeline: an orchestrator agent picks the next agent at
-each step, but only among the moves that code allows (details in
-[How an incident is handled](docs/agents.md#how-an-incident-is-handled-a-dynamic-orchestrator)).
-
-```mermaid
-flowchart TD
-  S[Signal or report] --> R[Reflex: fence the area,<br/>stop AGVs, under 100 ms]
-  R --> M{Monitor: real<br/>or sensor noise?}
-  M -- "noise" --> V[Check first: one qualified<br/>person inspects, line keeps running]
-  M -- "real" --> C[Candidates from the World Model:<br/>one federated Zetaris query]
-  H[(H-MEM lessons<br/>and playbooks)] --> C
-  C -- "proven playbook fits" --> PB[Reuse the playbook,<br/>no model call]
-  C --> P1[Plan v1 at once:<br/>optimal assignment]
-  C --> P2[Plan v2 in the background:<br/>Nemotron, strict JSON, cites clauses]
-  P1 --> K{Safety critic:<br/>OSHA and SOP rules}
-  P2 --> K
-  PB --> K
-  K -- "rejected: the clause goes back,<br/>up to 3 tries" --> P2
-  K -- "passed" --> D{Dry run in the sim:<br/>collisions, crossings, ETA}
-  D -- "passes" --> RF[Refine: Nemotron's v2 replaces v1 only<br/>if it passes both checks and scores better]
-  D -- "fails" --> G
-  RF --> G{Restraint and gate}
-  G -- "routine ACT" --> E[Executor dispatches<br/>as VDA 5050 orders]
-  G -- "hazard, lapsed certificate,<br/>failed dry run, ESCALATE" --> U{Person approves<br/>or rejects}
-  U -- "approve" --> E
-  U -- "reject" --> X[Area stays fenced;<br/>nothing moves]
-  E --> VF{Verifier: did the floor<br/>change as predicted?}
-  VF -- "no, e.g. AGV stalled:<br/>re-plan without it, up to 3 rounds" --> C
-  VF -- "yes" --> L[Done]
-  L -- "lesson, outcome" --> H
+Request:
+```json
+{"run_id": "example-2",
+ "input": {"kind": "agv_fault", "agv": "AGV-3", "station": "F30", "stall_after": 2, "seed": 42},
+ "options": {"sample_mode": false, "memory": false}}
 ```
+- `input.kind` is one of `part_shortage`, `agv_fault`, `overheat`, `spill`, `robot_cell_fault`, `torque_fault`,
+  `near_miss` or `quality_defect`. All eight run through the full loop. A kind without a response playbook would be
+  fenced and escalated to a supervisor with the reason, instead of being planned.
+- Optional `severity` (`low`, `medium`, `high`, `critical`) and `note` (free text from the reporter).
+- `station` is a station id (B10, B20, P10, T10, T20, M10, F10, F20, F30, E10).
+- `false_alarm` makes an overheat sensor noise.
+- `stall_after` stalls the dispatched AGV mid-route.
+
+Or over HTTP (`SAMPLE_MODE=true python -m app.server`, or the Docker image):
+```bash
+curl -X POST http://localhost:8000/run -H "Content-Type: application/json" -d @input_examples/example_1.json
+```
+
+Response (abridged from `example_1`):
+```json
+{"run_id": "example-1", "status": "success",
+ "output": {"decision": "ACT", "score": 0.942,
+            "summary": "part shortage at F30: ACT, Optimal assignment (Hungarian) over 5 candidates for 2 role(s) ...",
+            "reasons": ["p_real=0.95", "sensors agree=True", "expected cost of waiting $5,082 vs acting $42"],
+            "plan": {"assignee_ids": ["worker:plant:W-18", "agv:plant:AGV-5"],
+                     "agv_routes": [{"agv_id": "agv:plant:AGV-5", "to_station": "F30", "speed_mps": 1.0,
+                                     "crossing_speed_mps": 0.5}]},
+            "citations": [{"ref": "SOP-KIT-01 §3"}, {"ref": "29 CFR 1910.178(n)(8)"}],
+            "critic_rejections": 1, "gate": "auto_executed", "collisions": 0,
+            "path": [{"hop": 0, "agent": "reflex", "by": "code"}, {"hop": 1, "agent": "monitor", "by": "forced"}, "..."]},
+ "models": ["nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3.5-super-vl-120b-a12b", "rules (Hungarian)"],
+ "trace_id": "trace-example-1", "log_file": "logs/trace-example-1.jsonl", "execution_time_seconds": 0.03}
+```
+
+The response contains:
+- `status`;
+- `output`: decision, score, reasons, plan, citations, critic_rejections, replans, safe_mode, collisions;
+- `agents`, with their roles;
+- `models`, naming which model handled each request;
+- `trace_id`, `log_file` and `execution_time_seconds`.
+
+Failures return `status: "error"` with a typed `error` (`InvalidInput`, `UpstreamUnavailable`, and so on) rather
+than a crash.
+
+</details>
+
+<details>
+<summary><b>Logs and traces: what every run writes, with a real excerpt</b></summary>
+
+**Watch it live:**
+- **Incidents tab** in the web UI: every incident, running ones first, with its agent flow drawn as a graph (numbered hops, who chose each hop and why) and its full history: each agent's input and output, what was sent to Nemotron, the model that answered and the latency, approvals and timeouts.
+- **`python run.py watch`** in a second terminal: one coloured, plain-English line per agent step, Nemotron call and human judgement, for example `12:03:04 PLANNER  1.2s  Nemotron-Super attempt 2 -> send W-18; AGV-5->F30 1.0/0.5 m/s`.
+
+Every run writes `logs/trace-<run_id>.jsonl`, one JSON object per agent step. Each record has the agent, ok,
+timing, inputs and outputs, critic violations with clauses, the model that answered, and retries and re-plans.
+Every record also carries the standard fields `trace_id`, `agent_name`, `action`, `input_summary`,
+`output_summary`, `from_agent`, `target_agent`, `confidence`, `retry_count` and `status`
+([`app/tracefmt.py`](app/tracefmt.py)), and every step is printed as an `[INFO]` line on stdout. From
+`example_1`, the critic stopping Nemotron's plan:
+```jsonl
+{"trace_id": "trace-example-1", "agent_name": "planner", "action": "write_plan", "input_summary": "part_shortage at F30", "output_summary": "v1 plan: send W-18, AGV-5; AGVs AGV-5->F30; cites 2 clause(s)", "from_agent": "candidates", "target_agent": "critic", "confidence": null, "retry_count": 0, "status": "success"}
+{"trace_id": "trace-example-1", "agent_name": "critic", "action": "check_safety", "input_summary": "part_shortage at F30; checks the nemotron v2 plan", "output_summary": "v2 rejected: R-CROSSING; the plan goes back with the clauses", "from_agent": "dryrun", "target_agent": "refine", "confidence": null, "retry_count": 0, "status": "needs_revision"}
+{"trace_id": "trace-example-1", "agent_name": "refine", "action": "compare_plans", "input_summary": "part_shortage at F30", "output_summary": "kept v1: v2 broke R-CROSSING", "from_agent": "critic", "target_agent": "restraint", "confidence": null, "retry_count": 0, "status": "success"}
+{"trace_id": "trace-example-1", "agent_name": "restraint", "action": "decide", "input_summary": "part_shortage at F30", "output_summary": "ACT (score 0.942)", "from_agent": "refine", "target_agent": "gate", "confidence": 0.942, "retry_count": 0, "status": "success"}
+```
+
+Other logs:
+- `logs/llm.jsonl` records every Nightshift request with the requested and answering model and the latency.
+- `logs/world_model.jsonl` records World Model builds.
+- `logs/approvals.jsonl` records human judgements.
+
+None of them contain secrets.
+
+A real live-mode trace: [docs/live-run/](docs/live-run/README.md) holds incident `SIM-42-008` (part shortage at F30,
+the critic rejecting Nemotron Ultra's v2 plan) as recorded live on 26 Oct 2026, with its four Nightshift calls and receipts.
+
+</details>
 
 ## Try it in 2 minutes
 No accounts, keys, Zetaris or Nightshift needed. Every step below runs offline with `SAMPLE_MODE=true` and,
@@ -332,257 +523,7 @@ Or do steps 3 onwards in one go: `bash scripts/start_live.sh` (idempotent; it st
 | **Evaluation** | `run.py eval [--live]`: planted unsafe plans, random plans, Monitor calibration; `--live` adds a Nemotron-only baseline and 3x stability. Writes [docs/eval.md](docs/eval.md) |
 | Project site and replays | [hemanth-raja.github.io/shopfloor-os](https://hemanth-raja.github.io/shopfloor-os/): landing page [`docs/site/index.html`](docs/site/index.html); `python scripts/build_site.py` rebuilds the replay page (`docs/site/replay.html`) from the examples; [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes both on push |
 
-<details>
-<summary><b>Request and response format</b></summary>
-
-Request:
-```json
-{"run_id": "example-2",
- "input": {"kind": "agv_fault", "agv": "AGV-3", "station": "F30", "stall_after": 2, "seed": 42},
- "options": {"sample_mode": false, "memory": false}}
-```
-- `input.kind` is one of `part_shortage`, `agv_fault`, `overheat`, `spill`, `robot_cell_fault`, `torque_fault`,
-  `near_miss` or `quality_defect`. All eight run through the full loop. A kind without a response playbook would be
-  fenced and escalated to a supervisor with the reason, instead of being planned.
-- Optional `severity` (`low`, `medium`, `high`, `critical`) and `note` (free text from the reporter).
-- `station` is a station id (B10, B20, P10, T10, T20, M10, F10, F20, F30, E10).
-- `false_alarm` makes an overheat sensor noise.
-- `stall_after` stalls the dispatched AGV mid-route.
-
-Or over HTTP (`SAMPLE_MODE=true python -m app.server`, or the Docker image):
-```bash
-curl -X POST http://localhost:8000/run -H "Content-Type: application/json" -d @input_examples/example_1.json
-```
-
-Response (abridged from `example_1`):
-```json
-{"run_id": "example-1", "status": "success",
- "output": {"decision": "ACT", "score": 0.942,
-            "summary": "part shortage at F30: ACT, Optimal assignment (Hungarian) over 5 candidates for 2 role(s) ...",
-            "reasons": ["p_real=0.95", "sensors agree=True", "expected cost of waiting $5,082 vs acting $42"],
-            "plan": {"assignee_ids": ["worker:plant:W-18", "agv:plant:AGV-5"],
-                     "agv_routes": [{"agv_id": "agv:plant:AGV-5", "to_station": "F30", "speed_mps": 1.0,
-                                     "crossing_speed_mps": 0.5}]},
-            "citations": [{"ref": "SOP-KIT-01 §3"}, {"ref": "29 CFR 1910.178(n)(8)"}],
-            "critic_rejections": 1, "gate": "auto_executed", "collisions": 0,
-            "path": [{"hop": 0, "agent": "reflex", "by": "code"}, {"hop": 1, "agent": "monitor", "by": "forced"}, "..."]},
- "models": ["nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3.5-super-vl-120b-a12b", "rules (Hungarian)"],
- "trace_id": "trace-example-1", "log_file": "logs/trace-example-1.jsonl", "execution_time_seconds": 0.03}
-```
-
-The response contains:
-- `status`;
-- `output`: decision, score, reasons, plan, citations, critic_rejections, replans, safe_mode, collisions;
-- `agents`, with their roles;
-- `models`, naming which model handled each request;
-- `trace_id`, `log_file` and `execution_time_seconds`.
-
-Failures return `status: "error"` with a typed `error` (`InvalidInput`, `UpstreamUnavailable`, and so on) rather
-than a crash.
-
-</details>
-
-### Sample inputs and outputs
-| Input | What happens | Output |
-|---|---|---|
-| [`input_examples/example_1.json`](input_examples/example_1.json): part shortage at F30 | The rules plan (v1, optimal assignment) is ready at once. Nemotron's plan (v2) sends AGV-5 at 1.0 m/s through the X-WEST crossing; the critic rejects it under 29 CFR 1910.178(n)(4), so v1 (0.5 m/s at crossings) stays. Result: ACT | [`output_examples/example_1.json`](output_examples/example_1.json) |
-| [`input_examples/example_2.json`](input_examples/example_2.json): AGV-3 fault plus a stall | The replacement AGV-1 stalls mid-route. The verifier detects it and the loop re-plans with AGV-2. Result: ACT | [`output_examples/example_2.json`](output_examples/example_2.json) |
-| [`input_examples/example_3.json`](input_examples/example_3.json): overheat at F10, false alarm | The temperature is over its threshold, but the Bosch vibration recording is normal, so the sensors disagree. Result: VERIFY (a technician checks; the line keeps running) | [`output_examples/example_3.json`](output_examples/example_3.json) |
-| [`input_examples/example_4.json`](input_examples/example_4.json): coolant spill at F20 | A two-cell geofence goes up and AGVs stay out. The spill responder goes in, citing 29 CFR 1910.22. Result: ACT | [`output_examples/example_4.json`](output_examples/example_4.json) |
-| [`input_examples/example_5.json`](input_examples/example_5.json): robot-cell fault at B10 (weld robots) | The cell is fenced. Only a technician with in-date lockout/tagout and a robot-cell card may enter (29 CFR 1910.147, SOP-ROBOT-02). ACT, but it waits for a person to approve | [`output_examples/example_5.json`](output_examples/example_5.json) |
-| [`input_examples/example_6.json`](input_examples/example_6.json): nutrunner torque fault at F10 | v1 sends a tool technician and the torque auditor. Nemotron's v2 sends only the technician; the critic rejects it (SOP-TORQUE-01: joints since the last good torque must be re-audited), so v1 stays. A single NOK with `false_alarm` gives VERIFY | [`output_examples/example_6.json`](output_examples/example_6.json) |
-| [`input_examples/example_7.json`](input_examples/example_7.json): pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | [`output_examples/example_7.json`](output_examples/example_7.json) |
-| [`input_examples/example_8.json`](input_examples/example_8.json): quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | [`output_examples/example_8.json`](output_examples/example_8.json) |
-
-<details>
-<summary><b>Logs and traces: what every run writes, with a real excerpt</b></summary>
-
-**Watch it live:**
-- **Incidents tab** in the web UI: every incident, running ones first, with its agent flow drawn as a graph (numbered hops, who chose each hop and why) and its full history: each agent's input and output, what was sent to Nemotron, the model that answered and the latency, approvals and timeouts.
-- **`python run.py watch`** in a second terminal: one coloured, plain-English line per agent step, Nemotron call and human judgement, for example `12:03:04 PLANNER  1.2s  Nemotron-Super attempt 2 -> send W-18; AGV-5->F30 1.0/0.5 m/s`.
-
-Every run writes `logs/trace-<run_id>.jsonl`, one JSON object per agent step. Each record has the agent, ok,
-timing, inputs and outputs, critic violations with clauses, the model that answered, and retries and re-plans.
-Every record also carries the standard fields `trace_id`, `agent_name`, `action`, `input_summary`,
-`output_summary`, `from_agent`, `target_agent`, `confidence`, `retry_count` and `status`
-([`app/tracefmt.py`](app/tracefmt.py)), and every step is printed as an `[INFO]` line on stdout. From
-`example_1`, the critic stopping Nemotron's plan:
-```jsonl
-{"trace_id": "trace-example-1", "agent_name": "planner", "action": "write_plan", "input_summary": "part_shortage at F30", "output_summary": "v1 plan: send W-18, AGV-5; AGVs AGV-5->F30; cites 2 clause(s)", "from_agent": "candidates", "target_agent": "critic", "confidence": null, "retry_count": 0, "status": "success"}
-{"trace_id": "trace-example-1", "agent_name": "critic", "action": "check_safety", "input_summary": "part_shortage at F30; checks the nemotron v2 plan", "output_summary": "v2 rejected: R-CROSSING; the plan goes back with the clauses", "from_agent": "dryrun", "target_agent": "refine", "confidence": null, "retry_count": 0, "status": "needs_revision"}
-{"trace_id": "trace-example-1", "agent_name": "refine", "action": "compare_plans", "input_summary": "part_shortage at F30", "output_summary": "kept v1: v2 broke R-CROSSING", "from_agent": "critic", "target_agent": "restraint", "confidence": null, "retry_count": 0, "status": "success"}
-{"trace_id": "trace-example-1", "agent_name": "restraint", "action": "decide", "input_summary": "part_shortage at F30", "output_summary": "ACT (score 0.942)", "from_agent": "refine", "target_agent": "gate", "confidence": 0.942, "retry_count": 0, "status": "success"}
-```
-
-Other logs:
-- `logs/llm.jsonl` records every Nightshift request with the requested and answering model and the latency.
-- `logs/world_model.jsonl` records World Model builds.
-- `logs/approvals.jsonl` records human judgements.
-
-None of them contain secrets.
-
-A real live-mode trace: [docs/live-run/](docs/live-run/README.md) holds incident `SIM-42-008` (part shortage at F30,
-the critic rejecting Nemotron Ultra's v2 plan) as recorded live on 26 Oct 2026, with its four Nightshift calls and receipts.
-
-</details>
-
-## Agents
-### How the agents work together
-There is no fixed chain. In an incident, the orchestrator sits in the middle and picks the next agent among the
-moves that code allows; agents send work back when a check fails. Every arrow is labelled with the condition that
-sends work along it. Code: [`app/dynamic.py`](app/dynamic.py) (legal moves), [`app/autonomy/`](app/autonomy),
-[`app/investigate/`](app/investigate), [`app/lab/`](app/lab).
-
-**Incident response: a hub with feedback loops**
-
-```mermaid
-flowchart TB
-  ZT[("Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops")]
-  WM[("World Model")]
-  HM[("H-MEM lessons and playbooks")]
-  O{{"Orchestrator: picks the next agent among the moves code allows"}}
-  MON["Monitor"]
-  MEM["Memory"]
-  CAND["Candidates"]
-  PLAN["Planner: v1 at once, Nemotron v2"]
-  CRIT["Safety critic"]
-  DRY["Dry run"]
-  RG["Restraint and gate"]
-  EXE["Executor"]
-  VER["Verifier"]
-  PER(["Person"])
-  FEN["Area stays fenced"]
-  ARB["Arbiter and leases"]
-  ZT -->|"one federated query"| WM
-  O <-->|"legal move, result"| MON
-  O <-->|"legal move, result"| MEM
-  O <-->|"legal move, result"| CAND
-  O <-->|"legal move, result"| PLAN
-  HM -->|"lessons, proven playbook"| MEM
-  WM -->|"qualified people, healthy AGVs"| CAND
-  WM -->|"rejects invented ids"| PLAN
-  CAND --> PLAN
-  PLAN -->|"plan"| CRIT
-  CRIT -->|"rejected: the clause goes back, up to 3 tries"| PLAN
-  CRIT -->|"rejected: re-pick people and robots"| CAND
-  CRIT -->|"violation becomes a lesson"| HM
-  CRIT -->|"passed"| DRY
-  DRY -->|"Nemotron v2 collides or is late: keep v1"| PLAN
-  DRY -->|"checked"| RG
-  RG -->|"routine ACT"| EXE
-  RG -->|"hazard, lapsed certificate, failed dry run, ESCALATE"| PER
-  PER -->|"approve"| EXE
-  PER -->|"reject"| FEN
-  EXE -->|"lease request"| ARB
-  ARB -->|"taken by a more urgent incident: re-plan without it"| CAND
-  EXE --> VER
-  VER -->|"floor not as predicted: re-plan without the failed AGV, up to 3 rounds"| CAND
-  VER -->|"outcome raises or lowers confidence"| HM
-```
-
-**The other three teams, each its own loop**
-
-```mermaid
-flowchart TB
-  ZT[("Zetaris")]
-  WM[("World Model")]
-  O{{"Incident orchestrator"}}
-  subgraph AUTO["Autopilot"]
-    SEN["Sentinel"] -->|"raises an incident"| DISP["Dispatcher: priority queue"]
-  end
-  subgraph ASK["Ask the floor"]
-    CO["Coordinator"] -->|"sub-tasks"| SQL["SQL agent"]
-    CO -->|"questions about the agents"| LOGA["Log agent"]
-    SQL -->|"query"| GRD["SQL guard"]
-    GRD -->|"refused: the reason goes back, 1 retry"| SQL
-    GRD -->|"allowed: rows"| AN["Analyst"]
-    LOGA -->|"traces and lessons"| AN
-    AN -->|"findings with evidence ids"| EC["Evidence critic"]
-    EC -->|"claim not backed by the rows: dropped"| AN
-  end
-  subgraph LAB["Lab in the loop"]
-    HYP["Hypothesis: Nemotron"] -->|"one floor change"| REP["20 seeded replays, bootstrap CI"]
-    REP -->|"significant"| APP(["Person saves and applies"])
-    APP --> MEAS["Later incidents measured"]
-    MEAS -->|"predicted vs measured"| HYP
-    REP -->|"every run is listed for the next hypothesis"| HYP
-  end
-  DISP -->|"one orchestrator per incident, most urgent first"| O
-  O -->|"each finished incident"| MEAS
-  GRD <-->|"read-only SQL"| ZT
-  WM -->|"floor facts"| AN
-  ZT -->|"incident history"| HYP
-```
-
-### Every agent
-| Agent | Role | Model | Can block or retry? | Sends work back to |
-|---|---|---|---|---|
-| reflex | Geofences the incident and stops or re-routes AGVs, in under 100 ms | none (rules) | Acts first; cannot be skipped | Nobody: it acts first and nothing returns to it |
-| monitor | Real alarm or sensor noise, from thresholds plus Bosch vibration evidence; one-line summary | `monitor` role (summary only) | Yes: noise sends one person to check instead of a dispatch | *Check first* (one person inspects) instead of the planner, when the sensors disagree |
-| memory | Recalls H-MEM lessons from past incidents before planning | none (H-MEM ranking) | No | The playbook step, skipping the planner, when a proven playbook fits |
-| candidates | Top-3 qualified workers and healthy AGVs from the World Model (valid certifications; no service-overdue AGV for critical work) | none | Yes: only certified people and healthy AGVs get through | Nobody directly; with no qualified person or healthy AGV the incident ends in ESCALATE |
-| planner | Chooses among the candidates; strict JSON; must cite the governing clauses | `planner` role | Retries up to 3 times with the critic's clauses | The critic, with every new version |
-| safety critic | Deterministic OSHA-based rule engine; cites the exact clause per violation; the planner gets up to 3 tries. Rules include lockout/tagout and robot-cell entry (robot-cell faults, overheats), torque re-audit (torque faults), the held AGV and supervisor sign-off (near misses) and inspector containment (quality defects) | none | Yes: blocks any plan that breaks a rule, with the clause | The planner with the clause (up to 3 tries), or candidates to re-pick; after 3 tries, restraint |
-| dry-run | 60 s headless simulation with A* and a reservation table; fails on a collision or a late ETA | none | Yes: a collision or late ETA fails the plan | Refine keeps v1 when Nemotron's v2 collides or is late; a failed v1 goes to restraint, which holds or escalates to a person |
-| restraint | ACT, VERIFY, SAFE_HOLD, ESCALATE or DO_NOTHING, from confidence, sensor agreement and cost | none | Yes: can hold, verify or escalate instead of acting | A person, through the gate, for VERIFY, SAFE_HOLD, ESCALATE or a hazard |
-| executor / verifier | Dispatches in the sim and checks the world changed as predicted; re-plans on mismatch | none | Yes: a mismatch triggers a re-plan | Candidates without the failed AGV (up to 3 rounds); the arbiter re-plans when a lease is lost |
-| health | Circuit breakers for Zetaris and Nightshift; safe mode when Nightshift is down | none | Yes: opens breakers and switches to safe mode | Safe mode instead of the planner when Nightshift is down |
-| lab | Policy hypothesis, then 20 seeded replays (no LLM), then a bootstrap 95% CI | `lab` role (hypothesis only) | Only proposes; a person applies | A person, who saves and applies the change; later incidents measure it for the next hypothesis |
-| orchestrator | Chooses the next agent at each decision point, within the legal moves (see below) | `router` role | Routes only among legal moves; code overrides an illegal pick | Any legal agent; an illegal pick goes to the rule-based router |
-
-## What makes this an agent system
-| Pattern | Where it happens |
-|---|---|
-| **Dynamic delegation** | The orchestrator picks the next agent hop by hop; the router model chooses only among the moves code allows, so incidents take different routes ([`output_examples/`](output_examples)) |
-| **Critique loop** | The safety critic rejects a plan with the OSHA or SOP clause; the planner gets the clause and tries again (up to 3 times); the evidence critic drops any claim the cited rows do not back |
-| **Retry logic** | Model calls retry with backoff, then the next model; a refused SQL query goes back with the guard's reason for one retry; a stalled AGV makes the verifier re-plan |
-| **Shared state** | All agents read and write one incident state and the Meterless World Model built from one federated Zetaris query; H-MEM is shared memory across incidents |
-| **Escalation** | No playbook, no qualified person, a lapsed certificate or a failed model chain ends in ESCALATE or SAFE_HOLD, and a person decides |
-| **Role authority** | The critic, dry run and human gate can block dispatch; nothing reaches the floor without passing all three |
-| **Non-linear flow** | Branches on alarm confidence (VERIFY vs ACT), risk (human gate), resources taken by another incident (arbiter) and the world not changing as predicted (re-plan) |
-
-**Where to look.** Agent decisions: `output.path` in every response, with who chose each hop and why. Zetaris:
-[`app/zetaris.py`](app/zetaris.py) and the `sql` and `candidates` steps. Meterless: [`app/engines/`](app/engines) and
-the `memory`, `candidates` and handover steps. Retries and feedback: `status: needs_revision`, `retry_count` and
-`replans` in the trace. Fallback to sample data: `SAMPLE_MODE=true`. Logs: [`logs/`](logs) and stdout. The final
-answer: the `restraint` and `gate` steps, returned as `output.decision`.
-
-## Lab in the loop: test a floor change, apply it, measure it
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
-  <img alt="The loop, read clockwise: the model (Nemotron via Nightshift with H-MEM memory) proposes plans and one policy change at a time into the complex space of the assembly hall (the World Model: stations, AGVs, people, certificates, OSHA rules, 2,071 past incidents); the agents try each plan on the digital twin before acting (collisions, crossings, who arrives when); what worked goes to the Lab in the loop (20 seeded replays of real history, 95% CI, you save what works); lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans rejected with the clause and fixed (6 of 27 first plans, all 6 fixed), lessons gain or lose confidence, false dispatches 235 to 19" src="docs/loop.png">
-</picture>
-
-<sub>Read it clockwise. A model proposes, the agents try the idea on a digital twin of the hall before anything real
-moves, the Lab tests changes against history, and what was learned flows back to the model. A person sits on two
-edges: approving risky plans before the twin's result reaches the floor, and saving a Lab proposal. Source:
-[docs/loop.html](docs/loop.html).</sub>
-
-The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
-floor itself make a whole class of incidents shorter?
-
-![Two learning loops. Fast loop, every incident: the handled incident leaves an H-MEM lesson whose confidence goes up or down, and the next plan recalls it. Slow loop, Lab in the loop: incidents are logged as history in Zetaris, Nemotron proposes one change, code tests it on history with A* re-scoring and 20 seeded replays, a person saves it to sf_ops.experiments and applies it, and new incidents measure it](docs/learning-loops.png)
-
-<sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
-
-<details>
-<summary><b>How one experiment runs</b></summary>
-
-One *Run experiment* (`run.py lab`, the *Lab* tab):
-1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
-   clear, and the walking distance to the nearest spill kit or to the parts supermarket.
-2. **Proposes a change.** Nemotron (the `lab` role) reads the summary, plus the runs already tested and what an
-   applied change measured, and proposes one testable change: a spill kit at a station, or a loaded AGV waiting at
-   one. With Nemotron down, a rule picks the busiest station, and the page says so in red.
-3. **Re-scores history.** Every real incident of that kind is re-walked with A* on the floor grid, with and without
-   the change; only the travel part of its clear time changes.
-4. **Replays and measures.** 20 seeded replays and 2,000 bootstrap resamples give the change in mean time to
-   clear with a 95% interval. No model runs inside the replays, so the same run gives the same answer.
-5. **Apply and measure.** A significant result can be saved to Zetaris (`sf_ops.experiments`) and applied to the
-   floor: the map shows it, and every later incident of that kind is measured with and without it
-   ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
-
-</details>
+What a run returns and writes: [Outputs](#outputs-what-a-run-returns-and-writes).
 
 ## Sponsor technology
 ### Zetaris: the data layer
@@ -662,6 +603,43 @@ client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (se
   with no model at all (`/api/verify/<id>`).
 - **Zetaris is also the agents' memory of themselves.** Their own steps, model calls and journal are federated
   next to the plant data, so "how often did the critic reject the planner, and why?" is one SQL query.
+
+## Lab in the loop: test a floor change, apply it, measure it
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
+  <img alt="The loop, read clockwise: the model (Nemotron via Nightshift with H-MEM memory) proposes plans and one policy change at a time into the complex space of the assembly hall (the World Model: stations, AGVs, people, certificates, OSHA rules, 2,071 past incidents); the agents try each plan on the digital twin before acting (collisions, crossings, who arrives when); what worked goes to the Lab in the loop (20 seeded replays of real history, 95% CI, you save what works); lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans rejected with the clause and fixed (6 of 27 first plans, all 6 fixed), lessons gain or lose confidence, false dispatches 235 to 19" src="docs/loop.png">
+</picture>
+
+<sub>Read it clockwise. A model proposes, the agents try the idea on a digital twin of the hall before anything real
+moves, the Lab tests changes against history, and what was learned flows back to the model. A person sits on two
+edges: approving risky plans before the twin's result reaches the floor, and saving a Lab proposal. Source:
+[docs/loop.html](docs/loop.html).</sub>
+
+The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
+floor itself make a whole class of incidents shorter?
+
+![Two learning loops. Fast loop, every incident: the handled incident leaves an H-MEM lesson whose confidence goes up or down, and the next plan recalls it. Slow loop, Lab in the loop: incidents are logged as history in Zetaris, Nemotron proposes one change, code tests it on history with A* re-scoring and 20 seeded replays, a person saves it to sf_ops.experiments and applies it, and new incidents measure it](docs/learning-loops.png)
+
+<sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
+
+<details>
+<summary><b>How one experiment runs</b></summary>
+
+One *Run experiment* (`run.py lab`, the *Lab* tab):
+1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
+   clear, and the walking distance to the nearest spill kit or to the parts supermarket.
+2. **Proposes a change.** Nemotron (the `lab` role) reads the summary, plus the runs already tested and what an
+   applied change measured, and proposes one testable change: a spill kit at a station, or a loaded AGV waiting at
+   one. With Nemotron down, a rule picks the busiest station, and the page says so in red.
+3. **Re-scores history.** Every real incident of that kind is re-walked with A* on the floor grid, with and without
+   the change; only the travel part of its clear time changes.
+4. **Replays and measures.** 20 seeded replays and 2,000 bootstrap resamples give the change in mean time to
+   clear with a 95% interval. No model runs inside the replays, so the same run gives the same answer.
+5. **Apply and measure.** A significant result can be saved to Zetaris (`sf_ops.experiments`) and applied to the
+   floor: the map shows it, and every later incident of that kind is measured with and without it
+   ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
+
+</details>
 
 ## Built with
 | Component | Technology |
