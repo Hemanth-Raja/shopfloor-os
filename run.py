@@ -137,10 +137,10 @@ def lab(write: bool, target: str = "zetaris"):
     from app.lab.experiment import experiment_row, run_experiment, write_local, write_zetaris
     from app.runtime import chat_json as guarded_json, run_sql as guarded_sql, run_write
 
-    offline = sample_mode() == "true"
-    if offline:  # as the Lab tab offline: generator history, rule-based hypothesis, no Zetaris or Nightshift
+    offline = sample_mode() in ("true", "record")
+    if offline:  # as the Lab tab offline: generator history; a recorded Nemotron hypothesis replays, else a rule picks
         from app.lab.offline import offline_run_sql
-        result = run_experiment(offline_run_sql, None)
+        result = run_experiment(offline_run_sql, maybe_sample(guarded_json, "json"))
     else:
         result = run_experiment(guarded_sql, maybe_sample(guarded_json, "json"))
     h = result["hypothesis"]

@@ -1,0 +1,15 @@
+{
+ "kind": "json",
+ "lane": "deep",
+ "model": "nvidia/nemotron-3-ultra-550b-a55b",
+ "text": "{\n  \"hypothesis\": \"Staging a loaded kitting AGV at T10 (TRIM zone) will eliminate the AGV round-trip to the supermarket exit at (7,13) for the most frequent part-shortage events, directly reducing mean time_to_clear_s.\",\n  \"policy\": {\n    \"type\": \"preposition_agv\",\n    \"station\": \"T10\"\n  },\n  \"metric\": \"time_to_clear_s\",\n  \"expected_effect_pct\": 35\n}",
+ "data": {
+  "hypothesis": "Staging a loaded kitting AGV at T10 (TRIM zone) will eliminate the AGV round-trip to the supermarket exit at (7,13) for the most frequent part-shortage events, directly reducing mean time_to_clear_s.",
+  "policy": {
+   "type": "preposition_agv",
+   "station": "T10"
+  },
+  "metric": "time_to_clear_s",
+  "expected_effect_pct": 35.0
+ }
+}

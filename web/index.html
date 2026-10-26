@@ -1393,7 +1393,9 @@ function showLab(r) {
     <div class="note" style="margin-top:6px">Each bar is one seeded replay's treatment mean, relative to the highest baseline (${max.toFixed(0)} s).</div>`;
   $("labwrite").disabled = !r.significant;
   window.LASTLAB = r; $("labapply").disabled = !r.significant || !!(LOOP && LOOP.applied.lab_id === r.lab_id);
-  if (r.seconds != null) $("labout").insertAdjacentHTML("afterbegin", `<div class="note" style="margin-bottom:6px">${r.source === "nemotron"
+  if (r.seconds != null) $("labout").insertAdjacentHTML("afterbegin", `<div class="note" style="margin-bottom:6px">${r.source === "nemotron" && String(r.model || "").includes("(replay)")
+      ? `Took ${r.seconds} s: sample mode replays the hypothesis ${esc(String(r.model).replace(" (replay)", "").replace("nvidia/", ""))} wrote when this run was recorded live; the rest is seeded arithmetic.`
+      : r.source === "nemotron"
       ? `Took ${r.seconds} s: Nemotron ${r.model_latency_s != null ? (+r.model_latency_s).toFixed(1) : "?"} s for the hypothesis${r.model_latency_s != null && r.model_latency_s < 0.5 ? " (Nightshift answered from its memory of an identical question)" : ""}, the rest ${Math.max(0, r.seconds - (r.model_latency_s || 0)).toFixed(2)} s of seeded arithmetic. Each new run tells Nemotron what was already tested, so it proposes something else.`
       : `<span class="bad-t">Took ${r.seconds} s with no model call: Nemotron did not answer, so this is the fixed rule's pick, not a new idea.</span>`}</div>`);
   labRuns();

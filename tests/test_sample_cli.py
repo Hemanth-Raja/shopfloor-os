@@ -29,7 +29,7 @@ def test_ask_prints_floor_evidence_without_crashing(no_network, capsys):
 def test_lab_runs_offline_and_writes_nothing(no_network, capsys):
     cli.lab(write=True)
     out = capsys.readouterr().out
-    assert "Hypothesis (rule-based)" in out and "95% CI" in out
+    assert "Hypothesis (nemotron)" in out and "95% CI" in out  # the recorded Lab reply replays
     row = json.loads(out.split("Proposal:", 1)[1])
     assert "SAMPLE_MODE: nothing written" in out and row["status"] in ("proposed", "not_significant")
 

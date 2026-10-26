@@ -892,11 +892,13 @@ class App:
 
         def work():
             try:
-                from app.fixtures import maybe_sample
+                from app.fixtures import maybe_sample, sample_mode
                 from app.lab.experiment import run_experiment
                 if self.run_sql is None:
                     from app.lab.offline import offline_run_sql
-                    sql, llm_json = offline_run_sql, None  # offline: rule-based hypothesis, generator history
+                    from app import models  # offline: generator history; in sample mode a recorded Nemotron
+                    sql, llm_json = offline_run_sql, (maybe_sample(models.chat_json, "json")  # hypothesis replays,
+                                                      if sample_mode() == "true" else None)  # else a rule picks
                 else:
                     from app import models  # not runtime.chat_json: its one breaker for all roles opens after two
                     sql, llm_json = self.run_sql, maybe_sample(models.chat_json, "json")  # failed incident calls

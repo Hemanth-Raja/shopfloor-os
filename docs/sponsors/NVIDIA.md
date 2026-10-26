@@ -55,7 +55,7 @@ saw it.
 
 What the table shows:
 - **Ultra answered few planner calls (31 of 408).** Ultra was pinned on the last build day, so most planner calls
-  before that went to Super VL (README *Limitations*).
+  before that went to Super VL.
 - **Requested is not always answering.** In 100 of the 3,603 calls Nightshift served a different model from the
   one requested; every one is logged with both names.
 - **The sql_agent and coordinator medians are under 1 s.** We did not investigate why for this write-up.

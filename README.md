@@ -59,7 +59,7 @@ reasoning (Nemotron) into decisions and actions that are checked, simulated, gat
 | Area | Result |
 |---|---|
 | **The rule that matters** | Nemotron proposes; code decides what is safe. Every plan passes a deterministic OSHA critic, a simulated dry run and a restraint gate, and a person approves anything that sends someone into a hazard |
-| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
+| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan (3.5 Super VL as the planner) broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
 | **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
 | **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
 | **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,215 of 6,215 Ed25519 receipts verify (`run.py receipts --verify`, 26 Oct 2026) |
@@ -223,6 +223,15 @@ verifier sees the floor move as predicted. **ACT, auto-executed.**
 | 6 | refine | forced | **yes: the critic rejects Nemotron's v2 (R-CROSSING); v2 is dropped, v1 kept** |
 | 7–10 | restraint, gate, executor, verifier | forced | |
 
+**Output: what changed on the floor.**
+![The floor after the part shortage: worker W-18 at F30 and AGV-5 on its way, both ringed as dispatched; the decision panel shows ACT, 1 critic rejection, auto-executed](docs/screenshots/20-floor-after-part-shortage.png)
+
+- **Decision:** ACT, run on its own (a routine plan that passed the critic and the dry run; a person can roll it back).
+- **Dispatched:** team leader W-18 to F30 (there in 4 s) and kitting AGV-5 with the parts (112 s), at 1.0 m/s and
+  slowing to 0.5 m/s at the X-WEST crossing, the rule Nemotron's rejected plan broke.
+- **Checked:** the dry run found 0 collisions, and the verifier saw everyone move as predicted. Waiting would have
+  cost about $5,082, acting about $42.
+
 Input: [`input_examples/example_1.json`](input_examples/example_1.json) · Output: [`output_examples/example_1.json`](output_examples/example_1.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
 
 ### Incident 2: AGV-3 fault and a stall, where the verifier re-plans
@@ -240,6 +249,15 @@ round sends AGV-2 and the verifier confirms it. **ACT, 1 re-plan.**
 | 10 | verifier | forced | **yes: AGV-1 stalled; back to candidates without it** |
 | 11–12 | candidates, planner | rules router ("re-pick people and robots without the ones that failed") | |
 | 13–19 | critic, dry run, refine, restraint, gate, executor, verifier | forced | |
+
+**Output: what changed on the floor.**
+![The floor after the AGV fault: AGV-3 faulted and fenced at F30, AGV-1 stalled and marked red, AGV-2 dispatched in its place with W-18 at F30](docs/screenshots/21-floor-after-agv-stall.png)
+
+- **Decision:** ACT, after 1 re-plan, run on its own.
+- **What happened on the floor:** the reflex fenced 5 cells around AGV-3. AGV-1 was sent with the parts and stalled
+  5 cells short of where it should have been; the verifier caught it, AGV-1 was taken out of service, and AGV-2
+  went instead (108 s), with W-18 at F30 (28 s).
+- **Checked:** 0 collisions; the second round's verifier saw the floor change as predicted.
 
 Input: [`input_examples/example_2.json`](input_examples/example_2.json) · Output: [`output_examples/example_2.json`](output_examples/example_2.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
 
@@ -259,6 +277,16 @@ qualified person inspects. No planner and no model call. **VERIFY; the line keep
 | 5–7 | critic, dry run, restraint | forced | |
 | 8 | gate | forced | **waits for a person** |
 
+**Output: what changed on the floor.**
+![The floor after the overheat alarm: a small fence at F10, no AGV moved, the decision panel shows VERIFY waiting for approval for one technician to inspect](docs/screenshots/22-floor-after-overheat.png)
+
+- **Decision:** VERIFY. The line keeps running; nothing is dispatched until a person approves.
+- **Why:** the monitor put the alarm at p = 0.20 (process temperature 315.1 K against a 313.0 K threshold, but the
+  Bosch vibration recording is normal), and the investigator found 1 of the last 3 overheats at F10 was a false
+  alarm. The expected cost of acting now was about $15,042, against $1,800 for checking first.
+- **Next:** maintenance technician W-19 (in-date lockout/tagout) inspects F10, 36 s away, once a person approves,
+  because the check means entering the overheat area. No AGV moves and no collisions.
+
 Input: [`input_examples/example_3.json`](input_examples/example_3.json) · Output: [`output_examples/example_3.json`](output_examples/example_3.json) · All 8 explained: [output_examples/README.md](output_examples/README.md)
 
 ### Sample inputs and outputs
@@ -273,6 +301,39 @@ Examples 1 to 3 are shown above with their screenshots. The other five, each a d
 | [`input_examples/example_8.json`](input_examples/example_8.json): quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | [`output_examples/example_8.json`](output_examples/example_8.json) |
 
 ### Ask the floor: three questions
+How it works (code: [`app/investigate/`](app/investigate)). A question is handled by a team of agents; nothing on the
+floor moves.
+
+```mermaid
+flowchart TB
+  Q(["Question"]) --> IN["Intake: rules"]
+  IN -->|"a write: refused"| REF(["Refused"])
+  IN -->|"a question"| CO["Coordinator: Nemotron splits it into sub-tasks"]
+  CO -->|"plant data"| SQL["SQL agent: Nemotron writes Spark SQL from the table catalogue"]
+  CO -->|"the agents' own history"| LOGA["Log agent: traces, model calls, H-MEM lessons"]
+  CO -->|"stations and AGVs named"| FL["Floor facts: World Model"]
+  SQL --> GRD["SQL guard: one read-only SELECT, sf_* tables, LIMIT"]
+  GRD -->|"refused or Zetaris error: the reason goes back, 1 retry"| SQL
+  GRD -->|"allowed"| ZT[("Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops")]
+  ZT -->|"rows, as evidence E1, E2..."| AN["Analyst: Nemotron writes findings citing evidence ids"]
+  LOGA --> AN
+  FL --> AN
+  AN --> EC["Evidence critic: rules, then a second Nemotron model"]
+  EC -->|"claim not backed by the cited rows"| DROP(["Struck out, shown with the reason"])
+  EC -->|"backed claims"| ANS(["Answer with citations and the SQL behind it"])
+```
+
+Agents called for *"Are overheat alarms real?"* (from its trace):
+
+| Agent | What it did | Model |
+|---|---|---|
+| intake | classified it as a plant question | rules |
+| coordinator | split it into 5 sub-tasks | Nemotron 3.5 Super VL |
+| SQL agent ×4, SQL guard, Zetaris | 4 read-only queries over `sf_ops.incidents` and `sf_plant.machine_telemetry` (5, 8, 8 and 2 rows), run in parallel | Nemotron 3.5 Super VL |
+| log agent | searched the agents' traces and model calls, alongside the SQL | none |
+| analyst | wrote 5 findings, each citing its evidence | Nemotron 3.5 Lightning |
+| evidence critic | kept 4, struck out 1 ("26 false alarms": the rows show 74) | rules, then Nemotron 3.5 Lightning |
+
 | | |
 |---|---|
 | ![Ask the floor answer: F10 keeps stopping mainly because of part shortages and nutrunner torque faults, with five cited findings](docs/screenshots/13-ask-f10.png) | **"Why does F10 keep stopping?"** The coordinator splits the question into three SQL tasks over `sf_ops.incidents` (27 rows), `sf_ops.andon_events` (17) and `sf_plant.machine_telemetry` (47); the log agent adds the agents' own history and the World Model adds floor facts. Five findings, each citing its evidence; the critic drops none. Answer: part shortages and nutrunner torque faults. |
@@ -282,14 +343,39 @@ Examples 1 to 3 are shown above with their screenshots. The other five, each a d
 In sample mode these three questions replay recorded Nemotron replies (the buttons in the UI). Other questions
 get a rule-based summary, not a real answer (see [What sample mode covers](#what-sample-mode-covers)).
 
-### Lab: one experiment
-![Lab run: hypothesis an extra spill kit at F20, 82 incidents re-scored, mean time to clear 531.5 s to 488.2 s, effect -8.2% with 95% CI -11.1% to -5.3%, status proposed](docs/screenshots/16-lab-run.png)
+### Lab: one experiment, proposed by Nemotron
+![Lab run: Nemotron 3 Ultra proposes staging a loaded kitting AGV at T10; 821 past part shortages re-scored; mean time to clear 807 s to 799.8 s; effect -0.9% with 95% CI -1.1% to -0.7%; status proposed](docs/screenshots/16-lab-run.png)
 
-**What happened.** The Lab reads spill and part-shortage history, proposes one floor change (an extra spill kit at
-F20), re-walks all 82 past spills with A* with and without it, runs 20 seeded replays and a 2,000-sample bootstrap:
-**-8.2% time to clear (95% CI -11.1% to -5.3%), significant, status *proposed*.** A person decides whether to save
-it to Zetaris and apply it to the floor. In sample mode the hypothesis comes from a fixed rule, and the page says so
-in red; live, Nemotron proposes it.
+**What happened.** Nemotron 3 Ultra 550B read the per-station history of spills and part shortages and proposed one
+change: *stage a loaded kitting AGV at T10*, so part shortages there skip the trip to the supermarket. Code then
+tested it on history with no model: all 821 past part shortages re-walked with A* with and without the change, 20
+seeded replays and a 2,000-sample bootstrap. **Mean time to clear 807 s → 799.8 s, -0.9% (95% CI -1.1% to -0.7%):
+small but significant, status *proposed*.** A person decides whether to save it to Zetaris and apply it to the
+floor; later part shortages are then measured against the prediction. This run was recorded live through Nightshift
+on 26 Oct 2026 (Ultra answered in 2.9 s), and sample mode replays that reply, so the same run appears offline.
+
+How it works (code: [`app/lab/`](app/lab)):
+
+```mermaid
+flowchart TB
+  ZT[("Zetaris: incident history")] -->|"per-station summary"| HYP["Hypothesis: Nemotron proposes one floor change"]
+  HYP -->|"Nemotron down: a fixed rule picks, and the page says so"| HYP
+  HYP --> RS["Re-score every past incident: A* walks with and without the change"]
+  RS --> REP["20 seeded replays and a bootstrap 95% CI: no model"]
+  REP -->|"significant"| PER(["A person saves it to Zetaris and applies it"])
+  REP -->|"not significant: the next run is told what was tried"| HYP
+  PER --> MEAS["Later incidents of that kind measured: predicted vs measured"]
+  MEAS -->|"the measured result goes into the next hypothesis"| HYP
+```
+
+| Step | Agent | What it did in this run | Model |
+|---|---|---|---|
+| 1 | history | one Zetaris query: 12 station and kind summaries | none |
+| 2 | hypothesis | "stage a loaded kitting AGV at T10" | Nemotron 3 Ultra 550B |
+| 3 | incidents | 821 past part shortages to replay | none |
+| 4 | re-score | 1,642 A* walks; 85 incidents got shorter | none |
+| 5 | replays, bootstrap | 20 seeded replays, 2,000 resamples: -0.9% (95% CI -1.1% to -0.7%), significant | none |
+| 6 | a person | *Save proposal to Zetaris*, *Apply to the floor* | – |
 
 ## Outputs: what a run returns and writes
 Every run returns one JSON result and writes a trace, so a person can check afterwards what the agents did and why.
@@ -408,8 +494,9 @@ Lab replays and the Markovian chunking.
 4. **Autopilot shift.** `SAMPLE_MODE=true .venv/bin/python run.py shift --minutes 2 --seed 7`: the Sentinel
    raises 5 incidents from 66 signals, up to 3 run at once, 4 resolve on their own and 1 waits for a person,
    0 runtime-invariant violations.
-5. **Lab.** `SAMPLE_MODE=true .venv/bin/python run.py lab`: a spill kit at F20, 82 past spills re-scored, 20 seeded
-   replays, -8.2% time to clear (95% CI -11.1% to -5.3%). The hypothesis is rule-based in sample mode, and
+5. **Lab.** `SAMPLE_MODE=true .venv/bin/python run.py lab`: Nemotron 3 Ultra's recorded hypothesis (a loaded AGV
+   staged at T10), 821 past part shortages re-scored, 20 seeded replays, -0.9% time to clear (95% CI -1.1% to
+   -0.7%). The hypothesis is replayed from the live recording; everything after it is computed, and
    `--write` writes nothing.
 6. **Shift handover (Meterless Markovian).** `SAMPLE_MODE=true .venv/bin/python run.py handover` reads the
    journal that step 4 wrote, in bounded chunks with carryover, and prints a handover note that says
@@ -437,7 +524,7 @@ Lab replays and the Markovian chunking.
 | Incident trace | `run.py incident --kind agv_fault --agv AGV-3 --station F30 --stall-after 2` | Yes | as above | as above, including the verifier's re-plan |
 | Ask the floor | `run.py ask "..."`, *Ask the floor* tab | Yes, 3 recorded questions | coordinator, SQL agent, analyst and evidence critic replies for those 3 | intake, SQL guard, log agent, the critic's rule checks; any other question gets a rule-based summary over an offline SQLite copy |
 | Autopilot shift | `run.py shift --minutes 2 --seed 7` | Yes | recorded replies where they exist | Sentinel detectors, dispatcher, leases, arbiter, each incident's loop |
-| Lab | `run.py lab`, *Lab* tab | Yes | nothing: the hypothesis is rule-based | history from the generator, A* re-scoring, 20 seeded replays, bootstrap CI |
+| Lab | `run.py lab`, *Lab* tab | Yes | Nemotron 3 Ultra's hypothesis, recorded live for the first run; a fixed rule picks when no recording matches | history from the generator, A* re-scoring, 20 seeded replays, bootstrap CI |
 | Shift handover | `run.py handover` | Yes | nothing: the note is rule-based | Markovian chunks, carryover, token accounting |
 | Re-check a decision | `GET /api/verify/<id>` | Yes | – | critic, gate, data snapshot and journal checks |
 | Evaluation | `run.py eval` | Yes (5 s) | – | 216 planted unsafe plans, Monitor calibration; `--live` needs Nightshift |
@@ -747,11 +834,6 @@ The README stays short; the details live in `docs/`.
 - **Rules are a sample, not a safety case.** About a dozen rules are checked; only the OSHA clauses are real (the
   SOPs are synthetic); a rule the critic cannot check blocks automatic action instead of being ignored. Clause
   excerpts are not legal advice.
-- **Three models answer.** Nemotron 3 Ultra 550B, 3.5 Super VL and 3.5 Lightning answer our app;
-  Llama-3.3-Nemotron-Super 49B is a judge lane that refuses direct requests. Ultra was pinned on the last build day,
-  so the evaluation numbers above were measured with Super VL as the planner. Per-role pinning relies on lane
-  allowlists in Nightshift's app policy (no cockpit control); the self-check and drift warnings make any change
-  visible.
 - **Nemotron's plan seldom replaces the rules plan.** The first plan (v1) is an optimal assignment for the same
   score the refine step compares, so Nemotron's v2 can tie it but rarely beat it on that score. Live, v2 mostly
   picked the same team, and when it differed the critic caught a rule it broke. Nemotron's value is in routing,

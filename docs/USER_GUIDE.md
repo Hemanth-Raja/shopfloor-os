@@ -61,7 +61,7 @@ critic strikes out any claim the rows do not back (above: "26 false alarms" when
 - In sample mode only the three sample questions have recorded answers; other questions get a rule-based summary.
 
 ## Lab
-![Lab: an experiment testing an extra spill kit at F20, with the effect, its 95% confidence interval and the seeded replays](screenshots/16-lab-run.png)
+![Lab: Nemotron's proposal to stage a loaded kitting AGV at T10, with the effect, its 95% confidence interval and the seeded replays](screenshots/16-lab-run.png)
 
 Test a change to the floor against history before making it. *Run experiment*: the Lab proposes one change (a spill
 kit at a station, or a loaded AGV waiting at one), re-walks every past incident of that kind with and without it,
@@ -70,8 +70,8 @@ runs 20 seeded replays and gives the change in mean time to clear with a 95% int
 - **Save proposal to Zetaris** writes it to `sf_ops.experiments` through Zetaris.
 - **Apply to the floor** puts the change on the map; every later incident of that kind is measured against the
   prediction under *Lab in the loop: predicted vs measured*. *Remove the change* takes it off.
-- A red line under the buttons means the hypothesis came from a fixed rule, not Nemotron (always the case in
-  sample mode).
+- A red line under the buttons means the hypothesis came from a fixed rule, not Nemotron (in sample mode the first
+  run replays a hypothesis Nemotron 3 Ultra wrote live; later runs use the rule).
 
 ## Nemotron at work
 ![Nemotron at work: model answers, receipts verified, plans the critic sent back, and answers by model](screenshots/18-nemotron-at-work.png)
