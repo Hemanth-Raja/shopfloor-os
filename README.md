@@ -467,6 +467,7 @@ the critic rejecting Nemotron Ultra's v2 plan) as recorded live on 26 Oct 2026, 
 </details>
 
 ## Try it in 2 minutes
+
 No accounts, keys, Zetaris or Nightshift needed. Every step below runs offline with `SAMPLE_MODE=true` and,
 unless noted, finishes in under a second (timed on 26 Oct 2026 in a fresh venv).
 
@@ -476,14 +477,21 @@ deterministic rule-based stand-in answers, and the output says so (`rule-based`)
 reflex, monitor, candidates, critic, dry run, restraint, gate, executor, verifier, SQL guard, Sentinel, leases,
 Lab replays and the Markovian chunking.
 
- **Clone the repository.**
-   ```bash
-   git clone https://github.com/Hemanth-Raja/shopfloor-os.git && cd shopfloor-os
-   ```
+**Requirements: Python 3.11 or newer.** Check with `python3 --version`. On macOS the default `python3` is 3.9,
+which is too old; run `brew install python@3.12` and use `python3.12` in the commands below. If your `python3`
+is already 3.11 or newer, you can use it as is. No suitable Python? Use Docker instead:
+`docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os`, then open http://127.0.0.1:8000.
+
+**Clone and install.**
+
+```bash
+git clone https://github.com/Hemanth-Raja/shopfloor-os.git && cd shopfloor-os
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python --version    # must print 3.11 or newer
+```
 
 1. **One incident, JSON in and out.**
    ```bash
-   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
    SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json --out result.json
    ```
    stdout shows one `[INFO]` trace line per agent step, then the JSON result; `--out` also writes the JSON alone
@@ -497,27 +505,46 @@ Lab replays and the Markovian chunking.
    Eight JSON files in about 10 s, one per incident kind, each on its own route: the critic rejects Nemotron's plan (1, 6), the
    verifier re-plans after a stall (2), a false alarm ends in VERIFY with no planner (3), a person must approve a
    hazard (4, 5, 7), and routine work runs on its own (8). See [Sample inputs and outputs](#sample-inputs-and-outputs).
-3. **Ask the floor.** `SAMPLE_MODE=true .venv/bin/python run.py ask "Why does F10 keep stopping?"`
-   prints the investigation steps, five cited findings and the SQL behind each. Only the three questions on the UI
+3. **Ask the floor.**
+   ```bash
+   SAMPLE_MODE=true .venv/bin/python run.py ask "Why does F10 keep stopping?"
+   ```
+   Prints the investigation steps, five cited findings and the SQL behind each. Only the three questions on the UI
    buttons are recorded; any other question gets a rule-based summary of fixed queries, not a real answer.
-4. **Autopilot shift.** `SAMPLE_MODE=true .venv/bin/python run.py shift --minutes 2 --seed 7`: the Sentinel
-   raises 5 incidents from 66 signals, up to 3 run at once, 4 resolve on their own and 1 waits for a person,
-   0 runtime-invariant violations.
-5. **Lab.** `SAMPLE_MODE=true .venv/bin/python run.py lab`: Nemotron 3 Ultra's recorded hypothesis (a loaded AGV
-   staged at T10), 821 past part shortages re-scored, 20 seeded replays, -0.9% time to clear (95% CI -1.1% to
-   -0.7%). The hypothesis is replayed from the live recording; everything after it is computed, and
-   `--write` writes nothing.
-6. **Shift handover (Meterless Markovian).** `SAMPLE_MODE=true .venv/bin/python run.py handover` reads the
-   journal that step 4 wrote, in bounded chunks with carryover, and prints a handover note that says
+4. **Autopilot shift.**
+   ```bash
+   SAMPLE_MODE=true .venv/bin/python run.py shift --minutes 2 --seed 7
+   ```
+   The Sentinel raises 5 incidents from 66 signals, up to 3 run at once, 4 resolve on their own and 1 waits for a
+   person, 0 runtime-invariant violations.
+5. **Lab.**
+   ```bash
+   SAMPLE_MODE=true .venv/bin/python run.py lab
+   ```
+   Nemotron 3 Ultra's recorded hypothesis (a loaded AGV staged at T10), 821 past part shortages re-scored, 20 seeded
+   replays, -0.9% time to clear (95% CI -1.1% to -0.7%). The hypothesis is replayed from the live recording;
+   everything after it is computed, and `--write` writes nothing.
+6. **Shift handover (Meterless Markovian).**
+   ```bash
+   SAMPLE_MODE=true .venv/bin/python run.py handover
+   ```
+   Reads the journal that step 4 wrote, in bounded chunks with carryover, and prints a handover note that says
    "Rule-based handover (sample mode, no model call)". Run step 4 first: a fresh clone has an empty journal.
-7. **The web UI and the judges' API check.** `SAMPLE_MODE=true .venv/bin/python -m app.server`, open
-   http://127.0.0.1:8000 and use *Live floor*, *Incidents*, *Ask the floor* and *Lab* as in the screenshots above.
-   In a second terminal:
+7. ### ⭐ **The web UI and the judges' API check.**
+   **Start the server, then open http://127.0.0.1:8000 and use *Live floor*, *Incidents*, *Ask the floor* and *Lab* as in the screenshots above.**
+   ```bash
+   SAMPLE_MODE=true .venv/bin/python -m app.server
+   ```
+   **In a second terminal, run the API check:**
    ```bash
    curl -X POST http://localhost:8000/run -H "Content-Type: application/json" -d @input_examples/example_3.json
    ```
    An overheat at F10 whose vibration evidence says sensor noise: `"decision": "VERIFY"`, the line keeps running.
-   With Docker: `docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os`.
+
+   **With Docker instead:**
+   ```bash
+   docker build -t shopfloor-os . && docker run --rm -p 8000:8000 shopfloor-os
+   ```
 8. **Re-check a decision without any model.** With the server from step 7, run an incident under the map, then
    open http://127.0.0.1:8000/api/verify/SIM-42-001: verdict `CONFIRMED`, 0 model calls. Four
    checks pass; for an incident run by hand, the journal check shows n/a until a person judges it.
