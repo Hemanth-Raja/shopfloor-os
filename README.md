@@ -478,7 +478,7 @@ Lab replays and the Markovian chunking.
 
  **Clone the repository.**
    ```bash
-   git clone [https://github.com/Hemanth-Raja/shopfloor-os.git](https://github.com/Hemanth-Raja/shopfloor-os.git) && cd shopfloor-os
+   git clone https://github.com/Hemanth-Raja/shopfloor-os.git && cd shopfloor-os
    ```
 
 1. **One incident, JSON in and out.**
@@ -554,7 +554,7 @@ Lab replays and the Markovian chunking.
 ## Setup
 ### From a clean clone, without Zetaris, Nightshift or keys
 ```
-git clone [https://github.com/Hemanth-Raja/shopfloor-os.git](https://github.com/Hemanth-Raja/shopfloor-os.git) && cd shopfloor-os
+git clone https://github.com/Hemanth-Raja/shopfloor-os.git && cd shopfloor-os
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # an empty .env is fine for sample mode
 SAMPLE_MODE=true .venv/bin/python run.py run input_examples/example_1.json
