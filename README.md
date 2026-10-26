@@ -476,6 +476,11 @@ deterministic rule-based stand-in answers, and the output says so (`rule-based`)
 reflex, monitor, candidates, critic, dry run, restraint, gate, executor, verifier, SQL guard, Sentinel, leases,
 Lab replays and the Markovian chunking.
 
+ **Clone the repository.**
+   ```bash
+   git clone <this repo> && cd shopfloor-os
+   ```
+
 1. **One incident, JSON in and out.**
    ```bash
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
