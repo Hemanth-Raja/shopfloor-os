@@ -152,6 +152,7 @@
   "safety": "Deterministic critic over OSHA 29 CFR 1910 rule summaries; restraint gate (ACT, SAFE_HOLD, VERIFY, ESCALATE, DO_NOTHING); circuit-breaker safe mode",
   "demo": {
     "video": "https://youtu.be/YExRZBpAkTA",
+    "video_length": "3:56",
     "video_backup": "https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing",
     "deck": "https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing",
     "deck_pdf": "docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf",

@@ -12,7 +12,7 @@ All fields are filled. Numbers were re-measured on 26 Oct 2026 (313 offline test
 
 **GitHub repository (public):** https://github.com/Hemanth-Raja/shopfloor-os
 
-**Demo video (1–4 min):** https://youtu.be/YExRZBpAkTA (backup: https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing)
+**Demo video (1–4 min):** https://youtu.be/YExRZBpAkTA (3:56) (backup: https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing)
 
 **Slide deck:** https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing (PDF in the repository: `docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf`)
 
