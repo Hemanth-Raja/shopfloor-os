@@ -25,7 +25,7 @@
 
 [![Shop-Floor OS demo video: the safety critic rejects Nemotron's plan, recorded live](https://img.youtube.com/vi/YExRZBpAkTA/maxresdefault.jpg)](https://youtu.be/YExRZBpAkTA)
 
-<!-- Backup copy (Google Drive): add the link here -->
+Backup copy: [Google Drive](https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing) (same video, English captions).
 
 ## See it work
 ![Shop-Floor OS running in sample mode: an AGV fault with a stall is fenced, planned, checked and dispatched; the verifier sees the AGV stall and re-plans; the agent flow graph shows every hop and who chose it; Ask the floor answers "Why does F10 keep stopping?" with cited evidence from Zetaris](docs/demo.gif)

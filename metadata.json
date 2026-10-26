@@ -139,6 +139,7 @@
   "safety": "Deterministic critic over OSHA 29 CFR 1910 rule summaries; restraint gate (ACT, SAFE_HOLD, VERIFY, ESCALATE, DO_NOTHING); circuit-breaker safe mode",
   "demo": {
     "video": "https://youtu.be/YExRZBpAkTA",
+    "video_backup": "https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing",
     "offline": "SAMPLE_MODE=true python -m app.server  (replays recorded Nemotron replies; no keys, no Zetaris)",
     "cases": [
       "part_shortage at F30 (critic rejection then retry)",
