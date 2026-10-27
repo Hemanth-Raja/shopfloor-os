@@ -19,6 +19,50 @@
 
 </div>
 
+## Table of Contents
+
+- [What is Shop-Floor OS?](#what-is-shop-floor-os)
+  - [Who it is for:](#who-it-is-for)
+  - [Why it fits Track 3:](#why-it-fits-track-3)
+- [The problem and our solution](#the-problem-and-our-solution)
+- [How it works](#how-it-works)
+  - [How the agents work together](#how-the-agents-work-together)
+  - [Every agent](#every-agent)
+  - [What makes this an agent system](#what-makes-this-an-agent-system)
+- [Lab in the loop: test a floor change, apply it, measure it](#lab-in-the-loop-test-a-floor-change-apply-it-measure-it)
+- [Results at a glance](#results-at-a-glance)
+- [Sample Incidents:](#sample-incidents)
+  - [Incident 1: part shortage at F30, where the critic stops Nemotron's plan](#incident-1-part-shortage-at-f30-where-the-critic-stops-nemotrons-plan)
+  - [Incident 2: AGV-3 fault and a stall, where the verifier re-plans](#incident-2-agv-3-fault-and-a-stall-where-the-verifier-re-plans)
+  - [Incident 3: overheat at F10 that is sensor noise, where nothing is dispatched](#incident-3-overheat-at-f10-that-is-sensor-noise-where-nothing-is-dispatched)
+  - [Sample inputs and outputs](#sample-inputs-and-outputs)
+  - [Sample Example - Ask the floor](#sample-example---ask-the-floor)
+  - [Sample Example - Lab: Proposed by Nemotron](#sample-example---lab-proposed-by-nemotron)
+- [Outputs: what a run returns and writes](#outputs-what-a-run-returns-and-writes)
+- [Try it in 2 minutes](#try-it-in-2-minutes)
+  - [The web UI and the judges' API check.](#-the-web-ui-and-the-judges-api-check)
+  - [What sample mode covers](#what-sample-mode-covers)
+- [Setup](#setup)
+  - [From a clean clone, without Zetaris, Nightshift or keys](#from-a-clean-clone-without-zetaris-nightshift-or-keys)
+- [Usage](#usage)
+- [Sponsor technology](#sponsor-technology)
+  - [Zetaris: the data layer](#zetaris-the-data-layer)
+  - [Meterless engines](#meterless-engines)
+  - [Meterless Nightshift and NVIDIA Nemotron](#meterless-nightshift-and-nvidia-nemotron)
+  - [Cursor](#cursor)
+  - [What is unique](#what-is-unique)
+- [Tech Stack](#tech-stack)
+- [Reliability and safety](#reliability-and-safety)
+  - [Failure handling](#failure-handling)
+  - [Autonomy levels](#autonomy-levels)
+- [Data and licensing](#data-and-licensing)
+- [In depth](#in-depth)
+- [Limitations](#limitations)
+- [Disclosure](#disclosure)
+- [Pre-existing components](#pre-existing-components)
+- [Team](#team)
+- [License](#license)
+
 ## What is Shop-Floor OS?
 
 When something goes wrong on a car assembly line (a part doesn't arrive, a robot cart breaks down, coolant spills), a supervisor has seconds to decide who to send and whether it's safe. **Shop-Floor OS helps make that decision.**
@@ -519,7 +563,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
    ```
    Reads the journal that step 4 wrote, in bounded chunks with carryover, and prints a handover note that says
    "Rule-based handover (sample mode, no model call)". Run step 4 first: a fresh clone has an empty journal.
-7. ### ⭐ **The web UI and the judges' API check.**
+7. ### **The web UI and the judges' API check.**
    **Start the server, then open http://127.0.0.1:8000 and use *Live floor*, *Incidents*, *Ask the floor* and *Lab* as in the screenshots above.**
    ```bash
    SAMPLE_MODE=true .venv/bin/python -m app.server
