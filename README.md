@@ -21,7 +21,7 @@
 
 ## Contents
 
-[What it is](#what-is-shop-floor-os) · [Problem](#the-problem-and-our-solution) · [How it works](#how-it-works) · [Results](#results-at-a-glance) · [Examples](#sample-incidents) · [Try it](#try-it-in-2-minutes) · [Usage](#usage) · [Sponsor technology](#sponsor-technology) · [Reliability](#reliability-and-safety) · [Limitations](#limitations) · [Disclosure](#disclosure) · [Team](#team)
+[What it is](#what-is-shop-floor-os) · [Problem](#the-problem-and-our-solution) · [Results](#results-at-a-glance) . [How it works](#how-it-works) · [Examples](#sample-incidents) · [Try it](#try-it-in-2-minutes) · [Usage](#usage) · [Sponsor technology](#sponsor-technology) · [Reliability](#reliability-and-safety) · [Limitations](#limitations) · [Disclosure](#disclosure) · [Team](#team)
 
 ## What is Shop-Floor OS?
 
