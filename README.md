@@ -699,6 +699,11 @@ Full write-up: [docs/sponsors/NVIDIA.md](docs/sponsors/NVIDIA.md) (model per rol
 
 Nightshift is the only model provider: every call goes through [`app/llm.py`](app/llm.py) and [`app/models.py`](app/models.py) to
 `MODEL_BASE_URL`, and the NVIDIA key stays inside Nightshift. Every model is an NVIDIA Nemotron model.
+
+**Where Nemotron does the work.** Nemotron carries the open-ended reasoning that rules cannot: *Ask the floor* (writes guarded SQL on Zetaris, investigates and cites evidence), the Lab (proposes the floor change to test), the shift handover (summarises a whole shift on Markovian), and the router and monitor (triage and next-step choice among the moves code allows). On planning, Nemotron proposes and code checks: in the recorded live run the critic caught its plan breaking the crossing-speed rule before anything moved.
+
+**Award requirement check:** every model call goes through Nightshift to an NVIDIA Nemotron model, and each call records the requested and answering model. See a real live run, with verified receipts, in [`docs/live-run/`](docs/live-run/README.md).
+
 - **One app per model.** Nightshift routes by app name, so each model is called under its own app, pinned in
   Nightshift's app policy to exactly one lane: `shopfloor-os-ultra` → Nemotron 3 Ultra 550B, `shopfloor-os` →
   Nemotron 3.5 Super VL 120B, `shopfloor-os-fast` → Nemotron 3.5 Lightning 30B. A startup self-check asks each one
@@ -871,10 +876,10 @@ The README stays short; the details live in `docs/`.
 - **Rules are a sample, not a safety case.** About a dozen rules are checked; only the OSHA clauses are real (the
   SOPs are synthetic); a rule the critic cannot check blocks automatic action instead of being ignored. Clause
   excerpts are not legal advice.
-- **Nemotron's plan seldom replaces the rules plan.** The first plan (v1) is an optimal assignment for the same
-  score the refine step compares, so Nemotron's v2 can tie it but rarely beat it on that score. Live, v2 mostly
-  picked the same team, and when it differed the critic caught a rule it broke. Nemotron's value is in routing,
-  re-planning after the critic, triage, investigation and the Lab; *Nemotron at work* shows the split.
+- **Nemotron's value is not in the first plan.** Nemotron does its work in routing, re-planning after the critic, triage, investigation and the Lab
+  (*Nemotron at work* shows the split). On planning, the first plan (v1) is an optimal assignment for the same score the refine step compares, so
+  Nemotron's v2 can tie it but rarely beat it on that score; live, v2 mostly picked the same team, and when it differed the critic caught a rule it
+  broke.
 - **Latency.** A live incident takes about 30-90 s and an investigation 1-3 min, mostly model time; the reflex is
   instant and the rules plan is ready in milliseconds. Free endpoints throttle under load, so live demos run two
   model calls per model at a time.
