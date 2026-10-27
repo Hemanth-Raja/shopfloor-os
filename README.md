@@ -22,6 +22,19 @@
 
 </div>
 
+## What is Shop-Floor OS?
+
+When something goes wrong on a car assembly line (a part doesn't arrive, a robot cart breaks down, coolant spills), a supervisor has seconds to decide who to send and whether it's safe. **Shop-Floor OS helps make that decision.**
+
+1. **It reads the factory data** from four separate systems at once (Zetaris).
+2. **AI suggests what to do** (NVIDIA Nemotron, through Meterless Nightshift).
+3. **Plain code checks every suggestion** against OSHA safety rules and tests it in a simulation before anything moves.
+4. **A person approves** anything risky.
+
+In one sentence: *the AI suggests, code checks, and a person approves the risky ones.* Everything runs on a simulated factory, so no real equipment is involved.
+
+## Contents
+
 ## Demo video
 [Watch the 3:56 demo on YouTube](https://youtu.be/YExRZBpAkTA): recorded live on Zetaris, Meterless Nightshift and NVIDIA Nemotron.
 
