@@ -12,13 +12,10 @@
 [![Nightshift](https://img.shields.io/badge/Nightshift%20receipts-6%2C215%2F6%2C215%20verified-2f6f4a)](#meterless-nightshift-and-nvidia-nemotron)
 [![License](https://img.shields.io/badge/license-Apache--2.0-555)](LICENSE)
 
-**[▶ Run it in 2 minutes](#try-it-in-2-minutes)** · **[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Slide deck](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing)** · **[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Evaluation](docs/eval.md)** ·
-**[Chaos tests](docs/chaos.md)** · **[Production review](docs/production-readiness.md)** ·
-**[Live demo runbook](docs/live-demo.md)**
+**[Project site](https://hemanth-raja.github.io/shopfloor-os/)** · **[▶ Demo video (3:56, live)](https://youtu.be/YExRZBpAkTA)** · **[Slide deck](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing)** · **[▶ Run it in 2 minutes](#try-it-in-2-minutes)** · **[Replays](https://hemanth-raja.github.io/shopfloor-os/replay.html)** · **[Production review](docs/production-readiness.md)** ·
+
 
 **For judges:** [Zetaris](docs/sponsors/ZETARIS.md) (USL, live queries, data quality rule, hand-coded comparison) · [Meterless](docs/sponsors/METERLESS.md) (3 engines, Nightshift, signed receipts) · [NVIDIA Nemotron](docs/sponsors/NVIDIA.md) (model per role, per-call evidence) · [Cursor](docs/sponsors/CURSOR.md)
-
-**Run it in one line, no keys:** `SAMPLE_MODE=true python run.py run input_examples/example_1.json`
 
 </div>
 
@@ -33,53 +30,18 @@ When something goes wrong on a car assembly line (a part doesn't arrive, a robot
 
 In one sentence: *the AI suggests, code checks, and a person approves the risky ones.* Everything runs on a simulated factory, so no real equipment is involved.
 
-## Contents
+### Who it is for:
+Shift supervisors, team leaders and maintenance planners in vehicle assembly.
 
-## Demo video
-[Watch the 3:56 demo on YouTube](https://youtu.be/YExRZBpAkTA): recorded live on Zetaris, Meterless Nightshift and NVIDIA Nemotron.
-
-[![Shop-Floor OS demo video: the safety critic rejects Nemotron's plan, recorded live](https://img.youtube.com/vi/YExRZBpAkTA/maxresdefault.jpg)](https://youtu.be/YExRZBpAkTA)
-
-Backup copy: [Google Drive](https://drive.google.com/file/d/1-isRSBLG9rpX0y3aT5ojEByiOeNniJoG/view?usp=sharing) (same video, English captions).
-
-Slide deck (PDF): [Google Drive](https://drive.google.com/file/d/1JJXHiZ3pP-_qGZy0m5hewZ2OqyfJNHsD/view?usp=sharing) · [in this repo](docs/OAH2026-Spartans-Shop-Floor-OS-deck.pdf)
-
-## See it work
-![Shop-Floor OS running in sample mode: an AGV fault with a stall is fenced, planned, checked and dispatched; the verifier sees the AGV stall and re-plans; the agent flow graph shows every hop and who chose it; Ask the floor answers "Why does F10 keep stopping?" with cited evidence from Zetaris](docs/demo.gif)
-
-<sub>Recorded from the real app in sample mode (no keys): an AGV fault with a mid-route stall is fenced, planned, checked
-and dispatched; the verifier sees the stall and re-plans; the agent flow shows every hop and who chose it; then
-*Ask the floor* answers a question with cited evidence.</sub>
+### Why it fits Track 3:
+It turns data (Zetaris), knowledge (World Model, OSHA clauses), memory (H-MEM) and
+reasoning (Nemotron) into decisions and actions that are checked, simulated, gated and verified.
 
 ## The problem and our solution
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/problem-solution-dark.png">
   <img alt="The problem: every stopped minute costs cars (one every 75 s); the facts are scattered over four systems; about a quarter of alarms are noise; acting can hurt someone. Our solution: one view of the plant through Zetaris and the World Model; agents that reason and route with three Nemotron models; code decides what is safe (OSHA critic, dry run, gate, a person approves risk); it learns and proves it (H-MEM, the Lab, signed receipts). Measured: 0 unsafe plans executed, 216 of 216 planted unsafe plans caught, false alarms 235 to 19, 15 of 15 chaos scenarios, 6 of 6 rule-breaking first plans fixed" src="docs/problem-solution.png" width="100%">
 </picture>
-
-**The problem.** When something goes wrong at a station (a kit does not arrive, an AGV stalls, coolant spills, a
-nutrunner reports a bad torque, a weld robot faults) the line stops, and some of these events put people at risk. The
-facts a supervisor needs sit in four systems, and in seconds they must decide who to send, which robot to re-route,
-whether the alarm is real, whether acting is safe under OSHA rules and the plant's SOPs, and whether to stop the line.
-
-**Our solution.** Shop-Floor OS turns that into a decision that is grounded, checked, simulated and verified. Agents read
-one federated view of the plant, Nemotron plans and routes, deterministic code decides what is safe, a person
-approves anything risky, and the system learns from every outcome.
-
-**Who it is for:** shift supervisors, team leaders and maintenance planners in vehicle assembly.
-**Why it fits Track 3:** it turns data (Zetaris), knowledge (World Model, OSHA clauses), memory (H-MEM) and
-reasoning (Nemotron) into decisions and actions that are checked, simulated, gated and verified.
-
-## Results at a glance
-| Area | Result |
-|---|---|
-| **The rule that matters** | Nemotron proposes; code decides what is safe. Every plan passes a deterministic OSHA critic, a simulated dry run and a restraint gate, and a person approves anything that sends someone into a hazard |
-| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan (3.5 Super VL as the planner) broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
-| **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
-| **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
-| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,215 of 6,215 Ed25519 receipts verify (`run.py receipts --verify`, 26 Oct 2026) |
-| **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
-| **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
 
 ## How it works
 Four agent teams share one data layer, one model gateway and one set of deterministic safety checks.
@@ -215,7 +177,56 @@ the `memory`, `candidates` and handover steps. Retries and feedback: `status: ne
 `replans` in the trace. Fallback to sample data: `SAMPLE_MODE=true`. Logs: [`logs/`](logs) and stdout. The final
 answer: the `restraint` and `gate` steps, returned as `output.decision`.
 
-## Examples: 3 incidents, 3 questions, 1 Lab run
+## Lab in the loop: test a floor change, apply it, measure it
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
+  <img alt="The loop, read clockwise: the model (Nemotron via Nightshift with H-MEM memory) proposes plans and one policy change at a time into the complex space of the assembly hall (the World Model: stations, AGVs, people, certificates, OSHA rules, 2,071 past incidents); the agents try each plan on the digital twin before acting (collisions, crossings, who arrives when); what worked goes to the Lab in the loop (20 seeded replays of real history, 95% CI, you save what works); lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans rejected with the clause and fixed (6 of 27 first plans, all 6 fixed), lessons gain or lose confidence, false dispatches 235 to 19" src="docs/loop.png">
+</picture>
+
+<sub>Read it clockwise. A model proposes, the agents try the idea on a digital twin of the hall before anything real
+moves, the Lab tests changes against history, and what was learned flows back to the model. A person sits on two
+edges: approving risky plans before the twin's result reaches the floor, and saving a Lab proposal. Source:
+[docs/loop.html](docs/loop.html).</sub>
+
+The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
+floor itself make a whole class of incidents shorter?
+
+![Two learning loops. Fast loop, every incident: the handled incident leaves an H-MEM lesson whose confidence goes up or down, and the next plan recalls it. Slow loop, Lab in the loop: incidents are logged as history in Zetaris, Nemotron proposes one change, code tests it on history with A* re-scoring and 20 seeded replays, a person saves it to sf_ops.experiments and applies it, and new incidents measure it](docs/learning-loops.png)
+
+<sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
+
+<details>
+<summary><b>How one experiment runs</b></summary>
+
+One *Run experiment* (`run.py lab`, the *Lab* tab):
+1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
+   clear, and the walking distance to the nearest spill kit or to the parts supermarket.
+2. **Proposes a change.** Nemotron (the `lab` role) reads the summary, plus the runs already tested and what an
+   applied change measured, and proposes one testable change: a spill kit at a station, or a loaded AGV waiting at
+   one. With Nemotron down, a rule picks the busiest station, and the page says so in red.
+3. **Re-scores history.** Every real incident of that kind is re-walked with A* on the floor grid, with and without
+   the change; only the travel part of its clear time changes.
+4. **Replays and measures.** 20 seeded replays and 2,000 bootstrap resamples give the change in mean time to
+   clear with a 95% interval. No model runs inside the replays, so the same run gives the same answer.
+5. **Apply and measure.** A significant result can be saved to Zetaris (`sf_ops.experiments`) and applied to the
+   floor: the map shows it, and every later incident of that kind is measured with and without it
+   ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
+
+</details>
+
+## Results at a glance
+| Area | Result |
+|---|---|
+| **The rule that matters** | Nemotron proposes; code decides what is safe. Every plan passes a deterministic OSHA critic, a simulated dry run and a restraint gate, and a person approves anything that sends someone into a hazard |
+| **Safety, measured** | 0 unsafe plans executed. The critic caught 216 of 216 planted unsafe plans and wrongly rejected 0 of 54 safe ones; live, Nemotron's first plan (3.5 Super VL as the planner) broke a rule in 6 of 27 calls and fixed all 6 after the critic's feedback ([docs/eval.md](docs/eval.md)) |
+| **Fewer false dispatches** | The Monitor sent 19 false alarms to the floor where a plain threshold alarm sends 235 (600 noisy alarms, Brier 0.096 vs 0.392) |
+| **Failure-tested** | 15 chaos scenarios (a model down, Nightshift down, 60% of calls failing, broken JSON, a different model answering, Zetaris down…) plus a 19-incident shift on flaky models: every one ends in a decision, nothing unsafe runs ([docs/chaos.md](docs/chaos.md)) |
+| **Every model call, signed** | Three NVIDIA Nemotron models, each pinned to its own Nightshift app; every call records the requested and the answering model, and 6,215 of 6,215 Ed25519 receipts verify (`run.py receipts --verify`, 26 Oct 2026) |
+| **Data** | Four sources federated by Zetaris and modelled as one Unified Semantic Layer; the agents read it on their own read-only login, so a write from an agent is refused by Zetaris itself |
+| **Runs without us** | `SAMPLE_MODE=true` runs the real agent loop offline, with no keys, Zetaris or Nightshift |
+
+
+## Sample Incidents:
 Screenshots from the real web UI in sample mode (`SAMPLE_MODE=true python -m app.server`, no keys), taken on
 26 Oct 2026. Each incident graph is the route the orchestrator took: numbered arrows in the order taken, and
 arrows going back where work was returned. The hop tables come from `output.path` in the JSON output. The UI
@@ -315,28 +326,15 @@ Examples 1 to 3 are shown above with their screenshots. The other five, each a d
 | [`input_examples/example_7.json`](input_examples/example_7.json): pedestrian near miss at F30 | The AGV involved is held where it stopped; a supervisor with incident command secures the scene. A safety event, so a person signs off | [`output_examples/example_7.json`](output_examples/example_7.json) |
 | [`input_examples/example_8.json`](input_examples/example_8.json): quality defect at end-of-line | A quality inspector contains the affected units (SOP-QUAL-01). Routine, auto-executed | [`output_examples/example_8.json`](output_examples/example_8.json) |
 
-### Ask the floor: three questions
+### Sample Example - Ask the floor
 How it works (code: [`app/investigate/`](app/investigate)). A question is handled by a team of agents; nothing on the
 floor moves.
 
-```mermaid
-flowchart TB
-  Q(["Question"]) --> IN["Intake: rules"]
-  IN -->|"a write: refused"| REF(["Refused"])
-  IN -->|"a question"| CO["Coordinator: Nemotron splits it into sub-tasks"]
-  CO -->|"plant data"| SQL["SQL agent: Nemotron writes Spark SQL from the table catalogue"]
-  CO -->|"the agents' own history"| LOGA["Log agent: traces, model calls, H-MEM lessons"]
-  CO -->|"stations and AGVs named"| FL["Floor facts: World Model"]
-  SQL --> GRD["SQL guard: one read-only SELECT, sf_* tables, LIMIT"]
-  GRD -->|"refused or Zetaris error: the reason goes back, 1 retry"| SQL
-  GRD -->|"allowed"| ZT[("Zetaris: sf_fleet, sf_hr, sf_plant, sf_ops")]
-  ZT -->|"rows, as evidence E1, E2..."| AN["Analyst: Nemotron writes findings citing evidence ids"]
-  LOGA --> AN
-  FL --> AN
-  AN --> EC["Evidence critic: rules, then a second Nemotron model"]
-  EC -->|"claim not backed by the cited rows"| DROP(["Struck out, shown with the reason"])
-  EC -->|"backed claims"| ANS(["Answer with citations and the SQL behind it"])
-```
+| | |
+|---|---|
+| ![Ask the floor answer: F10 keeps stopping mainly because of part shortages and nutrunner torque faults, with five cited findings](docs/screenshots/13-ask-f10.png) | **"Why does F10 keep stopping?"** The coordinator splits the question into three SQL tasks over `sf_ops.incidents` (27 rows), `sf_ops.andon_events` (17) and `sf_plant.machine_telemetry` (47); the log agent adds the agents' own history and the World Model adds floor facts. Five findings, each citing its evidence; the critic drops none. Answer: part shortages and nutrunner torque faults. |
+| ![Ask the floor answer: AGV-3 is the least reliable AGV](docs/screenshots/14-ask-agv.png) | **"Which AGV is least reliable and when?"** Four SQL tasks (three on `sf_fleet`, one on `sf_ops.incidents`) plus logs and floor facts. AGV-3 has 84 faults in 90 days against 25 for the next AGV, the lowest battery health (62%) and overdue service. Recommendation: pull AGV-3 for service. |
+| ![Ask the floor answer: most overheat alarms lack telemetry confirmation; one claim struck through by the evidence critic](docs/screenshots/15-ask-overheat.png) | **"Are overheat alarms real?"** Four SQL tasks across `sf_ops.incidents` and `sf_plant.machine_telemetry`, one joining both. The analyst wrote five claims; **the evidence critic dropped one** ("26 false alarms") because the cited rows show 74. Answer: only 4 of 100 overheat incidents match a telemetry heat failure. |
 
 Agents called for *"Are overheat alarms real?"* (from its trace):
 
@@ -349,16 +347,7 @@ Agents called for *"Are overheat alarms real?"* (from its trace):
 | analyst | wrote 5 findings, each citing its evidence | Nemotron 3.5 Lightning |
 | evidence critic | kept 4, struck out 1 ("26 false alarms": the rows show 74) | rules, then Nemotron 3.5 Lightning |
 
-| | |
-|---|---|
-| ![Ask the floor answer: F10 keeps stopping mainly because of part shortages and nutrunner torque faults, with five cited findings](docs/screenshots/13-ask-f10.png) | **"Why does F10 keep stopping?"** The coordinator splits the question into three SQL tasks over `sf_ops.incidents` (27 rows), `sf_ops.andon_events` (17) and `sf_plant.machine_telemetry` (47); the log agent adds the agents' own history and the World Model adds floor facts. Five findings, each citing its evidence; the critic drops none. Answer: part shortages and nutrunner torque faults. |
-| ![Ask the floor answer: AGV-3 is the least reliable AGV](docs/screenshots/14-ask-agv.png) | **"Which AGV is least reliable and when?"** Four SQL tasks (three on `sf_fleet`, one on `sf_ops.incidents`) plus logs and floor facts. AGV-3 has 84 faults in 90 days against 25 for the next AGV, the lowest battery health (62%) and overdue service. Recommendation: pull AGV-3 for service. |
-| ![Ask the floor answer: most overheat alarms lack telemetry confirmation; one claim struck through by the evidence critic](docs/screenshots/15-ask-overheat.png) | **"Are overheat alarms real?"** Four SQL tasks across `sf_ops.incidents` and `sf_plant.machine_telemetry`, one joining both. The analyst wrote five claims; **the evidence critic dropped one** ("26 false alarms") because the cited rows show 74. Answer: only 4 of 100 overheat incidents match a telemetry heat failure. |
-
-In sample mode these three questions replay recorded Nemotron replies (the buttons in the UI). Other questions
-get a rule-based summary, not a real answer (see [What sample mode covers](#what-sample-mode-covers)).
-
-### Lab: one experiment, proposed by Nemotron
+### Sample Example - Lab: Proposed by Nemotron
 ![Lab run: Nemotron 3 Ultra proposes staging a loaded kitting AGV at T10; 821 past part shortages re-scored; mean time to clear 807 s to 799.8 s; effect -0.9% with 95% CI -1.1% to -0.7%; status proposed](docs/screenshots/16-lab-run.png)
 
 **What happened.** Nemotron 3 Ultra 550B read the per-station history of spills and part shortages and proposed one
@@ -371,19 +360,6 @@ on 26 Oct 2026 (Ultra answered in 2.9 s), and sample mode replays that reply, so
 
 An earlier live run, shown in the slide deck, proposed a loaded kitting AGV at F10: -7.2% time to clear (95% CI -8.0% to -6.4%). Nemotron's proposal differs between runs; the Lab tests each one on history before anyone applies it.
 
-How it works (code: [`app/lab/`](app/lab)):
-
-```mermaid
-flowchart TB
-  ZT[("Zetaris: incident history")] -->|"per-station summary"| HYP["Hypothesis: Nemotron proposes one floor change"]
-  HYP -->|"Nemotron down: a fixed rule picks, and the page says so"| HYP
-  HYP --> RS["Re-score every past incident: A* walks with and without the change"]
-  RS --> REP["20 seeded replays and a bootstrap 95% CI: no model"]
-  REP -->|"significant"| PER(["A person saves it to Zetaris and applies it"])
-  REP -->|"not significant: the next run is told what was tried"| HYP
-  PER --> MEAS["Later incidents of that kind measured: predicted vs measured"]
-  MEAS -->|"the measured result goes into the next hypothesis"| HYP
-```
 
 | Step | Agent | What it did in this run | Model |
 |---|---|---|---|
@@ -746,44 +722,7 @@ client ([`app/llm.py`](app/llm.py)) and its tests; Claude Code was also used (se
 - **Zetaris is also the agents' memory of themselves.** Their own steps, model calls and journal are federated
   next to the plant data, so "how often did the critic reject the planner, and why?" is one SQL query.
 
-## Lab in the loop: test a floor change, apply it, measure it
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
-  <img alt="The loop, read clockwise: the model (Nemotron via Nightshift with H-MEM memory) proposes plans and one policy change at a time into the complex space of the assembly hall (the World Model: stations, AGVs, people, certificates, OSHA rules, 2,071 past incidents); the agents try each plan on the digital twin before acting (collisions, crossings, who arrives when); what worked goes to the Lab in the loop (20 seeded replays of real history, 95% CI, you save what works); lessons and test results flow back to the model. In the middle, a self-improving search: unsafe plans rejected with the clause and fixed (6 of 27 first plans, all 6 fixed), lessons gain or lose confidence, false dispatches 235 to 19" src="docs/loop.png">
-</picture>
-
-<sub>Read it clockwise. A model proposes, the agents try the idea on a digital twin of the hall before anything real
-moves, the Lab tests changes against history, and what was learned flows back to the model. A person sits on two
-edges: approving risky plans before the twin's result reaches the floor, and saving a Lab proposal. Source:
-[docs/loop.html](docs/loop.html).</sub>
-
-The incident loop learns from each incident (H-MEM lessons). The Lab asks a slower question: would changing the
-floor itself make a whole class of incidents shorter?
-
-![Two learning loops. Fast loop, every incident: the handled incident leaves an H-MEM lesson whose confidence goes up or down, and the next plan recalls it. Slow loop, Lab in the loop: incidents are logged as history in Zetaris, Nemotron proposes one change, code tests it on history with A* re-scoring and 20 seeded replays, a person saves it to sf_ops.experiments and applies it, and new incidents measure it](docs/learning-loops.png)
-
-<sub>Source: [docs/learning-loops.html](docs/learning-loops.html).</sub>
-
-<details>
-<summary><b>How one experiment runs</b></summary>
-
-One *Run experiment* (`run.py lab`, the *Lab* tab):
-1. **Reads history.** One Zetaris query summarises past spills and part shortages per station: count, mean time to
-   clear, and the walking distance to the nearest spill kit or to the parts supermarket.
-2. **Proposes a change.** Nemotron (the `lab` role) reads the summary, plus the runs already tested and what an
-   applied change measured, and proposes one testable change: a spill kit at a station, or a loaded AGV waiting at
-   one. With Nemotron down, a rule picks the busiest station, and the page says so in red.
-3. **Re-scores history.** Every real incident of that kind is re-walked with A* on the floor grid, with and without
-   the change; only the travel part of its clear time changes.
-4. **Replays and measures.** 20 seeded replays and 2,000 bootstrap resamples give the change in mean time to
-   clear with a 95% interval. No model runs inside the replays, so the same run gives the same answer.
-5. **Apply and measure.** A significant result can be saved to Zetaris (`sf_ops.experiments`) and applied to the
-   floor: the map shows it, and every later incident of that kind is measured with and without it
-   ([`app/lab/loop.py`](app/lab/loop.py)), predicted saving next to measured. *Remove the change* takes it off; both survive a restart.
-
-</details>
-
-## Built with
+## Tech Stack
 | Component | Technology |
 |---|---|
 | Language | Python 3.11+, mostly the standard library |
@@ -812,14 +751,6 @@ One *Run experiment* (`run.py lab`, the *Lab* tab):
 </details>
 
 ## Reliability and safety
-### Sample mode
-`SAMPLE_MODE=true` (or `"options": {"sample_mode": true}` in a request) runs the whole system with no keys, Zetaris
-or Nightshift: the offline plant and an SQLite copy of the four sources are built from [`data/seed/`](data/seed),
-recorded Nemotron replies ([`logs/fixtures/`](logs/fixtures)) are used where one exists for that exact input, and a
-deterministic rule-based planner stands in otherwise. The agents still run for real: reflex, monitor, candidates,
-critic, dry run, restraint, gate, executor and verifier all compute their results, so a new input gives a new
-answer. No final answer is stored or read from [`output_examples/`](output_examples). Tested from a fresh clone with
-an empty `.env`, and in the Docker image.
 
 ### Failure handling
 | Failure | Behaviour |
