@@ -258,14 +258,14 @@ crossings) is ready at once. Nemotron's recorded plan (v2) sends AGV-5 through t
 safety critic rejects v2 under 29 CFR 1910.178(n)(4), refine keeps v1, the routine plan runs on its own, and the
 verifier sees the floor move as predicted. **ACT, auto-executed.**
 
-| Hop | Agent | Chosen by | Work sent back? |
-|---|---|---|---|
-| 0 | reflex | code (always first) | |
-| 1 | monitor | forced (only legal move) | |
-| 2–3 | candidates, planner | rules router | |
-| 4–5 | critic, dry run (on v1) | forced | v1 passes both |
-| 6 | refine | forced | **yes: the critic rejects Nemotron's v2 (R-CROSSING); v2 is dropped, v1 kept** |
-| 7–10 | restraint, gate, executor, verifier | forced | |
+| Hop | Agent | Model | Chosen by | Work sent back? |
+|---|---|---|---|---|
+| 0 | reflex | none (rules) | code (always first) | |
+| 1 | monitor | Nemotron 3.5 Lightning | forced (only legal move) | |
+| 2–3 | candidates, planner | none (candidates), Nemotron 3.5 Super VL / rules (planner) | rules router | |
+| 4–5 | critic, dry run (on v1) | none (rules & sim) | forced | v1 passes both |
+| 6 | refine | none (rules) | forced | **yes: the critic rejects Nemotron's v2 (R-CROSSING); v2 is dropped, v1 kept** |
+| 7–10 | restraint, gate, executor, verifier | none (rules & sim) | forced | |
 
 **Output: what changed on the floor.**
 ![The floor after the part shortage: worker W-18 at F30 and AGV-5 on its way, both ringed as dispatched; the decision panel shows ACT, 1 critic rejection, auto-executed](docs/screenshots/20-floor-after-part-shortage.png)
@@ -285,14 +285,14 @@ Input: [`input_examples/example_1.json`](input_examples/example_1.json) · Outpu
 sees AGV-1 five cells short of where it should be and sends the work back to candidates without AGV-1. The second
 round sends AGV-2 and the verifier confirms it. **ACT, 1 re-plan.**
 
-| Hop | Agent | Chosen by | Work sent back? |
-|---|---|---|---|
-| 0–1 | reflex, monitor | code, forced | |
-| 2–3 | candidates, planner | rules router | |
-| 4–9 | critic, dry run, refine, restraint, gate, executor | forced | |
-| 10 | verifier | forced | **yes: AGV-1 stalled; back to candidates without it** |
-| 11–12 | candidates, planner | rules router ("re-pick people and robots without the ones that failed") | |
-| 13–19 | critic, dry run, refine, restraint, gate, executor, verifier | forced | |
+| Hop | Agent | Model | Chosen by | Work sent back? |
+|---|---|---|---|---|
+| 0–1 | reflex, monitor | none (reflex), Nemotron 3.5 Lightning (monitor) | code, forced | |
+| 2–3 | candidates, planner | none (candidates), Nemotron 3.5 Super VL / rules (planner) | rules router | |
+| 4–9 | critic, dry run, refine, restraint, gate, executor | none (rules & sim) | forced | |
+| 10 | verifier | none (sim check) | forced | **yes: AGV-1 stalled; back to candidates without it** |
+| 11–12 | candidates, planner | none (candidates), Nemotron 3.5 Super VL / rules (planner) | rules router ("re-pick people and robots without the ones that failed") | |
+| 13–19 | critic, dry run, refine, restraint, gate, executor, verifier | none (rules & sim) | forced | |
 
 **Output: what changed on the floor.**
 ![The floor after the AGV fault: AGV-3 faulted and fenced at F30, AGV-1 stalled and marked red, AGV-2 dispatched in its place with W-18 at F30](docs/screenshots/21-floor-after-agv-stall.png)
@@ -312,14 +312,14 @@ Input: [`input_examples/example_2.json`](input_examples/example_2.json) · Outpu
 sensors disagree. The router sends the incident to the investigator (history first), then to *check first*: one
 qualified person inspects. No planner and no model call. **VERIFY; the line keeps running and a person confirms.**
 
-| Hop | Agent | Chosen by | Work sent back? |
-|---|---|---|---|
-| 0–1 | reflex, monitor | code, forced | |
-| 2 | investigator | rules router ("the alarm is ambiguous: look at the history before planning") | |
-| 3 | candidates | forced | |
-| 4 | check first (`verify_plan`) | rules router ("sensors disagree: one person checks first, no planner needed") | |
-| 5–7 | critic, dry run, restraint | forced | |
-| 8 | gate | forced | **waits for a person** |
+| Hop | Agent | Model | Chosen by | Work sent back? |
+|---|---|---|---|---|
+| 0–1 | reflex, monitor | none (reflex), rule-based (monitor) | code, forced | |
+| 2 | investigator | none (Zetaris SQL) | rules router ("the alarm is ambiguous: look at the history before planning") | |
+| 3 | candidates | none (World Model) | forced | |
+| 4 | check first (`verify_plan`) | none (rules, 0 model calls) | rules router ("sensors disagree: one person checks first, no planner needed") | |
+| 5–7 | critic, dry run, restraint | none (rules & sim) | forced | |
+| 8 | gate | none (human approval) | forced | **waits for a person** |
 
 **Output: what changed on the floor.**
 ![The floor after the overheat alarm: a small fence at F10, no AGV moved, the decision panel shows VERIFY waiting for approval for one technician to inspect](docs/screenshots/22-floor-after-overheat.png)
