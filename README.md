@@ -19,6 +19,15 @@
 
 </div>
 
+## Hackathon result
+
+Shop-Floor OS was built by Team Spartans for the [GenAI.works](https://genai.works) Open Agent Hackathon 2026, Track 03: Reasoning Architecture.
+
+| Round | Result |
+|---|---|
+| Round 1 (screening) | **#1 of 547** submissions overall, and #1 of 100 in Track 03 (88.5 / 100) |
+| Final | **9th**, 2.7 points behind the winner (83.0 vs 85.7), with the **highest Technical score** in the final (19.3 / 20) |
+
 ## Contents
 
 [What it is](#what-is-shop-floor-os) · [Problem](#the-problem-and-our-solution) · [Results](#results-at-a-glance) . [How it works](#how-it-works) · [Examples](#sample-incidents) · [Try it](#try-it-in-2-minutes) · [Usage](#usage) · [Sponsor technology](#sponsor-technology) · [Reliability](#reliability-and-safety) · [Limitations](#limitations) · [Disclosure](#disclosure) · [Team](#team)
